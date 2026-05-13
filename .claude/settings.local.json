@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(curl -s https://api.github.com/repos/phuryn/pm-skills/contents/)",
+      "Bash(python -c \"import sys,json; [print\\(f['name'], f['type']\\) for f in json.load\\(sys.stdin\\)]\")",
+      "Bash(curl -s https://api.github.com/repos/phuryn/pm-skills/contents/.claude-plugin)",
+      "Bash(curl -s https://raw.githubusercontent.com/phuryn/pm-skills/main/.claude-plugin/marketplace.json)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Mogzu Figma Cursor\\\\MogzuApplication\\\\src\\\\app\\\\components\\\\global\" -Depth 0 | Where-Object { $_.Extension -eq \".tsx\" } | Select-Object -ExpandProperty FullName)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Mogzu Figma Cursor\\\\MogzuApplication\\\\src\\\\app\\\\components\\\\admin\" -Depth 0 | Where-Object { $_.Extension -eq \".tsx\" } | Select-Object -ExpandProperty Name)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Mogzu Figma Cursor\\\\MogzuApplication\\\\src\\\\app\\\\pages\\\\admin\" -Depth 0 | Where-Object { $_.Extension -eq \".tsx\" } | Select-Object -ExpandProperty Name)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Mogzu Figma Cursor\\\\MogzuApplication\\\\src\\\\app\\\\lib\" -Depth 0 | Where-Object { $_.Extension -eq \".ts\" } | Select-Object -ExpandProperty Name)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Mogzu Figma Cursor\\\\MogzuApplication\\\\src\\\\app\\\\components\\\\layouts\" -Depth 0 | Where-Object { $_.Extension -eq \".tsx\" } | Select-Object -ExpandProperty FullName)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Mogzu Figma Cursor\\\\MogzuApplication\\\\src\\\\app\\\\components\\\\ui\" -Depth 0 | Where-Object { $_.Extension -eq \".tsx\" } | Select-Object -ExpandProperty Name | Select-Object -First 20)"
+    ]
+  }
+}

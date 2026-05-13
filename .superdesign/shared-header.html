@@ -1,0 +1,20 @@
+<header class="w-full shrink-0 bg-white h-14 border-b border-gray-200 flex items-center gap-2 px-4 lg:px-6">
+  <button v-if="showMobileMenu" class="lg:hidden p-2 hover:bg-gray-100 rounded-lg" aria-label="Open menu">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M3 12h18M3 6h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  </button>
+  <a :href="homeHref" class="flex items-center rounded-lg"><img src="/branding/mogzu-mark-m.png" alt="Mogzu" class="h-8 w-auto max-w-[48px]"/></a>
+  <div class="flex-1 min-w-0 flex justify-center px-2">
+    <div class="w-full max-w-md hidden md:block">
+      <input type="text" :placeholder="searchPlaceholder" class="w-full h-9 pl-3 pr-4 text-sm bg-[#f6f6f8] border border-[#ececec] rounded-lg"/>
+    </div>
+  </div>
+  <div class="flex items-center gap-3 ml-auto">
+    <div class="flex items-center gap-2 p-1 pr-3 rounded-full border border-blue-100 bg-white">
+      <div class="w-7 h-7 rounded-full bg-blue-50 flex items-center justify-center text-blue-700">U</div>
+      <div class="flex flex-col items-start">
+        <span class="text-[13px] font-semibold text-[#0e1e3f]">James Brown</span>
+        <span class="text-[10px] font-medium text-gray-500 uppercase">Corporate Admin</span>
+      </div>
+    </div>
+  </div>
+</header>

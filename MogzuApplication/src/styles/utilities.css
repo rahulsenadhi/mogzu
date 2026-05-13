@@ -1,0 +1,301 @@
+/* Utility classes for consistent spacing and layout alignment */
+
+/* Page Container - ensures consistent max-width and centering */
+.page-container {
+  width: 100%;
+  max-width: 1920px;
+  margin: 0 auto;
+}
+
+/* Content Container - for main content areas */
+.content-container {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+/* Section Spacing */
+.section-spacing {
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+}
+
+.section-spacing-lg {
+  padding-top: 3rem;
+  padding-bottom: 3rem;
+}
+
+/* Card Consistency */
+.card-base {
+  background-color: white;
+  border-radius: 0.75rem;
+  border: 1px solid #e5e7eb;
+  padding: 1.5rem;
+}
+
+.card-hover {
+  transition: all 0.2s ease-in-out;
+}
+
+.card-hover:hover {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  border-color: #d1d5db;
+}
+
+/* Typography Consistency */
+.page-title {
+  font-size: 2.25rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: #111827;
+  margin-bottom: 0.5rem;
+}
+
+.page-subtitle {
+  font-size: 1rem;
+  line-height: 1.5;
+  color: #6b7280;
+  margin-bottom: 2rem;
+}
+
+.section-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #111827;
+  margin-bottom: 1rem;
+}
+
+.section-subtitle {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: #6b7280;
+}
+
+/* Grid Layouts - consistent across all pages */
+.grid-2-cols {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+
+.grid-3-cols {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+
+.grid-4-cols {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+
+@media (min-width: 640px) {
+  .grid-2-cols {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 768px) {
+  .grid-3-cols {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .grid-2-cols {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  
+  .grid-3-cols {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  
+  .grid-4-cols {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Consistent Header Heights */
+.header-height {
+  height: 4rem;
+  min-height: 4rem;
+}
+
+.sidebar-width {
+  width: 14rem;
+}
+
+.sidebar-width-collapsed {
+  width: 4rem;
+}
+
+/* Consistent spacing between elements */
+.element-spacing {
+  margin-bottom: 1.5rem;
+}
+
+.element-spacing-sm {
+  margin-bottom: 1rem;
+}
+
+.element-spacing-lg {
+  margin-bottom: 2rem;
+}
+
+/* Consistent button sizing */
+.btn-base {
+  padding: 0.625rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.5;
+  border-radius: 0.5rem;
+  transition: all 0.15s ease-in-out;
+}
+
+.btn-sm {
+  padding: 0.5rem 1rem;
+  font-size: 0.8125rem;
+}
+
+.btn-lg {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+}
+
+/* Consistent input sizing */
+.input-base {
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  border-radius: 0.5rem;
+  border: 1px solid #d1d5db;
+  background-color: white;
+  transition: all 0.15s ease-in-out;
+}
+
+.input-base:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Sidebar Navigation Consistency */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.15s ease-in-out;
+  cursor: pointer;
+}
+
+.nav-item:hover {
+  background-color: #f3f4f6;
+}
+
+.nav-item.active {
+  background-color: #dbeafe;
+  color: #2563eb;
+}
+
+/* Product/Service Card Consistency */
+.product-card {
+  background-color: white;
+  border-radius: 0.75rem;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+  transition: all 0.2s ease-in-out;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.product-card:hover {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  border-color: #d1d5db;
+  transform: translateY(-2px);
+}
+
+.product-card-image {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.product-card-content {
+  padding: 1rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Filter Section Consistency */
+.filter-section {
+  background-color: white;
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  border: 1px solid #e5e7eb;
+}
+
+.filter-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 0.75rem;
+}
+
+/* Responsive utilities */
+@media (max-width: 1024px) {
+  .content-container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .page-title {
+    font-size: 1.875rem;
+  }
+  
+  .content-container {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+  
+  .section-spacing {
+    padding-top: 1.5rem;
+    padding-bottom: 1.5rem;
+  }
+}
+
+/* Browser-specific fixes */
+@supports (-webkit-appearance: none) {
+  /* Safari-specific fixes */
+  input[type="search"]::-webkit-search-decoration,
+  input[type="search"]::-webkit-search-cancel-button,
+  input[type="search"]::-webkit-search-results-button,
+  input[type="search"]::-webkit-search-results-decoration {
+    -webkit-appearance: none;
+  }
+}
+
+/* Firefox-specific fixes */
+@-moz-document url-prefix() {
+  .card-base, .product-card, .filter-section {
+    background-clip: padding-box;
+  }
+}
+
+/* Edge-specific fixes */
+@supports (-ms-ime-align: auto) {
+  .grid-2-cols, .grid-3-cols, .grid-4-cols {
+    display: -ms-grid;
+  }
+}

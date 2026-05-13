@@ -1,0 +1,219 @@
+Vendor screens vs corporate
+- VendorAdCampaignPage.tsx
+  - typography_diff: None
+  - spacing_diff: marker:text-slate-400, max-w-[22px], pl-1, pt-0, px-7, space-y-[3px]
+  - colour_diff: bg-[#F3F5FB], bg-current
+  - component_style_diff: h-4.5, h-[1.5px], w-4.5
+  - hardcoded_hex: #2563EB, #F3F5FB
+- VendorAddProductPage.tsx
+  - typography_diff: None
+  - spacing_diff: max-w-[1300px], max-w-[22px], min-w-[760px], mr-auto, pb-28, px-7, space-y-[3px]
+  - colour_diff: bg-[#F3F5FB], bg-current
+  - component_style_diff: h-4.5, h-[1.5px], w-4.5
+  - hardcoded_hex: #1f55c8, #2563EB, #F3F5FB
+- VendorBenefitsPage.tsx
+  - typography_diff: text-7xl, text-foreground, text-rose-600, text-white/20
+  - spacing_diff: gap-0, md:text-2xl, md:text-9xl, md:text-lg, md:text-xl, pt-32, right-[25%], top-[60%]
+  - colour_diff: bg-background/95, bg-card, bg-rose-500, bg-slate-900, bg-stone-50, bg-violet-500, bg-violet-600, bg-yellow-400, border-gray-900, border-rose-600
+  - component_style_diff: h-auto
+  - hardcoded_hex: #FFD100
+- VendorCalendarPage.tsx
+  - typography_diff: None
+  - spacing_diff: gap-0, left-1, max-h-[680px], max-w-[22px]
+  - colour_diff: bg-[#F3F5FB], bg-black/30
+  - component_style_diff: None
+  - hardcoded_hex: #0F766E, #1240909, #1240910, #1D4ED8, #2563EB, #92400E, #BBF7D0, #BFDBFE, #DCFCE7, #DDEBFF, #EFF6FF, #F3F5FB, #FDE68A, #FEF3C7
+- VendorCommunicationPage.tsx
+  - typography_diff: text-[#2563EB]'
+  - spacing_diff: left-2.5, m.sender, max-h-[420px], max-h-[92vh], max-h-full, max-w-[110px], max-w-[85%], max-w-[90%], min-h-[420px], pickerCategory, pill, pr-20
+  - colour_diff: bg-[#2563EB]/10, bg-[#2563EB]/5, bg-[#F0F2FA], bg-slate-50/80, bg-white', border-[#2563EB], ring-[#2563EB]/20'
+  - component_style_diff: h-36, h-44, rounded-br-md, w-11, w-44
+  - hardcoded_hex: #2563EB, #F0F2FA, #F4F6FB
+- VendorDashboardPage.tsx
+  - typography_diff: leading-[1.2], text-[#2563EB]', text-[12.5px], text-[36px]
+  - spacing_diff: max-w-[230px], min-w-[680px], min-w-[780px], space-y-[3px]
+  - colour_diff: bg-[#F3F5FB], bg-[#F5F7FD], bg-current, border-[#2563EB]
+  - component_style_diff: h-4.5, h-44, h-56, h-[1.5px], w-4.5, w-44
+  - hardcoded_hex: #0e1e3f, #22D3EE, #2563EB, #4A8DFF, #94A3B8, #ECFDF5, #ECFEFF, #EEF2FF, #F3F5FB, #F3FAFF, #F5F7FD, #F7C948, #F7FFF9, #F8FAFF, #FDF2F8, #FF8A3D, #FFD100, #FFF7ED, #FFF8FB, #FFFBF5
+- VendorOnboardingPage.tsx
+  - typography_diff: text-slate-500'}
+  - spacing_diff: pb-12, pt-0
+  - colour_diff: bg-[#FFD100]/30, bg-[#FFFDF9]/50, border-current, shadow-[2px_2px_0_0_#111827], shadow-[2px_2px_0_0_#111827]', shadow-[4px_4px_0_0_#111827]'
+  - component_style_diff: None
+  - hardcoded_hex: #0e1e3f, #111827, #11B586, #15D39D, #FFD100, #FFFDF9
+- VendorOrderDetailsPage.tsx
+  - typography_diff: text-[#25344F], text-[#3264CB], text-[30px], text-[34px], text-[36px], text-[38px], text-[39px], text-[42px], text-[44px], text-[50px], text-rose-600, text-slate-400'
+  - spacing_diff: gap-9, min-w-[640px], min-w-[760px], placeholder:text-slate-400, py-9
+  - colour_diff: bg-[#3264CB], bg-[#F3F6FC], bg-rose-600, bg-slate-900/50, border-slate-700, shadow-[0_6px_18px_rgba(50,100,203,0.45)]
+  - component_style_diff: h-[62px], rounded-[10px], rounded-[22px], rounded-b-[10px], w-11
+  - hardcoded_hex: #0e1e3f, #1f55c8, #25344F, #2563EB, #3264CB, #F3F6FC
+- VendorOrdersPage.tsx
+  - typography_diff: text-[#2563EB]', text-amber-700', text-emerald-700', text-rose-700'
+  - spacing_diff: min-w-[1000px]
+  - colour_diff: bg-[#F3F6FC], bg-rose-500, border-[#2563EB]
+  - component_style_diff: None
+  - hardcoded_hex: #2563EB, #F3F6FC
+- VendorPassportPage.tsx
+  - typography_diff: None
+  - spacing_diff: None
+  - colour_diff: bg-blue-500/80, bg-white/20
+  - component_style_diff: None
+  - hardcoded_hex: #f9fafb
+- VendorProductManagementPage.tsx
+  - typography_diff: text-[#1F2A44], text-[#2563EB]', text-[#3BAA5C]', text-[#D35454]', text-[31px]
+  - spacing_diff: max-w-[190px], max-w-[22px], max-w-[260px], min-w-[760px], min-w-[900px], min-w-[980px], space-y-[3px]
+  - colour_diff: bg-[#F3F5FB], bg-current, bg-slate-50/70, border-[#2563EB], border-slate-600
+  - component_style_diff: h-4.5, h-[1.5px], w-11, w-4.5
+  - hardcoded_hex: #1F2A44, #1f55c8, #2563EB, #3BAA5C, #D35454, #DDF8E7, #F3F5FB, #FCE4E4
+- VendorPromotionOfferPage.tsx
+  - typography_diff: text-blue-100, text-blue-50
+  - spacing_diff: max-w-[22px], min-h-[140px], space-y-[3px]
+  - colour_diff: bg-[#F3F5FB], bg-current, border-0
+  - component_style_diff: h-36, h-4.5, h-[1.5px], w-4.5
+  - hardcoded_hex: #2563EB, #F3F5FB
+- VendorPromotionsPage.tsx
+  - typography_diff: font-mono, text-amber-800', text-emerald-700'
+  - spacing_diff: mainTab, max-w-[22px], space-y-[3px], top-0.5
+  - colour_diff: bg-[#F3F5FB], bg-black/40, bg-current
+  - component_style_diff: h-4.5, h-[1.5px], w-4.5
+  - hardcoded_hex: #2563EB, #F3F5FB
+- VendorRegisterEntryPage.tsx
+  - typography_diff: None
+  - spacing_diff: None
+  - colour_diff: None
+  - component_style_diff: None
+  - hardcoded_hex: None
+- VendorRegistrationCompletePage.tsx
+  - typography_diff: None
+  - spacing_diff: None
+  - colour_diff: bg-[#F4F7FE]
+  - component_style_diff: None
+  - hardcoded_hex: #0e1e3f, #1E4FCC, #2563EB, #F4F7FE
+- VendorReviewsPage.tsx
+  - typography_diff: text-[#E5E7EB]'}, text-[#F59E0B]'
+  - spacing_diff: max-w-[22px], min-w-[180px], space-y-[3px]
+  - colour_diff: bg-[#F3F5FB], bg-[#F59E0B], bg-current, border-[#2563EB], border-l, from-[#F5FAFF]
+  - component_style_diff: h-[1.5px]
+  - hardcoded_hex: #2563EB, #2563eb, #E5E7EB, #F3F5FB, #F59E0B, #F5FAFF, #ebf1ff
+- VendorSignUpForm.tsx
+  - typography_diff: text-[#0E1E3F]
+  - spacing_diff: max-w-[591px], max-w-[950px], md:gap-[100px], md:p-8, md:text-[20px], md:text-[22px], md:w-[295px], md:w-[296px], min-w-[130px], mt-14, pl-1, pt-[400px], pt-[450px]
+  - colour_diff: bg-[#fbfbfb], border-[#969696], border-[#CBD5E1], shadow-[0px_4px_6.1px_0px_rgba(0,0,0,0.12),_inset_-3px_4px_4.9px_0px_rgba(255,255,255,0.39)]
+  - component_style_diff: h-[139px], h-[150px], h-[295px], h-[41px], h-[67px], w-[180px], w-[41px], w-[67px]
+  - hardcoded_hex: #0E1E3F, #0e1e3f, #1d4ed8, #2563eb, #475569, #666c89, #878e9e, #969696, #CBD5E1, #c8c8c8, #dde2e4, #ececec, #fbfbfb
+- VendorUserManagementPage.tsx
+  - typography_diff: text-[#2563EB]'
+  - spacing_diff: min-w-[200px], min-w-[720px], min-w-[800px]
+  - colour_diff: bg-[#F3F6FC]
+  - component_style_diff: None
+  - hardcoded_hex: #2563EB, #F3F6FC
+- VendorVerificationPendingPage.tsx
+  - typography_diff: None
+  - spacing_diff: None
+  - colour_diff: bg-[#F4F7FE], bg-slate-50/70
+  - component_style_diff: None
+  - hardcoded_hex: #0e1e3f, #1E4FCC, #2563EB, #F4F7FE
+- VendorVerifyEmailPage.tsx
+  - typography_diff: None
+  - spacing_diff: None
+  - colour_diff: bg-[#F4F7FE]
+  - component_style_diff: None
+  - hardcoded_hex: #0e1e3f, #1E4FCC, #2563EB, #F4F7FE
+- VendorWelcomePage.tsx
+  - typography_diff: None
+  - spacing_diff: None
+  - colour_diff: None
+  - component_style_diff: None
+  - hardcoded_hex: #0e1e3f, #1e40af, #2563eb, #475569, #878e9e, #FA8D40, #e67c2d, #f1f5f9
+
+Admin screens vs corporate
+- AdminAddProductPage.tsx
+  - typography_diff: font-mono
+  - spacing_diff: min-w-[640px]
+  - colour_diff: border-[#2563EB]/40, border-l-2, border-slate-200/90
+  - component_style_diff: size-24
+  - hardcoded_hex: #1D4ED8, #2563EB
+- AdminClientManagementPage.tsx
+  - typography_diff: font-mono, text-[#2563EB]', text-slate-300', text-slate-400'
+  - spacing_diff: left-0.5, max-h-[66vh], min-w-[120px], min-w-[900px], p-0.5, pl-4, pl-6, placeholder:text-slate-400, top-0.5, top-[6.2rem]
+  - colour_diff: bg-black/30, bg-slate-50/80, border-[#2563EB], border-[#e6e6e6], border-l-2, border-slate-200/90, from-slate-200, shadow-[0_10px_24px_rgba(15,23,42,0.14)], to-slate-100
+  - component_style_diff: w-11, w-[260px], w-[280px]
+  - hardcoded_hex: #1D4ED8, #2563EB, #e6e6e6
+- AdminIssuesPage.tsx
+  - typography_diff: text-emerald-800', text-orange-800'
+  - spacing_diff: max-w-[85%], min-h-[420px], msg.from, pl-[9px]', placeholder:text-slate-400
+  - colour_diff: bg-slate-50/40, border-[#2563EB], border-[#2563EB]', border-l-4, border-l-[#2563EB], border-l-transparent', border-slate-200/90
+  - component_style_diff: rounded-tl-sm', rounded-tr-sm', size-14
+  - hardcoded_hex: #1D4ED8, #2563EB, #FA8D40
+- AdminLayout.tsx
+  - typography_diff: font-['Inter',system-ui,sans-serif], text-[#1D4ED8]
+  - spacing_diff: max-w-[140px], max-w-[36px], min-w-[18px], mobileOpen, pl-2.5, placeholder:text-slate-400, pr-3', px-0', right-1.5, space-y-1'}, space-y-1.5', top-1.5
+  - colour_diff: bg-[#EF4444], bg-black/30, border-l-4, border-l-[#2563EB]', border-slate-200/90, border-transparent', ring-1, ring-blue-100/80, ring-white, shadow-slate-200/40, shadow-xl'
+  - component_style_diff: size-[18px]
+  - hardcoded_hex: #1D4ED8, #2563EB, #EEF4FF, #EF4444, #F8F9FB, #F8FAFF, #ffffff
+- AdminLoginPage.tsx
+  - typography_diff: text-white/95, tracking-[0.2em]
+  - spacing_diff: max-w-[560px], min-h-[520px], top-[18%]
+  - colour_diff: None
+  - component_style_diff: None
+  - hardcoded_hex: #0e1e3f, #1e40af, #2563eb, #323232, #878e9e, #949494, #E1E1E1, #E3E3E5, #FA8D40, #dde2e4, #e1e1e1, #f9f9f9
+- AdminNotificationsPage.tsx
+  - typography_diff: text-sky-800
+  - spacing_diff: placeholder:text-slate-400
+  - colour_diff: bg-sky-100, bg-slate-50/80, bg-slate-50/90, border-slate-200/90, ring-slate-100, shadow-slate-200/40
+  - component_style_diff: None
+  - hardcoded_hex: #1D4ED8, #2563EB, #F8FAFF
+- AdminPaidPromotionsPage.tsx
+  - typography_diff: text-[#1D4ED8]', text-[#2563EB]', text-slate-600'}
+  - spacing_diff: max-h-[68vh], min-w-[54px], placeholder:text-slate-400
+  - colour_diff: bg-[#ECEFF6], bg-[#EEF4FF], border-slate-400
+  - component_style_diff: None
+  - hardcoded_hex: #1D4ED8, #2563EB, #ECEFF6, #EEF4FF
+- AdminProductCategoriesPage.tsx
+  - typography_diff: font-mono
+  - spacing_diff: min-w-[800px], pl-4, placeholder:text-slate-400
+  - colour_diff: bg-slate-50/80, border-slate-200/90
+  - component_style_diff: None
+  - hardcoded_hex: #1D4ED8, #2563EB
+- AdminProductsPage.tsx
+  - typography_diff: font-mono, text-emerald-800
+  - spacing_diff: min-w-[960px], p.stock, pl-4, placeholder:text-slate-400
+  - colour_diff: bg-slate-50/80, border-[#2563EB], border-emerald-100', border-red-100', border-slate-200/90
+  - component_style_diff: None
+  - hardcoded_hex: #1D4ED8, #2563EB
+- AdminRolePermissionsPage.tsx
+  - typography_diff: None
+  - spacing_diff: left-0.5, top-0.5
+  - colour_diff: bg-indigo-50/80, border-b-0, border-slate-200/80, border-slate-200/90, border-t-0
+  - component_style_diff: w-11
+  - hardcoded_hex: #1D4ED8, #2563EB
+- AdminTeamsPage.tsx
+  - typography_diff: text-cyan-600
+  - spacing_diff: md:grid-cols-[1fr_auto], min-w-[600px], min-w-[760px], pl-4
+  - colour_diff: bg-[#8B5CF6], bg-slate-50/60, border-[#2563EB]', border-slate-200/90
+  - component_style_diff: None
+  - hardcoded_hex: #1D4ED8, #2563EB, #7C3AED, #8B5CF6
+- AdminTransactionsPage.tsx
+  - typography_diff: text-[#2563EB]', text-slate-500'
+  - spacing_diff: min-w-7, min-w-[860px]
+  - colour_diff: None
+  - component_style_diff: None
+  - hardcoded_hex: #1D4ED8, #2563EB
+- AdminVendorManagementDashboardPage.tsx
+  - typography_diff: None
+  - spacing_diff: inset-6, left-8, min-w-6
+  - colour_diff: bg-[#ECEFF6], border-blue-300, border-white/80
+  - component_style_diff: h-36, w-36
+  - hardcoded_hex: #2563EB, #4ADE80, #7DD3FC, #C4B5FD, #ECEFF6, #FB7185, #FBBF24
+- AdminVendorOrderAnalyticsPage.tsx
+  - typography_diff: text-[#2563EB]', text-slate-500'
+  - spacing_diff: gap-x-8, gap-y-4, max-h-[68vh], md:grid-cols-[120px_1fr], min-h-[360px], min-w-7, min-w-[760px], min-w-[980px], profileTab
+  - colour_diff: bg-[#ECEFF6], bg-black/40, border-[#2563EB]
+  - component_style_diff: None
+  - hardcoded_hex: #1D4ED8, #2563EB, #ECEFF6
+- NotFoundPage.tsx
+  - typography_diff: text-8xl
+  - spacing_diff: None
+  - colour_diff: None
+  - component_style_diff: None
+  - hardcoded_hex: #0e1e3f, #3568dd, #4379ee, #878e9e, #f6f6f8

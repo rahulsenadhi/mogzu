@@ -1,0 +1,14 @@
+<aside :class="collapsed ? 'w-[72px]' : 'w-[240px]'" class="bg-white flex-shrink-0 border-r border-gray-200 h-full">
+  <div class="h-14 flex items-center justify-center border-b border-gray-200 bg-white">
+    <a :href="dashboardHref" class="flex items-center justify-center w-full">
+      <img v-if="collapsed" src="/branding/mogzu-mark-m.png" alt="Mogzu" class="h-7 w-auto max-w-[42px]"/>
+      <img v-else src="/branding/mogzu-wordmark.png" alt="Mogzu" class="h-8 w-auto max-w-[112px]"/>
+    </a>
+  </div>
+  <nav class="py-3 px-3 overflow-y-auto h-[calc(100%-3.5rem)]">
+    <button class="w-full flex items-center gap-3 pl-2.5 pr-3 py-2.5 rounded-xl text-sm font-medium bg-[rgba(37,99,235,0.08)] text-[#1D4ED8]">Dashboard</button>
+    <button class="w-full flex items-center gap-3 pl-2.5 pr-3 py-2.5 rounded-xl text-sm font-medium text-slate-600">Activity Suite</button>
+    <button class="w-full flex items-center gap-3 pl-2.5 pr-3 py-2.5 rounded-xl text-sm font-medium text-slate-600">Bookings</button>
+    <button class="w-full flex items-center gap-3 pl-2.5 pr-3 py-2.5 rounded-xl text-sm font-medium" :class="activeNav === 'deals' ? 'bg-[rgba(37,99,235,0.08)] text-[#1D4ED8]' : 'text-slate-600'">Deals</button>
+  </nav>
+</aside>
