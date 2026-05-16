@@ -9,7 +9,7 @@ import {
 } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from './supabase'
-import type { UserProfile, UserRole } from './database.types'
+import type { CorporateAccount, UserProfile, UserRole } from './database.types'
 
 // Never call supabase.auth.* directly in components — use this hook.
 
@@ -20,6 +20,7 @@ interface AuthState {
   role: UserRole | null
   corporateId: string | null
   vendorId: string | null
+  corporateAccount: CorporateAccount | null
   isLoading: boolean
   isAuthenticated: boolean
 }
@@ -49,14 +50,31 @@ async function fetchProfile(userId: string): Promise<UserProfile | null> {
   return data
 }
 
+async function fetchCorporateAccount(corporateId: string): Promise<CorporateAccount | null> {
+  const { data, error } = await supabase
+    .from('corporate_accounts')
+    .select('*')
+    .eq('id', corporateId)
+    .single()
+  if (error) return null
+  return data
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [corporateAccount, setCorporateAccount] = useState<CorporateAccount | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   const loadProfile = async (userId: string) => {
     const p = await fetchProfile(userId)
     setProfile(p)
+    if (p?.corporate_id) {
+      const ca = await fetchCorporateAccount(p.corporate_id)
+      setCorporateAccount(ca)
+    } else {
+      setCorporateAccount(null)
+    }
   }
 
   useEffect(() => {
@@ -77,11 +95,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loadProfile(s.user.id)
       } else {
         setProfile(null)
+        setCorporateAccount(null)
       }
     })
 
     return () => subscription.unsubscribe()
   }, [])
+
+  // Realtime: keep corporate account modules_enabled in sync (≤60s)
+  useEffect(() => {
+    if (!profile?.corporate_id) return
+    const corporateId = profile.corporate_id
+    const channel = supabase
+      .channel(`auth-corporate-account-${corporateId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'corporate_accounts',
+          filter: `id=eq.${corporateId}`,
+        },
+        (payload) => {
+          setCorporateAccount(payload.new as CorporateAccount)
+        },
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [profile?.corporate_id])
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -100,6 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     await supabase.auth.signOut()
     setProfile(null)
+    setCorporateAccount(null)
   }
 
   const refreshProfile = async () => {
@@ -116,6 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       role: profile?.role ?? null,
       corporateId: profile?.corporate_id ?? null,
       vendorId: profile?.vendor_id ?? null,
+      corporateAccount,
       isLoading,
       isAuthenticated: !!session,
       signIn,
@@ -123,7 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut,
       refreshProfile,
     }),
-    [session, profile, isLoading],
+    [session, profile, corporateAccount, isLoading],
   )
 
   return createElement(AuthContext.Provider, { value }, children)

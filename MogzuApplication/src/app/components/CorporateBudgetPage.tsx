@@ -1,605 +1,618 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router';
-import { SharedHeader } from './layouts/SharedHeader';
-import { SharedSidebar } from './layouts/SharedSidebar';
-import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
-import { PieChart, DollarSign, TrendingUp, AlertTriangle, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react'
+import { Plus, DollarSign, TrendingUp, Shield, AlertTriangle, Trash2, X } from 'lucide-react'
+import { SharedHeader } from './layouts/SharedHeader'
+import { SharedSidebar } from './layouts/SharedSidebar'
+import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface'
+import { useAuth, canManageBudgets } from '@/lib/auth'
+import { db } from '@/lib/db'
+import { subscribeToTable } from '@/lib/realtime'
+import type { BudgetRule, ModuleId, Wallet } from '@/lib/database.types'
 
-interface DepartmentBudget {
-  name: string;
-  allocated: number;
-  spent: number;
-  percentage: number;
-  color: string;
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type Scope = BudgetRule['scope']
+type Period = BudgetRule['period']
+
+type CreateForm = {
+  scope: Scope
+  scope_value: string
+  module: ModuleId | ''
+  amount: string
+  period: Period
+  alert_threshold_pct: string
+  requires_approval: boolean
+  auto_approve_below: string
 }
 
-export default function CorporateBudgetPage() {
-  const navigate = useNavigate();
-  const loadTimerRef = useRef<number | null>(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
-  const [departments, setDepartments] = useState<DepartmentBudget[]>([]);
-  const [showSetupForm, setShowSetupForm] = useState(false);
-  const [submitError, setSubmitError] = useState('');
-  const [submitSuccess, setSubmitSuccess] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [exportFormat, setExportFormat] = useState<'csv' | 'pdf'>('csv');
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportError, setExportError] = useState('');
-  const [exportSuccess, setExportSuccess] = useState('');
-  const [exportPreview, setExportPreview] = useState<{ rows: number; totalAmount: number } | null>(null);
-  const [exportForm, setExportForm] = useState({
-    startDate: '',
-    endDate: '',
-    department: 'All',
-    category: 'All',
-    employee: 'All',
-  });
-  const [setupForm, setSetupForm] = useState({
-    annualBudget: '5000000',
-    venuesBudget: '1500000',
-    giftingBudget: '1200000',
-    eventsBudget: '1800000',
-    perTransactionLimit: '100000',
-    perEmployeeLimit: '50000',
-  });
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-  const seedDepartments: DepartmentBudget[] = [
-    { name: 'Marketing', allocated: 1500000, spent: 1400000, percentage: 93, color: 'bg-red-500' },
-    { name: 'Sales', allocated: 2000000, spent: 1200000, percentage: 60, color: 'bg-blue-500' },
-    { name: 'Engineering', allocated: 1000000, spent: 400000, percentage: 40, color: 'bg-green-500' },
-    { name: 'HR & Operations', allocated: 500000, spent: 250000, percentage: 50, color: 'bg-purple-500' },
-  ];
+const MODULE_LABELS: Record<ModuleId, string> = {
+  events: 'Events',
+  gifting: 'Gifting',
+  spacex_coworking: 'D Space – Coworking',
+  spacex_stay: 'D Space – Stay',
+}
 
-  const loadBudget = () => {
-    setIsLoading(true);
-    setLoadError('');
-    setDepartments([]);
+const PERIOD_LABELS: Record<Period, string> = {
+  monthly: 'Monthly',
+  quarterly: 'Quarterly',
+  annual: 'Annual',
+}
 
-    if (loadTimerRef.current) window.clearTimeout(loadTimerRef.current);
-    loadTimerRef.current = window.setTimeout(() => {
-      // Demo behavior: sometimes fail to exercise error + retry UI.
-      if (Math.random() < 0.12) {
-        setLoadError('Unable to load budget data right now. Please retry.');
-        setIsLoading(false);
-        return;
-      }
+const SCOPE_LABELS: Record<Scope, string> = {
+  company: 'Company-wide',
+  department: 'Department',
+  individual: 'Individual',
+}
 
-      setDepartments(seedDepartments);
-      setIsLoading(false);
-    }, 700);
-  };
+function emptyForm(): CreateForm {
+  return {
+    scope: 'company',
+    scope_value: '',
+    module: '',
+    amount: '',
+    period: 'monthly',
+    alert_threshold_pct: '80',
+    requires_approval: true,
+    auto_approve_below: '',
+  }
+}
 
-  useEffect(() => {
-    loadBudget();
-    return () => {
-      if (loadTimerRef.current) window.clearTimeout(loadTimerRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+function formatINR(n: number) {
+  return `₹ ${n.toLocaleString('en-IN')}`
+}
 
-  const hasBudgetSetup = departments.length > 0;
+// ─── Create Rule Modal ────────────────────────────────────────────────────────
 
-  const budgetOverview = useMemo(() => {
-    const allocated = departments.reduce((sum, d) => sum + d.allocated, 0);
-    const spent = departments.reduce((sum, d) => sum + d.spent, 0);
-    const remaining = Math.max(0, allocated - spent);
-    const critical = departments.filter((d) => d.percentage >= 90).length;
-    return { allocated, spent, remaining, critical };
-  }, [departments]);
+function CreateRuleModal({
+  onClose,
+  onSave,
+  saving,
+  error,
+}: {
+  onClose: () => void
+  onSave: (form: CreateForm) => Promise<void>
+  saving: boolean
+  error: string
+}) {
+  const [form, setForm] = useState<CreateForm>(emptyForm())
+  const [validationError, setValidationError] = useState('')
 
-  const handleAllocateBudget = () => {
-    setShowSetupForm(true);
-    setSubmitError('');
-    setSubmitSuccess('');
-  };
+  const set = <K extends keyof CreateForm>(key: K, val: CreateForm[K]) =>
+    setForm((f) => ({ ...f, [key]: val }))
 
-  const handleExportSpendReport = (format: 'csv' | 'pdf') => {
-    setExportError('');
-    setExportSuccess('');
-    setExportPreview(null);
-    setExportFormat(format);
-
-    if (!hasBudgetSetup) {
-      setExportError('Budget setup is required before exporting reports.');
-      return;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!form.amount || Number(form.amount) <= 0) {
+      setValidationError('Amount must be greater than 0.')
+      return
     }
-
-    if (!exportForm.startDate || !exportForm.endDate) {
-      setExportError('Please select a valid date range.');
-      return;
+    if (form.scope !== 'company' && !form.scope_value.trim()) {
+      setValidationError('Scope value is required for department or individual rules.')
+      return
     }
-
-    const startTs = new Date(exportForm.startDate).getTime();
-    const endTs = new Date(exportForm.endDate).getTime();
-    if (Number.isNaN(startTs) || Number.isNaN(endTs) || startTs > endTs) {
-      setExportError('Start date must be before or equal to end date.');
-      return;
+    const alertPct = Number(form.alert_threshold_pct)
+    if (Number.isNaN(alertPct) || alertPct <= 0 || alertPct > 100) {
+      setValidationError('Alert threshold must be between 1 and 100.')
+      return
     }
-
-    setIsExporting(true);
-    setTimeout(() => {
-      try {
-        // Demo-only: build a small mock preview based on current budget allocation.
-        const deptWeight =
-          exportForm.department === 'All'
-            ? 1
-            : Math.max(
-                0.1,
-                (departments.find((d) => d.name === exportForm.department)?.allocated ?? 0) /
-                  Math.max(1, budgetOverview.allocated)
-              );
-
-        const categoryWeight =
-          exportForm.category === 'All'
-            ? 1
-            : exportForm.category === 'Venues'
-              ? 0.35
-              : exportForm.category === 'Gifting'
-                ? 0.25
-                : exportForm.category === 'Events'
-                  ? 0.25
-                  : 0.15;
-
-        const employeeWeight = exportForm.employee === 'All' ? 1 : 0.3;
-        const simulatedTotal = Math.round(budgetOverview.spent * deptWeight * categoryWeight * employeeWeight);
-
-        if (simulatedTotal <= 0) {
-          setExportPreview({ rows: 0, totalAmount: 0 });
-          setExportSuccess('No spend found for the selected filters.');
-          setIsExporting(false);
-          return;
-        }
-
-        const rows = Math.max(1, Math.round(simulatedTotal / 25000));
-        setExportPreview({ rows, totalAmount: simulatedTotal });
-        setExportSuccess(`Exported ${format.toUpperCase()} report successfully (demo).`);
-
-        const lines = [
-          `Spend Report (${format.toUpperCase()})`,
-          `Date range: ${exportForm.startDate} to ${exportForm.endDate}`,
-          `Department: ${exportForm.department}`,
-          `Category: ${exportForm.category}`,
-          `Employee: ${exportForm.employee}`,
-          `Rows: ${rows}`,
-          `Total amount: ${simulatedTotal}`,
-        ];
-        const csv = [
-          ['report_type', 'start_date', 'end_date', 'department', 'category', 'employee', 'rows', 'total_amount'].join(','),
-          [
-            'spend_report',
-            exportForm.startDate,
-            exportForm.endDate,
-            exportForm.department,
-            exportForm.category,
-            exportForm.employee,
-            String(rows),
-            String(simulatedTotal),
-          ]
-            .map((x) => `"${String(x).replace(/"/g, '""')}"`)
-            .join(','),
-        ].join('\n');
-        const content = format === 'csv' ? csv : lines.join('\n');
-        const mime = format === 'csv' ? 'text/csv;charset=utf-8' : 'application/pdf';
-        const ext = format === 'csv' ? 'csv' : 'pdf';
-        const blob = new Blob([content], { type: mime });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `spend-report-${format}.${ext}`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-      } catch (e) {
-        setExportError('Unable to export report. Please try again.');
-      } finally {
-        setIsExporting(false);
-      }
-    }, 900);
-  };
-
-  const handleSaveBudget = () => {
-    setSubmitError('');
-    setSubmitSuccess('');
-
-    const numericValues = Object.values(setupForm).map((value) => Number(value));
-    const hasInvalid = numericValues.some((num) => Number.isNaN(num) || num <= 0);
-    if (hasInvalid) {
-      setSubmitError('All budget fields must be greater than 0.');
-      return;
-    }
-
-    setIsSubmitting(true);
-    setTimeout(() => {
-      const venues = Number(setupForm.venuesBudget);
-      const gifting = Number(setupForm.giftingBudget);
-      const events = Number(setupForm.eventsBudget);
-      const annual = Number(setupForm.annualBudget);
-      const other = Math.max(0, annual - (venues + gifting + events));
-
-      setDepartments([
-        { name: 'Venues', allocated: venues, spent: Math.round(venues * 0.5), percentage: 50, color: 'bg-blue-500' },
-        { name: 'Gifting', allocated: gifting, spent: Math.round(gifting * 0.45), percentage: 45, color: 'bg-green-500' },
-        { name: 'Events', allocated: events, spent: Math.round(events * 0.62), percentage: 62, color: 'bg-purple-500' },
-        { name: 'Operations', allocated: other, spent: Math.round(other * 0.4), percentage: 40, color: 'bg-red-500' },
-      ]);
-      setIsSubmitting(false);
-      setSubmitSuccess('Budget saved and active.');
-      setShowSetupForm(false);
-    }, 700);
-  };
+    setValidationError('')
+    await onSave(form)
+  }
 
   return (
-    <div className="flex h-screen bg-[#FFFDF9] overflow-hidden">
-      <SharedSidebar 
-        collapsed={sidebarCollapsed} 
-        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+          <h2 className="text-base font-bold text-slate-900">Create budget rule</h2>
+          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">
+            <X className="size-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4 px-6 py-5">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Scope</label>
+              <select
+                value={form.scope}
+                onChange={(e) => set('scope', e.target.value as Scope)}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+              >
+                <option value="company">Company-wide</option>
+                <option value="department">Department</option>
+                <option value="individual">Individual</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                {form.scope === 'department' ? 'Department name' : form.scope === 'individual' ? 'Employee email' : 'Scope value'}
+              </label>
+              <input
+                type="text"
+                value={form.scope_value}
+                onChange={(e) => set('scope_value', e.target.value)}
+                disabled={form.scope === 'company'}
+                placeholder={form.scope === 'company' ? '— company-wide —' : form.scope === 'department' ? 'e.g. Marketing' : 'employee@company.com'}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 disabled:opacity-50"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Module</label>
+              <select
+                value={form.module}
+                onChange={(e) => set('module', e.target.value as ModuleId | '')}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+              >
+                <option value="">All modules</option>
+                {(Object.keys(MODULE_LABELS) as ModuleId[]).map((m) => (
+                  <option key={m} value={m}>{MODULE_LABELS[m]}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Period</label>
+              <select
+                value={form.period}
+                onChange={(e) => set('period', e.target.value as Period)}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+              >
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="annual">Annual</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                Amount (₹) <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={form.amount}
+                onChange={(e) => set('amount', e.target.value)}
+                placeholder="e.g. 500000"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Alert at (%)</label>
+              <input
+                type="number"
+                min="1"
+                max="100"
+                value={form.alert_threshold_pct}
+                onChange={(e) => set('alert_threshold_pct', e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3">
+              <input
+                type="checkbox"
+                id="requires_approval"
+                checked={form.requires_approval}
+                onChange={(e) => set('requires_approval', e.target.checked)}
+                className="size-4 rounded border-slate-300 text-[#2563EB] focus:ring-[#2563EB]"
+              />
+              <label htmlFor="requires_approval" className="cursor-pointer text-sm font-medium text-slate-800">
+                Require approval
+              </label>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                Auto-approve below (₹)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={form.auto_approve_below}
+                onChange={(e) => set('auto_approve_below', e.target.value)}
+                placeholder="optional"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+              />
+            </div>
+          </div>
+
+          {(validationError || error) && (
+            <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+              {validationError || error}
+            </p>
+          )}
+
+          <div className="flex justify-end gap-3 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-xl bg-[#2563EB] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#1D4ED8] disabled:opacity-60"
+            >
+              {saving ? 'Saving…' : 'Create rule'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ─── Rule Row ─────────────────────────────────────────────────────────────────
+
+function RuleRow({
+  rule,
+  onDeactivate,
+  deactivating,
+}: {
+  rule: BudgetRule
+  onDeactivate: (id: string) => void
+  deactivating: boolean
+}) {
+  const alertColor =
+    rule.alert_threshold_pct >= 90
+      ? 'text-rose-600'
+      : rule.alert_threshold_pct >= 75
+      ? 'text-amber-600'
+      : 'text-slate-600'
+
+  return (
+    <tr className="border-b border-slate-100 hover:bg-slate-50/60">
+      <td className="py-3 pl-6 pr-4">
+        <div className="text-sm font-medium text-slate-900">{SCOPE_LABELS[rule.scope]}</div>
+        {rule.scope_value && (
+          <div className="text-xs text-slate-500">{rule.scope_value}</div>
+        )}
+      </td>
+      <td className="py-3 pr-4 text-sm text-slate-600">
+        {rule.module ? MODULE_LABELS[rule.module] : <span className="text-slate-400">All modules</span>}
+      </td>
+      <td className="py-3 pr-4">
+        <span className="text-sm font-semibold text-slate-900">{formatINR(rule.amount)}</span>
+      </td>
+      <td className="py-3 pr-4">
+        <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+          {PERIOD_LABELS[rule.period]}
+        </span>
+      </td>
+      <td className={`py-3 pr-4 text-sm font-medium ${alertColor}`}>
+        {rule.alert_threshold_pct}%
+      </td>
+      <td className="py-3 pr-4 text-sm">
+        {rule.requires_approval ? (
+          <span className="inline-flex items-center gap-1 text-amber-700">
+            <Shield className="size-3.5" />
+            Required
+            {rule.auto_approve_below && (
+              <span className="text-slate-500">
+                {' '}(auto ≤ {formatINR(rule.auto_approve_below)})
+              </span>
+            )}
+          </span>
+        ) : (
+          <span className="text-slate-400">Auto-approved</span>
+        )}
+      </td>
+      <td className="py-3 pr-6 text-right">
+        <button
+          type="button"
+          disabled={deactivating}
+          onClick={() => onDeactivate(rule.id)}
+          className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-40"
+          title="Deactivate rule"
+        >
+          <Trash2 className="size-4" />
+        </button>
+      </td>
+    </tr>
+  )
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
+export default function CorporateBudgetPage() {
+  const { corporateId, role } = useAuth()
+  const canManage = canManageBudgets(role)
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [rules, setRules] = useState<BudgetRule[]>([])
+  const [wallet, setWallet] = useState<Wallet | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+
+  const [createOpen, setCreateOpen] = useState(false)
+  const [createSaving, setCreateSaving] = useState(false)
+  const [createError, setCreateError] = useState('')
+
+  const [deactivatingId, setDeactivatingId] = useState<string | null>(null)
+
+  // Load
+  const load = async () => {
+    if (!corporateId) {
+      setIsLoading(false)
+      return
+    }
+    setIsLoading(true)
+    setLoadError('')
+    const [rulesRes, walletRes] = await Promise.all([
+      db.budgets.listByCorporate(corporateId),
+      db.wallet.getByCorporate(corporateId),
+    ])
+    if (rulesRes.error) {
+      setLoadError(rulesRes.error.message)
+    } else {
+      setRules(rulesRes.data ?? [])
+    }
+    if (!walletRes.error && walletRes.data) {
+      setWallet(walletRes.data)
+    }
+    setIsLoading(false)
+  }
+
+  useEffect(() => { load() }, [corporateId])
+
+  // Realtime: wallet balance updates
+  useEffect(() => {
+    if (!corporateId) return
+    return subscribeToTable<Wallet>(`budget-wallet-${corporateId}`, {
+      table: 'wallets',
+      event: 'UPDATE',
+      filter: `corporate_id=eq.${corporateId}`,
+      onData: (payload) => {
+        if (payload.new) setWallet(payload.new as Wallet)
+      },
+    })
+  }, [corporateId])
+
+  // Realtime: budget_rules changes
+  useEffect(() => {
+    if (!corporateId) return
+    return subscribeToTable<BudgetRule>(`budget-rules-${corporateId}`, {
+      table: 'budget_rules',
+      filter: `corporate_id=eq.${corporateId}`,
+      onData: () => {
+        // Reload rules on any change
+        db.budgets.listByCorporate(corporateId).then(({ data }) => {
+          if (data) setRules(data)
+        })
+      },
+    })
+  }, [corporateId])
+
+  // Overview metrics
+  const overview = useMemo(() => {
+    const totalAllocated = rules.reduce((s, r) => s + r.amount, 0)
+    const approvalRequired = rules.filter((r) => r.requires_approval).length
+    const alertRules = rules.filter((r) => r.alert_threshold_pct >= 90).length
+    return { totalAllocated, approvalRequired, alertRules, ruleCount: rules.length }
+  }, [rules])
+
+  // Create handler
+  const handleCreate = async (form: CreateForm) => {
+    if (!corporateId) return
+    setCreateSaving(true)
+    setCreateError('')
+    const { data, error } = await db.budgets.create({
+      corporate_id: corporateId,
+      scope: form.scope,
+      scope_value: form.scope === 'company' ? null : form.scope_value.trim() || null,
+      module: (form.module as ModuleId) || null,
+      amount: Number(form.amount),
+      period: form.period,
+      alert_threshold_pct: Number(form.alert_threshold_pct),
+      requires_approval: form.requires_approval,
+      auto_approve_below: form.auto_approve_below ? Number(form.auto_approve_below) : null,
+      is_active: true,
+    })
+    if (error) {
+      setCreateError(error.message)
+    } else if (data) {
+      setRules((prev) => [...prev, data])
+      setCreateOpen(false)
+    }
+    setCreateSaving(false)
+  }
+
+  // Deactivate handler
+  const handleDeactivate = async (id: string) => {
+    setDeactivatingId(id)
+    const { error } = await db.budgets.deactivate(id)
+    if (!error) {
+      setRules((prev) => prev.filter((r) => r.id !== id))
+    }
+    setDeactivatingId(null)
+  }
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-[#FFFDF9]">
+      <SharedSidebar
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
         activeNav="budget"
       />
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <SharedHeader onMobileMenuToggle={() => setSidebarCollapsed(!sidebarCollapsed)} searchPlaceholder="Search budgets..." />
+        <SharedHeader
+          onMobileMenuToggle={() => setSidebarCollapsed((c) => !c)}
+          searchPlaceholder="Search budgets…"
+        />
 
         <MogzuCorporateScrollSurface>
-          <div className="max-w-[1400px] mx-auto px-8 py-6">
-            <div className="flex justify-between items-center mb-8">
+          <div className="mx-auto max-w-[1400px] px-8 py-6">
+            {/* Page header */}
+            <div className="mb-8 flex items-start justify-between">
               <div>
-                <h1 className="text-[32px] font-semibold text-[#0e1e3f] leading-10">Budget Management</h1>
-                <p className="text-sm text-[#878e9e] mt-1">Track departmental spending and budget allocations</p>
+                <h1 className="text-[32px] font-semibold leading-10 text-[#0e1e3f]">Budget Management</h1>
+                <p className="mt-1 text-sm text-[#878e9e]">
+                  Define and manage budget rules for your organisation's Mogzu spend.
+                </p>
               </div>
-              <button
-                onClick={handleAllocateBudget}
-                className="px-6 py-2.5 bg-[#2563eb] text-white rounded-lg font-medium text-sm hover:bg-[#1d4ed8] transition-colors"
-              >
-                Allocate Budget
-              </button>
-            </div>
-
-            {submitError && (
-              <div className="mb-6 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-                <p className="text-sm text-gray-700">{submitError}</p>
-              </div>
-            )}
-
-            {submitSuccess && (
-              <div className="mb-6 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-                <p className="text-sm text-gray-700">{submitSuccess}</p>
-              </div>
-            )}
-
-            {showSetupForm && (
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Budget Setup</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase">Annual Budget</label>
-                    <input
-                      value={setupForm.annualBudget}
-                      onChange={(e) => setSetupForm((prev) => ({ ...prev, annualBudget: e.target.value }))}
-                      className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#2563eb]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase">Venues Budget</label>
-                    <input
-                      value={setupForm.venuesBudget}
-                      onChange={(e) => setSetupForm((prev) => ({ ...prev, venuesBudget: e.target.value }))}
-                      className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#2563eb]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase">Gifting Budget</label>
-                    <input
-                      value={setupForm.giftingBudget}
-                      onChange={(e) => setSetupForm((prev) => ({ ...prev, giftingBudget: e.target.value }))}
-                      className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#2563eb]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase">Events Budget</label>
-                    <input
-                      value={setupForm.eventsBudget}
-                      onChange={(e) => setSetupForm((prev) => ({ ...prev, eventsBudget: e.target.value }))}
-                      className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#2563eb]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase">Per-Transaction Limit</label>
-                    <input
-                      value={setupForm.perTransactionLimit}
-                      onChange={(e) => setSetupForm((prev) => ({ ...prev, perTransactionLimit: e.target.value }))}
-                      className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#2563eb]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase">Per-Employee Limit</label>
-                    <input
-                      value={setupForm.perEmployeeLimit}
-                      onChange={(e) => setSetupForm((prev) => ({ ...prev, perEmployeeLimit: e.target.value }))}
-                      className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#2563eb]"
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 mt-5">
-                  <button
-                    onClick={handleSaveBudget}
-                    disabled={isSubmitting}
-                    className="px-5 py-2.5 bg-[#2563eb] text-white rounded-lg font-medium text-sm hover:bg-[#1d4ed8] transition-colors disabled:opacity-50"
-                  >
-                    {isSubmitting ? 'Saving...' : 'Save Budget'}
-                  </button>
-                  <button
-                    onClick={() => setShowSetupForm(false)}
-                    className="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-lg font-medium text-sm hover:bg-gray-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {isLoading && (
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8">
-                <p className="text-sm text-gray-500">Loading budget data...</p>
-              </div>
-            )}
-
-            {!isLoading && loadError && (
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8">
-                <p className="text-sm text-gray-700 mb-3">{loadError}</p>
+              {canManage && (
                 <button
                   type="button"
-                  onClick={loadBudget}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
+                  onClick={() => { setCreateError(''); setCreateOpen(true) }}
+                  className="inline-flex items-center gap-2 rounded-lg bg-[#2563eb] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#1d4ed8]"
+                >
+                  <Plus className="size-4" />
+                  Add budget rule
+                </button>
+              )}
+            </div>
+
+            {/* Load error */}
+            {loadError && (
+              <div className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="text-sm text-gray-700">{loadError}</p>
+                <button
+                  type="button"
+                  onClick={load}
+                  className="mt-2 rounded-md border border-gray-300 px-4 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
                 >
                   Retry
                 </button>
               </div>
             )}
 
-            {!isLoading && !loadError && !hasBudgetSetup && (
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8">
-                <h2 className="text-lg font-semibold text-gray-900 mb-2">Budget setup pending</h2>
-                <p className="text-sm text-gray-500 mb-4">
-                  No active budget found for the current financial year. Set annual and category budgets to continue.
+            {/* Overview cards */}
+            <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-4">
+              <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                <div className="mb-3 flex items-center gap-3">
+                  <div className="rounded-lg bg-blue-50 p-2">
+                    <DollarSign className="size-5 text-[#2563eb]" />
+                  </div>
+                  <h3 className="text-sm font-medium text-gray-600">Total Allocated</h3>
+                </div>
+                <span className="text-2xl font-bold text-gray-900">
+                  {isLoading ? '—' : formatINR(overview.totalAllocated)}
+                </span>
+                <p className="mt-1 text-xs text-gray-400">across {overview.ruleCount} active rule{overview.ruleCount !== 1 ? 's' : ''}</p>
+              </div>
+
+              <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                <div className="mb-3 flex items-center gap-3">
+                  <div className="rounded-lg bg-emerald-50 p-2">
+                    <TrendingUp className="size-5 text-emerald-600" />
+                  </div>
+                  <h3 className="text-sm font-medium text-gray-600">Wallet Balance</h3>
+                </div>
+                <span className="text-2xl font-bold text-gray-900">
+                  {isLoading ? '—' : wallet ? formatINR(wallet.balance) : '—'}
+                </span>
+                <p className="mt-1 text-xs text-gray-400">available credits · real-time</p>
+              </div>
+
+              <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                <div className="mb-3 flex items-center gap-3">
+                  <div className="rounded-lg bg-amber-50 p-2">
+                    <Shield className="size-5 text-amber-600" />
+                  </div>
+                  <h3 className="text-sm font-medium text-gray-600">Approval Required</h3>
+                </div>
+                <span className="text-2xl font-bold text-gray-900">
+                  {isLoading ? '—' : overview.approvalRequired}
+                </span>
+                <p className="mt-1 text-xs text-gray-400">rules require manager sign-off</p>
+              </div>
+
+              <div className="rounded-xl border border-red-200 bg-red-50/30 p-6 shadow-sm">
+                <div className="mb-3 flex items-center gap-3">
+                  <div className="rounded-lg bg-red-100 p-2">
+                    <AlertTriangle className="size-5 text-red-600" />
+                  </div>
+                  <h3 className="text-sm font-medium text-red-800">High-Alert Rules</h3>
+                </div>
+                <span className="text-2xl font-bold text-red-700">
+                  {isLoading ? '—' : overview.alertRules}
+                </span>
+                <p className="mt-1 text-xs text-red-500">alert threshold ≥ 90%</p>
+              </div>
+            </div>
+
+            {/* Rules table */}
+            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+              <div className="border-b border-gray-200 p-6">
+                <h2 className="text-base font-semibold text-gray-900">Active budget rules</h2>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  Rules are enforced at booking time. Bookings exceeding the rule amount require approval or are blocked.
                 </p>
-                <button
-                  onClick={handleAllocateBudget}
-                  className="px-5 py-2.5 bg-[#2563eb] text-white rounded-lg font-medium text-sm hover:bg-[#1d4ed8] transition-colors"
-                >
-                  Start Budget Setup
-                </button>
-              </div>
-            )}
-
-            {!isLoading && !loadError && hasBudgetSetup && (
-            <>
-            {/* Overview Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="p-2 bg-blue-50 rounded-lg">
-                    <DollarSign className="w-5 h-5 text-[#2563eb]" />
-                  </div>
-                  <h3 className="text-sm font-medium text-gray-600">Total Budget (FY 23-24)</h3>
-                </div>
-                <div className="flex items-end gap-2">
-                  <span className="text-2xl font-bold text-gray-900">₹ {budgetOverview.allocated.toLocaleString()}</span>
-                </div>
               </div>
 
-              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="p-2 bg-green-50 rounded-lg">
-                    <TrendingUp className="w-5 h-5 text-green-600" />
-                  </div>
-                  <h3 className="text-sm font-medium text-gray-600">Spent Till Date</h3>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <p className="text-sm text-gray-400">Loading budget rules…</p>
                 </div>
-                <div className="flex items-end gap-2">
-                  <span className="text-2xl font-bold text-gray-900">₹ {budgetOverview.spent.toLocaleString()}</span>
-                  <span className="flex items-center text-xs font-medium text-green-600 mb-1">
-                    <ArrowUpRight className="w-3 h-3 mr-0.5" /> {budgetOverview.allocated ? Math.round((budgetOverview.spent / budgetOverview.allocated) * 100) : 0}%
-                  </span>
-                </div>
-              </div>
-
-              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="p-2 bg-purple-50 rounded-lg">
-                    <PieChart className="w-5 h-5 text-purple-600" />
-                  </div>
-                  <h3 className="text-sm font-medium text-gray-600">Remaining Budget</h3>
-                </div>
-                <div className="flex items-end gap-2">
-                  <span className="text-2xl font-bold text-gray-900">₹ {budgetOverview.remaining.toLocaleString()}</span>
-                  <span className="flex items-center text-xs font-medium text-purple-600 mb-1">
-                    <ArrowDownRight className="w-3 h-3 mr-0.5" /> {budgetOverview.allocated ? Math.round((budgetOverview.remaining / budgetOverview.allocated) * 100) : 0}%
-                  </span>
-                </div>
-              </div>
-
-              <div className="bg-white p-6 rounded-xl border border-red-200 bg-red-50/30 shadow-sm">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="p-2 bg-red-100 rounded-lg">
-                    <AlertTriangle className="w-5 h-5 text-red-600" />
-                  </div>
-                  <h3 className="text-sm font-medium text-red-800">Critical Departments</h3>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-2xl font-bold text-red-700">{budgetOverview.critical}</span>
-                  <span className="text-xs font-medium text-red-600 mt-1">Exceeding 90% allocation</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Department Breakdown */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-8">
-              <div className="p-6 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900">Department Allocations</h2>
-              </div>
-              <div className="p-6">
-                <div className="space-y-6">
-                  {departments.map((dept, index) => (
-                    <div key={index}>
-                      <div className="flex justify-between items-end mb-2">
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{dept.name}</p>
-                          <p className="text-xs text-gray-500">₹ {dept.spent.toLocaleString()} / ₹ {dept.allocated.toLocaleString()}</p>
-                        </div>
-                        <span className="text-sm font-semibold text-gray-700">{dept.percentage}%</span>
-                      </div>
-                      <div className="w-full bg-gray-100 rounded-full h-2.5">
-                        <div className={`h-2.5 rounded-full ${dept.color}`} style={{ width: `${dept.percentage}%` }}></div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Spend Report Export */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-8">
-              <div className="p-6 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900">Export Spend Report</h2>
-                  <p className="text-sm text-gray-500 mt-1">Filter by date range, department, category, and employee.</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => handleExportSpendReport('csv')}
-                    disabled={isExporting}
-                    className="px-5 py-2.5 bg-[#2563eb] text-white rounded-lg font-medium text-sm hover:bg-[#1d4ed8] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {isExporting && exportFormat === 'csv' ? 'Exporting...' : 'Export CSV'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleExportSpendReport('pdf')}
-                    disabled={isExporting}
-                    className="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-lg font-medium text-sm hover:bg-gray-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {isExporting && exportFormat === 'pdf' ? 'Exporting...' : 'Export PDF'}
-                  </button>
-                </div>
-              </div>
-
-              <div className="p-6">
-                {exportError && (
-                  <div className="mb-4 bg-white rounded-xl border border-red-200 shadow-sm p-4">
-                    <p className="text-sm text-red-700">{exportError}</p>
-                  </div>
-                )}
-
-                {exportSuccess && (
-                  <div className="mb-4 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-                    <p className="text-sm text-gray-700">{exportSuccess}</p>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase">Start date</label>
-                    <input
-                      type="date"
-                      value={exportForm.startDate}
-                      onChange={(e) => setExportForm((prev) => ({ ...prev, startDate: e.target.value }))}
-                      className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#2563eb]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase">End date</label>
-                    <input
-                      type="date"
-                      value={exportForm.endDate}
-                      onChange={(e) => setExportForm((prev) => ({ ...prev, endDate: e.target.value }))}
-                      className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#2563eb]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase">Department</label>
-                    <select
-                      value={exportForm.department}
-                      onChange={(e) => setExportForm((prev) => ({ ...prev, department: e.target.value }))}
-                      className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#2563eb]"
+              ) : rules.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-3 py-16">
+                  <DollarSign className="size-8 text-slate-200" />
+                  <p className="text-sm text-slate-500">No budget rules yet.</p>
+                  {canManage && (
+                    <button
+                      type="button"
+                      onClick={() => { setCreateError(''); setCreateOpen(true) }}
+                      className="mt-1 rounded-lg bg-[#2563eb] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8]"
                     >
-                      <option value="All">All</option>
-                      {departments.map((d) => (
-                        <option key={d.name} value={d.name}>
-                          {d.name}
-                        </option>
+                      Add first rule
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[800px] text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-100 bg-slate-50/80 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        <th className="py-3 pl-6 pr-4">Scope</th>
+                        <th className="py-3 pr-4">Module</th>
+                        <th className="py-3 pr-4">Amount</th>
+                        <th className="py-3 pr-4">Period</th>
+                        <th className="py-3 pr-4">Alert at</th>
+                        <th className="py-3 pr-4">Approval</th>
+                        <th className="w-12 py-3 pr-6" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rules.map((rule) => (
+                        <RuleRow
+                          key={rule.id}
+                          rule={rule}
+                          onDeactivate={handleDeactivate}
+                          deactivating={deactivatingId === rule.id}
+                        />
                       ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase">Category</label>
-                    <select
-                      value={exportForm.category}
-                      onChange={(e) => setExportForm((prev) => ({ ...prev, category: e.target.value }))}
-                      className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#2563eb]"
-                    >
-                      <option value="All">All</option>
-                      <option value="Venues">Venues</option>
-                      <option value="Gifting">Gifting</option>
-                      <option value="Events">Events</option>
-                      <option value="Operations">Operations</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase">Employee</label>
-                    <select
-                      value={exportForm.employee}
-                      onChange={(e) => setExportForm((prev) => ({ ...prev, employee: e.target.value }))}
-                      className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#2563eb]"
-                    >
-                      <option value="All">All</option>
-                      <option value="Amit Kumar">Amit Kumar</option>
-                      <option value="Priya Sharma">Priya Sharma</option>
-                      <option value="Rahul Verma">Rahul Verma</option>
-                      <option value="Sarah Jenkins">Sarah Jenkins</option>
-                    </select>
-                  </div>
+                    </tbody>
+                  </table>
                 </div>
-
-                <div className="mt-6">
-                  {!exportPreview && !isExporting && (
-                    <div className="p-6 border border-dashed border-gray-200 rounded-xl text-sm text-gray-500">
-                      Select a date range and export to preview spend data.
-                    </div>
-                  )}
-
-                  {exportPreview && exportPreview.rows === 0 && (
-                    <div className="p-6 border border-dashed border-gray-200 rounded-xl text-sm text-gray-500">
-                      No spend found for the selected filters.
-                    </div>
-                  )}
-
-                  {exportPreview && exportPreview.rows > 0 && (
-                    <div className="p-6 border border-gray-200 rounded-xl">
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">Report preview</p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            Rows: {exportPreview.rows} • Total: ₹ {exportPreview.totalAmount.toLocaleString('en-IN')}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-gray-700">
-                          <DollarSign className="w-4 h-4 text-[#2563eb]" />
-                          <span>Ready to export</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
+              )}
             </div>
-            </>
+
+            {!canManage && (
+              <p className="mt-4 text-xs text-slate-400">
+                Budget rules can only be created or modified by L3 Admins.
+              </p>
             )}
           </div>
         </MogzuCorporateScrollSurface>
       </div>
+
+      {createOpen && (
+        <CreateRuleModal
+          onClose={() => setCreateOpen(false)}
+          onSave={handleCreate}
+          saving={createSaving}
+          error={createError}
+        />
+      )}
     </div>
-  );
+  )
 }
