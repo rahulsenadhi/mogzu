@@ -85,6 +85,7 @@ import VendorBookingRequestsPage from "@/app/components/VendorBookingRequestsPag
 import AdminCommissionsPage from "@/app/components/AdminCommissionsPage";
 import BookingPaymentPage from "@/app/components/BookingPaymentPage";
 import CorporateGiftingProgrammePage from "@/app/components/CorporateGiftingProgrammePage";
+import GiftingSendPage from "@/app/components/GiftingSendPage";
 import CelebrationsPage from "@/app/components/CelebrationsPage";
 import CelebrationDetailPage from "@/app/components/CelebrationDetailPage";
 import CelebrationBookingFlow from "@/app/components/CelebrationBookingFlow";
@@ -707,6 +708,11 @@ export const router = createBrowserRouter([
   {
     path: "/corporate/gifting-programme",
     element: <CorporateGiftingProgrammePage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/gifting/send",
+    element: <GiftingSendPage />,
     errorElement: <ErrorPage />,
   },
   {
