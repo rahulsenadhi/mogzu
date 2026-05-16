@@ -544,7 +544,38 @@ Priority: P2 | Effort: M | Dependencies: Booking data aggregation in Supabase
 
 ---
 
-### Story 8.4 — Vendor Responds to Reviews
+### Story 8.4 — Employee Submits a Review After Completed Booking
+**As an L1 Employee, I want to rate and review a vendor after my booking is completed, so that other corporate users can make informed decisions.**
+
+Acceptance Criteria:
+- [ ] Review prompt appears automatically after booking status = COMPLETED (in-app + email nudge)
+- [ ] Review form: 1–5 star rating + optional written comment (max 500 chars)
+- [ ] One review per booking; only the employee who made the booking can submit
+- [ ] Review is published immediately and visible on the vendor's listing detail page
+- [ ] Employee can edit their review within 48 hours of submission; cannot delete after that
+- [ ] Review prompt expires after 14 days if ignored
+
+Priority: P2 | Effort: S | Dependencies: Booking status = COMPLETED, Supabase reviews table
+
+---
+
+### Story 8.5 — Vendor Invites Existing Clients to Review During Onboarding
+**As a Vendor, I want to invite clients I worked with before joining Mogzu to leave a review, so that my profile has credibility from day one.**
+
+Acceptance Criteria:
+- [ ] During onboarding (and from vendor dashboard), vendor can enter up to 10 client email addresses
+- [ ] Each email receives a one-time review link (expires 7 days)
+- [ ] Review link is not tied to a Mogzu booking — reviewer submits name, company, rating, comment
+- [ ] Submitted reviews enter Mogzu Admin approval queue before going live
+- [ ] Admin approves or rejects with reason; vendor notified either way
+- [ ] Approved reviews are badged "Pre-platform review" on listing to distinguish from booking-verified reviews
+- [ ] Vendor can use this invite flow only once (during onboarding); not repeatable to prevent abuse
+
+Priority: P2 | Effort: M | Dependencies: Email service, Mogzu Admin approval queue, Supabase reviews table
+
+---
+
+### Story 8.6 — Vendor Responds to Reviews
 **As a Vendor, I want to respond to reviews left by corporate users, so that I can address concerns publicly and improve my platform reputation.**
 
 Acceptance Criteria:
@@ -554,7 +585,7 @@ Acceptance Criteria:
 - [ ] Vendor is notified when a new review is posted (email + in-app)
 - [ ] Vendor cannot edit or delete original review; only their own reply
 
-Priority: P2 | Effort: S | Dependencies: Review/rating table in Supabase
+Priority: P2 | Effort: S | Dependencies: Stories 8.4, 8.5, Supabase reviews table
 
 ---
 
@@ -658,6 +689,23 @@ Priority: P2 | Effort: S | Dependencies: Story 8.5
 
 ## EPIC 10 — Celebrations & Special Occasions
 
+### Story 10.0 — L3 Admin Imports Employee Data
+**As an L3 Admin, I want to upload employee data (name, email, DOB, join date, department) so that the platform can automate celebrations and enforce department budgets correctly.**
+
+Acceptance Criteria:
+- [ ] Admin downloads a CSV template with required columns: name, work_email, dob, join_date, department, role (L1/L2)
+- [ ] Admin uploads populated CSV; system validates each row (missing required fields flagged with row number)
+- [ ] Preview screen shows first 10 rows before final import is confirmed
+- [ ] On confirm: employees are created or updated (upsert by work_email); existing bookings/budgets unaffected
+- [ ] Import summary shown: X created, Y updated, Z failed with reasons
+- [ ] Failed rows downloadable as CSV for correction and re-upload
+- [ ] Admin can re-import at any time to sync changes (leavers are deactivated, not deleted)
+- [ ] Enterprise path (Phase 2): replace CSV with live HRMS connector (Darwinbox / Keka / Zoho People)
+
+Priority: P1 | Effort: M | Dependencies: Supabase employees table, Supabase RLS (corporate_id scoping)
+
+---
+
 ### Story 10.1 — L3 Admin Configures Celebration Triggers
 **As an L3 Admin, I want to automate celebration actions for employee milestones (birthdays, work anniversaries, promotions), so that employees feel recognised without manual coordination.**
 
@@ -667,7 +715,7 @@ Acceptance Criteria:
 - [ ] For each trigger: choose gift template, budget, message template, or assign to manager for personalisation
 - [ ] Admin can preview what an employee will receive before activating
 
-Priority: P1 | Effort: L | Dependencies: HRMS integration or employee data import, gifting module
+Priority: P1 | Effort: L | Dependencies: Story 10.0 (employee data import), gifting module
 
 ---
 
@@ -804,30 +852,93 @@ Priority: P2 | Effort: M | Dependencies: mogzuShortlistHelpers.ts → Supabase
 
 ## EPIC 14 — Partner Portal
 
-### Story 14.1 — Partner Refers Corporate Clients
-**As a Partner, I want to refer corporate clients and track when they onboard, so that I can earn referral commissions.**
+> Partners are external (agencies, resellers, freelancers). Distinct from vendors and Account Managers. A partner can do all of: refer clients for commission, resell Mogzu services, list their own products/services at higher revenue share, and onboard their own clients directly. Partner has a separate lightweight portal — not the admin panel, not the vendor portal.
+
+### Story 14.1 — Partner Registration & Onboarding
+**As a Partner, I want to register as a Mogzu partner and select my partnership type, so that my portal is configured for how I work with Mogzu.**
 
 Acceptance Criteria:
-- [ ] Partner has a unique referral link/code
-- [ ] Referred client signs up → automatically linked to partner's account
-- [ ] Partner dashboard shows: referrals sent, signed up, activated, commission earned
-- [ ] Commission is credited to partner wallet after referred client's first successful booking
-- [ ] Partner can request payout to bank account
+- [ ] Partner registration form: name, company, email, phone, partnership type (Referral / Reseller / Product Partner / all three)
+- [ ] Partnership type determines which portal sections are active
+- [ ] Mogzu Admin approves partner application before access is granted
+- [ ] On approval, partner receives welcome email with portal link and unique referral code
+- [ ] Partner completes profile: logo, description, regions covered, industry focus
 
-Priority: P2 | Effort: M | Dependencies: Partner role scoping, commission/wallet system
+Priority: P2 | Effort: M | Dependencies: Supabase partners table, Mogzu Admin approval workflow, email service
 
 ---
 
-### Story 14.2 — Mogzu Admin Manages Partner Agreements
-**As a Mogzu Admin, I want to configure partner commission rates and terms, so that referral economics are controlled and auditable.**
+### Story 14.2 — Partner Refers Corporate Clients
+**As a Partner, I want to refer corporate clients using my unique link and track when they activate, so that I earn referral commission automatically.**
 
 Acceptance Criteria:
-- [ ] Partner agreement form: name, commission rate (%), payment terms, expiry date
-- [ ] Admin can pause a partner (stops new referral attribution; existing referrals unaffected)
-- [ ] Commission auto-calculated per referred client's monthly GMV
-- [ ] Partner receives monthly statement email with breakdown
+- [ ] Partner has a unique referral link/code generated on approval
+- [ ] Referred client signs up via link → automatically linked to partner's account
+- [ ] Partner dashboard shows: referrals sent, signed up, activated, commission earned to date
+- [ ] Commission is credited to partner wallet after referred client's first successful booking
+- [ ] Partner can request payout to bank account (same payout flow as vendors)
+- [ ] Referral attribution window: 90 days from link click
 
-Priority: P2 | Effort: M | Dependencies: Story 14.1
+Priority: P2 | Effort: M | Dependencies: Story 14.1, commission/wallet system, payment gateway (Story 6.4)
+
+---
+
+### Story 14.3 — Partner Resells Mogzu Services to Their Clients
+**As a Partner, I want to resell Mogzu's platform services under my own brand to clients I manage, so that I earn a margin without building my own platform.**
+
+Acceptance Criteria:
+- [ ] Partner can onboard clients directly into Mogzu under the partner's account umbrella
+- [ ] Onboarded clients are linked to the partner and visible in partner dashboard
+- [ ] Partner sets a resale markup (within Mogzu-allowed range configured by admin)
+- [ ] Client invoices show partner's branding (white-label invoice mode)
+- [ ] Partner earns margin = resale price minus Mogzu's wholesale rate, paid monthly
+- [ ] Partner can view all bookings made by their reseller clients
+
+Priority: P2 | Effort: L | Dependencies: Story 14.1, white-label invoice generation, Supabase partner-client linking
+
+---
+
+### Story 14.4 — Partner Lists Their Own Products and Services
+**As a Partner, I want to list my own products or services on the Mogzu platform at an agreed revenue share, so that I can reach Mogzu's corporate client base without building my own sales channel.**
+
+Acceptance Criteria:
+- [ ] Partner accesses a listing creation flow similar to vendor listing (title, description, pricing, category, images)
+- [ ] Revenue share rate is set per partner agreement (higher than standard vendor commission)
+- [ ] Listings are submitted to Mogzu Admin for approval before going live
+- [ ] Partner listings appear in catalogue tagged with partner's brand name
+- [ ] Partner can manage listings, availability, and orders from their portal
+- [ ] Payouts for partner listings follow same 48h post-completion cycle as vendor payouts
+
+Priority: P2 | Effort: L | Dependencies: Story 14.1, vendor listing CRUD (Story 3.6), admin approval workflow, payout system (Story 6.4)
+
+---
+
+### Story 14.5 — Partner Views Unified Dashboard
+**As a Partner, I want a single dashboard showing my referrals, reseller clients, listed products, and total earnings, so that I can manage all my Mogzu activity in one place.**
+
+Acceptance Criteria:
+- [ ] Dashboard widgets: active referrals, reseller clients, live listings, wallet balance, pending payout
+- [ ] Earnings breakdown by type: referral commission / reseller margin / product revenue share
+- [ ] Month-on-month earnings trend chart
+- [ ] Quick actions: create shortlist for a client, generate referral link, add a listing
+- [ ] Downloadable monthly earnings statement (PDF)
+
+Priority: P2 | Effort: M | Dependencies: Stories 14.2, 14.3, 14.4
+
+---
+
+### Story 14.6 — Mogzu Admin Manages Partner Agreements
+**As a Mogzu Admin, I want to configure each partner's rates, permissions, and agreement terms, so that partner economics are controlled and auditable.**
+
+Acceptance Criteria:
+- [ ] Partner agreement form: partnership types enabled, referral commission %, reseller wholesale rate, product revenue share %, payment terms, agreement expiry date
+- [ ] Admin can activate, pause, or terminate a partner account
+- [ ] Pausing stops new referral attribution and reseller onboarding; existing clients and listings unaffected
+- [ ] Admin assigns an Account Manager to each partner for relationship management
+- [ ] Commission and margin calculations auto-run monthly; admin can manually trigger recalculation
+- [ ] Partner receives monthly statement email with full breakdown by type
+
+Priority: P2 | Effort: M | Dependencies: Story 14.1, commission/wallet system
 
 ---
 
@@ -842,41 +953,50 @@ P0: Auth & Onboarding (1.1–1.4) · Vendor Listing CRUD (3.6, 4.4, 5.3) · Budg
 
 P1: Budget Reports (2.4) · Cancellation/Refund (3.4, 6.3) · Vendor Payouts (6.4)
     Calendar (8.2) · Communications (7.1, 7.2) · N8N Automation (7.3)
-    Support Tickets (12.1–12.3) · Celebration Triggers (10.1, 10.2) · Stay Booking (5.4)
-    Disputes (9.5) · Account Manager Portfolio (9.4)
+    Support Tickets (12.1–12.3) · Employee Data Import (10.0) · Celebration Triggers (10.1, 10.2)
+    Stay Booking (5.4) · Disputes (9.5) · Account Manager Portfolio (9.4)
 
-P2: Analytics (8.3) · Reviews (8.4) · Promotions (8.5, 9.6) · VAPI/Genie (11.1, 11.2)
-    Wishlist (13.1) · Compare (13.2) · Shortlists (13.3) · Partner Portal (14.1, 14.2)
-    Celebrations Personalisation (10.2)
+P2: Analytics (8.3) · Reviews (8.4–8.6) · Promotions (8.7, 9.6) · VAPI/Genie (11.1, 11.2)
+    Wishlist (13.1) · Compare (13.2) · Shortlists (13.3)
+    Partner Portal (14.1–14.6) · Celebrations Personalisation (10.2)
 ```
 
-**Total Phase 1 stories**: 47 | **P0**: 17 · **P1**: 19 · **P2**: 11
+**Total Phase 1 stories**: 55 | **P0**: 17 · **P1**: 21 · **P2**: 17
 
 ---
 
 ## Phase 1 Technical Notes
 
 1. **Storage migration**: All 15+ localStorage stores must migrate to Supabase tables with Row-Level Security policies per role. Prerequisite for Stories 2.1, 4.4, 8.1, and most P0 stories.
-2. **Payment gateway**: BookingPayment.tsx is built; requires Razorpay or Stripe SDK integration. Refund and payout flows need webhook handlers.
-3. **N8N**: No N8N integration exists in codebase. Stories 7.3, 10.1 require webhook endpoints in Supabase Edge Functions that trigger N8N.
+2. **Payment gateway**: BookingPayment.tsx is built; requires **Razorpay** SDK integration (decided: India-only v1, INR). Refund and payout flows need Razorpay webhook handlers.
+3. **N8N**: No N8N integration exists in codebase. Using **N8N Cloud** (decided). Stories 7.3, 10.1 require webhook endpoints in Supabase Edge Functions that trigger N8N. Store all workflow JSON in `/n8n-workflows/`.
 4. **Email service**: Zero email integration currently. Recommend Resend for transactional email; all notification stories depend on this.
 5. **VAPI**: Hey Genie module is gated in platformMarketplaceSettings.ts but no VAPI SDK calls exist. Needs spike.
 6. **Supabase Realtime**: Required for Stories 7.1 (messaging), 2.3 (live budget), and 8.2 (calendar).
 7. **Media uploads**: Vendor listing forms need S3 or Supabase Storage for images; no upload logic currently exists.
-8. **RLS design**: Supabase RLS must enforce L1/L2/L3/Vendor/Admin scoping — schema design is a prerequisite spike for all data stories.
+8. **RLS design**: Supabase RLS must enforce L1/L2/L3/Vendor/Admin/Partner scoping — shared tables with `corporate_id` on every row (decided: no separate schemas). Schema design + RLS policy spike is prerequisite for all data stories.
 
 ---
 
-## Phase 1 Open Questions
+## Phase 1 Decisions — Open Questions Resolved
 
-1. **HRMS integration**: Does Mogzu integrate with Darwinbox, Keka, or similar? Required for Stories 10.1, 4.1. If not, what is the employee data import format?
-2. **Payment acquirer**: Razorpay or Stripe? Which currencies and regions are in scope for v1?
-3. **Multi-tenancy model**: Corporate accounts fully isolated (separate schemas) or row-isolated in shared Supabase tables?
-4. **N8N hosting**: Self-hosted or cloud? Who owns the workflow definitions?
-5. **Vendor SLA**: 24 hours assumed — is this configurable per vendor or module?
-6. **Partner vs Account Manager**: External roles (separate login) or internal Mogzu staff roles?
-7. **Mobile app**: Separate React Native app planned, or PWA-only?
-8. **Review gating**: Any employee, or only after a confirmed+completed booking?
+> All 8 questions answered 2026-05-16. Decisions below are locked for Phase 1 build.
+
+1. **HRMS integration**: Both CSV upload and HRMS integration supported. CSV for smaller clients, Darwinbox/Keka/Zoho People connectors for enterprise. Build CSV import first; HRMS connectors are Phase 2.
+
+2. **Payment acquirer**: Razorpay. v1 is India-only, INR only. UPI, NEFT, Indian cards. Stripe not needed until international expansion is confirmed.
+
+3. **Multi-tenancy model**: Shared Supabase tables with Row-Level Security (RLS). Every table has a `corporate_id` column. RLS enforces isolation automatically. Separate schemas revisited only if a large enterprise client makes it a contractual requirement.
+
+4. **N8N hosting**: N8N Cloud. No server to manage. All workflow definitions exported as JSON and version-controlled in `/n8n-workflows/` in the repo. Switch to self-hosted if costs grow or compliance demands it.
+
+5. **Vendor SLA**: Configurable per module with vendor-level override. Defaults: Events = 24h · DSpace/Coworking = 4h · Stay = 12h · Gifting = 48h. Vendor can set a tighter window per listing.
+
+6. **Partner vs Account Manager**: Account Managers are Mogzu internal staff — login via admin portal, scoped to assigned clients only, no commission. Partners are external (agencies, resellers, freelancers) with a separate lightweight portal. Partners can: refer clients for commission, resell Mogzu services, list their own products/services at higher revenue share, and onboard their own clients directly. Partner is a distinct hybrid role — not a vendor, not an AM. Needs its own epic (Partner Portal expanded beyond Stories 14.1–14.2).
+
+7. **Mobile app**: PWA first (add manifest + service worker now so it's installable on phone from day one). Native React Native app is Phase 2, after product-market fit confirmed.
+
+8. **Review gating**: Two entry points, both gated. (a) Post-booking: unlocked only after booking status = COMPLETED, one review per booking, only the employee who made the booking. (b) Vendor onboarding: vendor invites existing clients via one-time link; Mogzu Admin approves before reviews go live to prevent fake reviews.
 
 ---
 
