@@ -1,0 +1,93 @@
+{
+  "name": "Mogzu — Budget Threshold Alert",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mogzu-wallet-updated",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook: Wallet Updated",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "const record = $input.first().json.record;\nconst old = $input.first().json.old_record;\n\nconst balance = record.balance;\nconst allocated = record.allocated_balance;\nconst threshold = 0.2; // alert at 20% remaining\n\nconst remaining = balance / allocated;\nconst wasAbove = old ? old.balance / allocated > threshold : true;\nconst nowBelow = remaining <= threshold;\n\nreturn [{ json: { ...record, shouldAlert: wasAbove && nowBelow, remainingPct: Math.round(remaining * 100) } }];"
+      },
+      "id": "check-threshold",
+      "name": "Check 20% Threshold",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.shouldAlert }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-alert",
+      "name": "Should Alert?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/user_profiles?corporate_id=eq.{{ $json.corporate_id }}&role=in.(l2_approver,l3_admin)&select=email,full_name",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "get-approvers",
+      "name": "Get L2/L3 Approvers",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "fromEmail": "alerts@mogzu.com",
+        "toEmail": "={{ $json.email }}",
+        "subject": "Budget Alert: {{ $node['Check 20% Threshold'].json.remainingPct }}% remaining",
+        "emailType": "text",
+        "message": "Hi {{ $json.full_name }},\n\nYour company's Mogzu wallet has {{ $node['Check 20% Threshold'].json.remainingPct }}% of budget remaining.\n\nPlease top up or review spending to avoid booking disruptions.\n\n— Mogzu"
+      },
+      "id": "send-alert",
+      "name": "Send Alert Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1120, 200]
+    }
+  ],
+  "connections": {
+    "Webhook: Wallet Updated": {
+      "main": [[{ "node": "Check 20% Threshold", "type": "main", "index": 0 }]]
+    },
+    "Check 20% Threshold": {
+      "main": [[{ "node": "Should Alert?", "type": "main", "index": 0 }]]
+    },
+    "Should Alert?": {
+      "main": [
+        [{ "node": "Get L2/L3 Approvers", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Get L2/L3 Approvers": {
+      "main": [[{ "node": "Send Alert Email", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "tags": ["mogzu", "budget", "alerts"],
+  "_comment": "TODO: Replace emailSend node with Resend HTTP node. Add in-app notification via Supabase INSERT to notifications table."
+}

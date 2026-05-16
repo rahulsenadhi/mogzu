@@ -1,0 +1,100 @@
+{
+  "name": "Mogzu — Vendor SLA Auto-Cancel",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mogzu-booking-created",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook: Booking Created",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.record.status }}",
+              "value2": "pending"
+            }
+          ]
+        }
+      },
+      "id": "check-pending",
+      "name": "Is Pending?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "amount": 86400,
+        "unit": "seconds"
+      },
+      "id": "wait-sla",
+      "name": "Wait 24h SLA",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [680, 200],
+      "webhookId": "sla-resume"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/bookings?id=eq.{{ $node['Webhook: Booking Created'].json.record.id }}&select=id,status",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "check-still-pending",
+      "name": "Check Still Pending",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/bookings?id=eq.{{ $node['Webhook: Booking Created'].json.record.id }}",
+        "method": "PATCH",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "bodyParametersUi": {
+          "parameter": [
+            { "name": "status", "value": "cancelled" },
+            { "name": "cancellation_reason", "value": "Vendor did not confirm within 24h SLA" }
+          ]
+        }
+      },
+      "id": "auto-cancel",
+      "name": "Auto-Cancel Booking",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1120, 200]
+    }
+  ],
+  "connections": {
+    "Webhook: Booking Created": {
+      "main": [[{ "node": "Is Pending?", "type": "main", "index": 0 }]]
+    },
+    "Is Pending?": {
+      "main": [
+        [{ "node": "Wait 24h SLA", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Wait 24h SLA": {
+      "main": [[{ "node": "Check Still Pending", "type": "main", "index": 0 }]]
+    },
+    "Check Still Pending": {
+      "main": [[{ "node": "Auto-Cancel Booking", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "tags": ["mogzu", "sla", "bookings"],
+  "_comment": "TODO: Add Resend notification node after Auto-Cancel to email corporate user. Add vendor notification. Wire credentials before activating."
+}

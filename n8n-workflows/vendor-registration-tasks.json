@@ -1,0 +1,76 @@
+{
+  "name": "Mogzu — Vendor Registration Onboarding",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mogzu-vendor-registered",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook: Vendor Registered",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "onboarding@mogzu.com",
+        "toEmail": "={{ $json.record.contact_email }}",
+        "subject": "Welcome to Mogzu — Complete your vendor setup",
+        "emailType": "html",
+        "message": "<h2>Welcome, {{ $json.record.business_name }}!</h2><p>Your vendor account is under review. Here's what to do next:</p><ol><li>Upload business documents (GST certificate, PAN)</li><li>Add your first listing</li><li>Set your availability calendar</li><li>Connect your bank account for payouts</li></ol><p>Our team will review and activate your account within 2 business days.</p><p>— Mogzu Onboarding Team</p>"
+      },
+      "id": "welcome-email",
+      "name": "Send Welcome Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [460, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/user_profiles?role=eq.mogzu_admin&select=email,full_name",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "get-admin",
+      "name": "Get Mogzu Admin",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [460, 400]
+    },
+    {
+      "parameters": {
+        "fromEmail": "system@mogzu.com",
+        "toEmail": "={{ $json.email }}",
+        "subject": "New vendor pending review: {{ $node['Webhook: Vendor Registered'].json.record.business_name }}",
+        "emailType": "text",
+        "message": "New vendor registration requires review.\n\nBusiness: {{ $node['Webhook: Vendor Registered'].json.record.business_name }}\nContact: {{ $node['Webhook: Vendor Registered'].json.record.contact_email }}\nModule: {{ $node['Webhook: Vendor Registered'].json.record.primary_module }}\n\nReview at: https://app.mogzu.com/admin/vendors"
+      },
+      "id": "notify-admin",
+      "name": "Notify Admin",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [680, 400]
+    }
+  ],
+  "connections": {
+    "Webhook: Vendor Registered": {
+      "main": [
+        [
+          { "node": "Send Welcome Email", "type": "main", "index": 0 },
+          { "node": "Get Mogzu Admin", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Get Mogzu Admin": {
+      "main": [[{ "node": "Notify Admin", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "tags": ["mogzu", "vendor", "onboarding"],
+  "_comment": "TODO: Replace emailSend nodes with Resend. Add Slack notification node for internal #vendor-signups channel."
+}

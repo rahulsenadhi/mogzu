@@ -1,0 +1,134 @@
+{
+  "name": "Mogzu — Booking Completion Payout Trigger",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mogzu-booking-updated",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook: Booking Updated",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.record.status }}",
+              "value2": "completed"
+            },
+            {
+              "value1": "={{ $json.old_record.status }}",
+              "value2": "completed",
+              "operation": "notEqual"
+            }
+          ]
+        }
+      },
+      "id": "check-completed",
+      "name": "Status → Completed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/vendors?id=eq.{{ $json.record.vendor_id }}&select=id,business_name,razorpay_fund_account_id,razorpay_contact_id",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "get-vendor",
+      "name": "Get Vendor Payout Details",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [680, 200]
+    },
+    {
+      "parameters": {
+        "functionCode": "const booking = $node['Webhook: Booking Updated'].json.record;\nconst vendor = $input.first().json[0];\n\n// commission deducted server-side — this just triggers the payout record creation\nconst vendorAmount = booking.vendor_payout_amount; // pre-calculated in booking row\n\nreturn [{\n  json: {\n    vendorId: vendor.id,\n    businessName: vendor.business_name,\n    razorpayFundAccountId: vendor.razorpay_fund_account_id,\n    razorpayContactId: vendor.razorpay_contact_id,\n    amount: vendorAmount,\n    bookingId: booking.id,\n    currency: 'INR',\n  }\n}];"
+      },
+      "id": "calc-payout",
+      "name": "Prepare Payout Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "url": "https://api.razorpay.com/v1/payouts",
+        "method": "POST",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "bodyParametersUi": {
+          "parameter": [
+            { "name": "account_number", "value": "={{ $env.RAZORPAY_ACCOUNT_NUMBER }}" },
+            { "name": "fund_account_id", "value": "={{ $json.razorpayFundAccountId }}" },
+            { "name": "amount", "value": "={{ $json.amount }}" },
+            { "name": "currency", "value": "INR" },
+            { "name": "mode", "value": "NEFT" },
+            { "name": "purpose", "value": "payout" },
+            { "name": "queue_if_low_balance", "value": true },
+            { "name": "narration", "value": "Mogzu payout for booking {{ $json.bookingId }}" }
+          ]
+        }
+      },
+      "id": "razorpay-payout",
+      "name": "Razorpay Payout API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/wallet_transactions",
+        "method": "POST",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "bodyParametersUi": {
+          "parameter": [
+            { "name": "booking_id", "value": "={{ $node['Prepare Payout Data'].json.bookingId }}" },
+            { "name": "type", "value": "vendor_payout" },
+            { "name": "amount", "value": "={{ $node['Prepare Payout Data'].json.amount }}" },
+            { "name": "razorpay_payout_id", "value": "={{ $json.id }}" },
+            { "name": "status", "value": "processing" }
+          ]
+        }
+      },
+      "id": "log-payout",
+      "name": "Log Payout in Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1340, 200]
+    }
+  ],
+  "connections": {
+    "Webhook: Booking Updated": {
+      "main": [[{ "node": "Status → Completed?", "type": "main", "index": 0 }]]
+    },
+    "Status → Completed?": {
+      "main": [
+        [{ "node": "Get Vendor Payout Details", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Get Vendor Payout Details": {
+      "main": [[{ "node": "Prepare Payout Data", "type": "main", "index": 0 }]]
+    },
+    "Prepare Payout Data": {
+      "main": [[{ "node": "Razorpay Payout API", "type": "main", "index": 0 }]]
+    },
+    "Razorpay Payout API": {
+      "main": [[{ "node": "Log Payout in Supabase", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "tags": ["mogzu", "payouts", "razorpay"],
+  "_comment": "IMPORTANT: Razorpay Payouts API requires KYC-verified account and fund account IDs pre-registered per vendor. vendors table must have razorpay_fund_account_id and razorpay_contact_id populated during vendor onboarding. This is a P1 dependency — workflow stays inactive until vendor KYC flow is built."
+}

@@ -1,0 +1,74 @@
+{
+  "name": "Mogzu — Festival Gifting Reminder",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Every Monday 9am",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Festival dates (India) — update annually\nconst festivals = [\n  { name: 'Diwali',      date: '2026-10-20', daysNotice: 30 },\n  { name: 'Christmas',   date: '2026-12-25', daysNotice: 21 },\n  { name: \"New Year\",    date: '2027-01-01', daysNotice: 21 },\n  { name: 'Holi',        date: '2027-03-01', daysNotice: 21 },\n  { name: \"Valentine's\", date: '2027-02-14', daysNotice: 14 },\n  { name: 'Eid',         date: '2027-03-31', daysNotice: 21 },\n];\n\nconst today = new Date();\nconst upcoming = festivals.filter(f => {\n  const fest = new Date(f.date);\n  const diff = Math.floor((fest - today) / (1000 * 60 * 60 * 24));\n  return diff >= 0 && diff <= f.daysNotice;\n});\n\nreturn upcoming.map(f => ({ json: f }));"
+      },
+      "id": "check-upcoming",
+      "name": "Check Upcoming Festivals",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/user_profiles?role=in.(l2_approver,l3_admin)&select=email,full_name,corporate_id",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "get-gifting-admins",
+      "name": "Get Gifting Decision Makers",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "gifting@mogzu.com",
+        "toEmail": "={{ $json.email }}",
+        "subject": "{{ $node['Check Upcoming Festivals'].json.name }} is in {{ $node['Check Upcoming Festivals'].json.daysNotice }} days — Start gifting planning",
+        "emailType": "html",
+        "message": "<h2>{{ $node['Check Upcoming Festivals'].json.name }} Gifting</h2><p>Hi {{ $json.full_name }},</p><p>{{ $node['Check Upcoming Festivals'].json.name }} is coming up. Now is a great time to plan employee and client gifts.</p><p><a href='https://app.mogzu.com/gifting'>Browse Gifting Catalogue →</a></p><p>— Mogzu Gifting Team</p>"
+      },
+      "id": "send-reminder",
+      "name": "Send Reminder Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Every Monday 9am": {
+      "main": [[{ "node": "Check Upcoming Festivals", "type": "main", "index": 0 }]]
+    },
+    "Check Upcoming Festivals": {
+      "main": [[{ "node": "Get Gifting Decision Makers", "type": "main", "index": 0 }]]
+    },
+    "Get Gifting Decision Makers": {
+      "main": [[{ "node": "Send Reminder Email", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "tags": ["mogzu", "gifting", "reminders"],
+  "_comment": "TODO: Replace emailSend with Resend. Update festival dates annually. Add unsubscribe preference check before sending."
+}
