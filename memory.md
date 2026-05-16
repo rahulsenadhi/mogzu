@@ -48,6 +48,12 @@ Use this for significant implementation updates.
 
 Latest entries:
 - Date: 2026-05-16
+- Summary: Sprint 4 — Vendor confirms/rejects booking (3.3). New `VendorBookingRequestsPage` at `/vendor/booking-requests` (list) and `/vendor/booking-requests/:bookingId` (detail). Lists vendor's bookings by status tab (pending_vendor / confirmed+completed / cancelled) with SLA countdown badge (urgent < 4h, expired red). Confirm sets booking status=`confirmed` and auto-inserts `calendar_slots` row of type `booked` covering the booking window. Reject calls `db.bookings.cancel(reason)` with refund flag in the cancellation reason when payment_status=`paid`. Realtime subscription via `realtimeService.watchVendorBookings`. Client-side auto-cancel sweep cancels any `pending_vendor` row whose `vendor_response_deadline < now` as a stopgap until N8N workflow ships.
+- Files changed: `MogzuApplication/src/app/components/VendorBookingRequestsPage.tsx`, `MogzuApplication/src/app/routes.tsx`
+- Verification performed: `npm run build` clean
+- Risks / notes: Client-side auto-cancel only runs when a vendor opens the page — server-side N8N cron required for guaranteed enforcement. Refund initiation is logged in cancellation_reason text but does not yet trigger wallet credit / payment-gateway refund (Sprint 5 payments). Notification bell / dashboard alert deferred — needs notification infra. Existing `VendorOrdersPage` (mock store) left untouched; new page is opt-in via route.
+- Owner: Project team
+- Date: 2026-05-16
 - Summary: Sprint 4 — Employee event booking flow (3.2). New `EventBookingPage` at `/book/event/:listingId` with 4-step wizard (Date → Group → Add-ons → Review). Calendar shows vendor's booked/blocked days strikethrough from `calendar_slots`. Group size enforces listing min/max capacity. Live price recalc (base × group multiplier for per_person + add-on totals + 5% platform fee). Budget-rule check decides between `pending_approval` (above auto-approve threshold) and `pending_vendor` (24h vendor SLA). Adds `db.bookings.addAddOns` helper.
 - Files changed: `MogzuApplication/src/lib/db.ts`, `MogzuApplication/src/app/components/EventBookingPage.tsx`, `MogzuApplication/src/app/routes.tsx`
 - Verification performed: `npm run build` clean
