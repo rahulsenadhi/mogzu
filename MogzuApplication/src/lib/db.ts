@@ -7,6 +7,7 @@ import type {
   BookingAddOn,
   BudgetRule,
   GiftingRule,
+  Refund,
   RoleSwitchEvent,
   CalendarSlot,
   Commission,
@@ -300,6 +301,86 @@ export const bookings = {
     rows.length === 0
       ? { data: [], error: null }
       : supabase.from('booking_add_ons').insert(rows).select(),
+
+  // Cancel booking and initiate refund if payment was captured.
+  // Wallet refunds are processed immediately (credit + wallet_transactions);
+  // card/UPI refunds are inserted as 'pending' for the Razorpay webhook to
+  // mark processed asynchronously. Story 6.3.
+  cancelWithRefund: async (
+    booking: Booking,
+    reason: string,
+    fee: number,
+    actorId: string,
+  ): Promise<{ refundId: string | null; error: string | null }> => {
+    const { error: cancelErr } = await supabase
+      .from('bookings')
+      .update({
+        status: 'cancelled',
+        cancellation_reason: reason,
+        cancellation_fee: fee,
+        cancelled_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', booking.id)
+    if (cancelErr) return { refundId: null, error: cancelErr.message }
+
+    if (booking.payment_status !== 'paid' || !booking.payment_method) {
+      return { refundId: null, error: null }
+    }
+
+    const refundable = Math.max(0, (booking.total_amount ?? 0) - fee)
+    if (refundable === 0) return { refundId: null, error: null }
+
+    const isWallet = booking.payment_method === 'wallet'
+    const { data: refund, error: refundErr } = await supabase
+      .from('refunds')
+      .insert({
+        booking_id: booking.id,
+        corporate_id: booking.corporate_id,
+        amount: refundable,
+        method: booking.payment_method,
+        status: isWallet ? 'processed' : 'pending',
+        gateway_reference: null,
+        failure_reason: null,
+        initiated_by: actorId,
+        processed_at: isWallet ? new Date().toISOString() : null,
+      })
+      .select()
+      .single()
+
+    if (refundErr || !refund) {
+      return { refundId: null, error: refundErr?.message ?? 'Refund insert failed' }
+    }
+
+    if (isWallet) {
+      // Look up wallet by corporate_id then credit + log transaction.
+      const { data: w } = await supabase
+        .from('wallets')
+        .select('*')
+        .eq('corporate_id', booking.corporate_id)
+        .single()
+      if (w) {
+        await supabase.from('wallet_transactions').insert({
+          wallet_id: w.id,
+          corporate_id: booking.corporate_id,
+          type: 'refund',
+          amount: refundable,
+          reference_id: refund.id,
+          booking_id: booking.id,
+          description: `Refund for booking ${booking.id.slice(0, 8)}`,
+        })
+        await supabase
+          .from('wallets')
+          .update({
+            balance: w.balance + refundable,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('corporate_id', booking.corporate_id)
+      }
+    }
+
+    return { refundId: refund.id, error: null }
+  },
 }
 
 // ─── Budgets ──────────────────────────────────────────────────────────────────
@@ -395,6 +476,49 @@ export const commissions = {
     supabase.from('commissions').update({ is_active: false }).eq('id', id),
 }
 
+// ─── Refunds (Story 6.3) ──────────────────────────────────────────────────────
+
+export const refunds = {
+  create: async (
+    data: Omit<Refund, 'id' | 'created_at' | 'updated_at' | 'initiated_at'>,
+  ) => supabase.from('refunds').insert(data).select().single(),
+
+  listByBooking: async (bookingId: string) =>
+    supabase
+      .from('refunds')
+      .select('*')
+      .eq('booking_id', bookingId)
+      .order('created_at', { ascending: false }),
+
+  listByCorporate: async (corporateId: string) =>
+    supabase
+      .from('refunds')
+      .select('*, bookings(listings(title))')
+      .eq('corporate_id', corporateId)
+      .order('created_at', { ascending: false }),
+
+  markProcessed: async (id: string, gatewayReference?: string) =>
+    supabase
+      .from('refunds')
+      .update({
+        status: 'processed',
+        gateway_reference: gatewayReference ?? null,
+        processed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id),
+
+  markFailed: async (id: string, reason: string) =>
+    supabase
+      .from('refunds')
+      .update({
+        status: 'failed',
+        failure_reason: reason,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id),
+}
+
 // ─── Role Switch Audit (Story 1.5) ────────────────────────────────────────────
 
 export const roleSwitchEvents = {
@@ -470,5 +594,6 @@ export const db = {
   commissions,
   categories,
   giftingRules,
+  refunds,
   roleSwitchEvents,
 }

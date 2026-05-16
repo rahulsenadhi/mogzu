@@ -219,6 +219,25 @@ export interface BookingAddOn {
   quantity: number
 }
 
+export type RefundMethod = 'wallet' | 'card' | 'upi'
+export type RefundStatus = 'pending' | 'processed' | 'failed'
+
+export interface Refund {
+  id: string
+  booking_id: string
+  corporate_id: string
+  amount: number
+  method: RefundMethod
+  status: RefundStatus
+  gateway_reference: string | null
+  failure_reason: string | null
+  initiated_by: string | null
+  initiated_at: string
+  processed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface RoleSwitchEvent {
   id: string
   user_id: string
@@ -343,6 +362,11 @@ export interface Database {
         Row: GiftingRule
         Insert: Omit<GiftingRule, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<GiftingRule, 'id' | 'created_at'>>
+      }
+      refunds: {
+        Row: Refund
+        Insert: Omit<Refund, 'id' | 'created_at' | 'updated_at' | 'initiated_at'>
+        Update: Partial<Omit<Refund, 'id' | 'created_at'>>
       }
       role_switch_events: {
         Row: RoleSwitchEvent

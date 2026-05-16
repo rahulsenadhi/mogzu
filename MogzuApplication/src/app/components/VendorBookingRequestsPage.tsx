@@ -350,7 +350,7 @@ function BookingDetailScreen({
   }
 
   const handleReject = async () => {
-    if (!booking) return
+    if (!booking || !vendorId) return
     const reason = rejectReason.trim()
     if (!reason) {
       setActionError('Provide a rejection reason.')
@@ -362,11 +362,12 @@ function BookingDetailScreen({
     }
     setSubmitting(true)
     setActionError('')
-    const refundAmount = booking.payment_status === 'paid' ? booking.total_amount ?? 0 : 0
-    const { error } = await db.bookings.cancel(
-      booking.id,
-      `Vendor rejected: ${reason}${refundAmount > 0 ? ` (refund ₹${refundAmount} initiated)` : ''}`,
+    // Full refund — vendor rejection is fault of vendor, no cancellation fee.
+    const { refundId, error } = await db.bookings.cancelWithRefund(
+      booking,
+      `Vendor rejected: ${reason}`,
       0,
+      vendorId,
     )
     if (error) {
       setActionError(error.message)
@@ -374,8 +375,10 @@ function BookingDetailScreen({
       return
     }
     setActionSuccess(
-      refundAmount > 0
-        ? 'Booking rejected. Refund flagged for processing.'
+      refundId
+        ? booking.payment_method === 'wallet'
+          ? 'Booking rejected. Refund credited to corporate wallet.'
+          : 'Booking rejected. Refund initiated on payment gateway.'
         : 'Booking rejected.',
     )
     setSubmitting(false)

@@ -1172,6 +1172,11 @@ export const router = createBrowserRouter([
     errorElement: <ErrorPage />,
   },
   {
+    path: "/bookings/:id/cancel",
+    element: <CancelBookingPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
     path: "/cancel-booking",
     element: <CancelBookingPage />,
     errorElement: <ErrorPage />,
