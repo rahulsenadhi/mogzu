@@ -48,6 +48,12 @@ Use this for significant implementation updates.
 
 Latest entries:
 - Date: 2026-05-16
+- Summary: Sprint 5 — Booking payment checkout (6.1). New `BookingPaymentPage` at `/bookings/:id/pay`. Three methods: Corporate Wallet (instant debit via `db.wallet.recordTransaction('debit')` + `adjustBalance(-total)`), Card, UPI. Wallet path validates `wallet.balance >= total`; below-total shows shortfall and a top-up CTA. Card/UPI paths show an amber Razorpay-pending banner with a manual reference/UTR field — operator pastes Razorpay payment id to mark paid (stopgap until backend webhook ships). Booking is updated with `payment_method`, `payment_reference`, `payment_status='paid'`. Already-paid bookings short-circuit to a receipt view. Failed payment keeps booking unchanged so retry works.
+- Files changed: `MogzuApplication/src/app/components/BookingPaymentPage.tsx`, `MogzuApplication/src/app/routes.tsx`
+- Verification performed: `npm run build` clean
+- Risks / notes: Real Razorpay checkout SDK + webhook handler still deferred — current card/UPI flow is operator-manual. 3D Secure not exercised because no real gateway call. Receipt email deferred (Resend not wired). Concurrent wallet debit is read-modify-write client-side; pre-prod needs a Postgres RPC to atomically debit + record txn. Sprint 5 P0 stories (9.2, 6.2, 6.1) all merged.
+- Owner: Project team
+- Date: 2026-05-16
 - Summary: Sprint 5 — Corporate wallet top-up (6.2). Rebuilt `WalletPage` from points-based mock to real Supabase wallet for L3 admin / mogzu_admin. Shows live balance from `db.wallet.getByCorporate`, transaction history (last 50), and a configurable low-balance threshold (`wallet.low_balance_threshold` with below-threshold badge). Top-up modal: amount, method (Bank/NEFT/Card), reference/UTR. Submits a `wallet_transactions` row of type='topup' and immediately credits the wallet (stopgap; banner notes Razorpay webhook will replace this in a future sprint). Adds `db.wallet.adjustBalance` and `db.wallet.setLowBalanceThreshold` helpers. Realtime via `realtimeService.watchWallet`.
 - Files changed: `MogzuApplication/src/lib/db.ts`, `MogzuApplication/src/app/components/WalletPage.tsx`
 - Verification performed: `npm run build` clean

@@ -83,6 +83,7 @@ import BookingFlow from "@/app/components/BookingFlow";
 import EventBookingPage from "@/app/components/EventBookingPage";
 import VendorBookingRequestsPage from "@/app/components/VendorBookingRequestsPage";
 import AdminCommissionsPage from "@/app/components/AdminCommissionsPage";
+import BookingPaymentPage from "@/app/components/BookingPaymentPage";
 import CelebrationsPage from "@/app/components/CelebrationsPage";
 import CelebrationDetailPage from "@/app/components/CelebrationDetailPage";
 import CelebrationBookingFlow from "@/app/components/CelebrationBookingFlow";
@@ -695,6 +696,11 @@ export const router = createBrowserRouter([
   {
     path: "/admin/commissions",
     element: <AdminCommissionsPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/bookings/:id/pay",
+    element: <BookingPaymentPage />,
     errorElement: <ErrorPage />,
   },
   {
