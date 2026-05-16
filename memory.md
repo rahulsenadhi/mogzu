@@ -48,6 +48,12 @@ Use this for significant implementation updates.
 
 Latest entries:
 - Date: 2026-05-16
+- Summary: Sprint 6 — Vendor unified orders dashboard (8.1). Replaced mock-data `VendorOrdersPage` with real Supabase `db.bookings.listByVendor`. Single table across modules with: stat cards (total / awaiting confirmation / confirmed / confirmed revenue), filters (search ID/customer/listing, module, status, from/to date), CSV export of the current filtered view, sort by status priority then created_at desc. Click View → existing `/vendor/booking-requests/:bookingId` detail (reuses confirm/reject UI). Realtime via `realtimeService.watchVendorBookings`.
+- Files changed: `MogzuApplication/src/app/components/VendorOrdersPage.tsx`
+- Verification performed: `npm run build` clean
+- Risks / notes: Sprint 6 fully shipped (4.5, 4.1, 4.2, 8.1). Gifting-specific fulfilment statuses (Packed → Dispatched → Delivered) from acceptance criteria not modelled — BookingStatus enum doesn't have them. Would need a `fulfilment_stage` column on bookings or a `booking_events` audit table. Old mock seed files (`corpVendorEnquiryStorage`, `vendorOrdersDemoSeed`) no longer referenced by this page but still exist — can be removed in a cleanup sprint.
+- Owner: Project team
+- Date: 2026-05-16
 - Summary: Sprint 6 — Employee sends gift (4.2). New `GiftingSendPage` at `/gifting/send`. 4-step flow: Occasion (active gifting rule or standalone) → Gift (filtered approved gifting products; preferred-vendor filter from rule; category + max price) → Recipient (corporate directory from `db.userProfiles.listByCorporate`, filtered to rule's department if scoped, with name/department search; self excluded) → Message (≤200 chars). Submit creates a `bookings` row module='gifting', `group_size=1`, recipient + occasion + message composed into `purpose_note`. Approval decision: standalone gifts and over-budget gifts and rules with `requires_approval=true` → `pending_approval`; under-budget auto-approve → `pending_vendor` with 24h SLA. Commission snapshot follows vendor → global precedence as event flow. Confirmation card shows reference + estimated delivery (lead-time from product metadata).
 - Files changed: `MogzuApplication/src/app/components/GiftingSendPage.tsx`, `MogzuApplication/src/app/routes.tsx`
 - Verification performed: `npm run build` clean
