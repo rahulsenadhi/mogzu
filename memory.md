@@ -48,6 +48,12 @@ Use this for significant implementation updates.
 
 Latest entries:
 - Date: 2026-05-16
+- Summary: Sprint 5 — Corporate wallet top-up (6.2). Rebuilt `WalletPage` from points-based mock to real Supabase wallet for L3 admin / mogzu_admin. Shows live balance from `db.wallet.getByCorporate`, transaction history (last 50), and a configurable low-balance threshold (`wallet.low_balance_threshold` with below-threshold badge). Top-up modal: amount, method (Bank/NEFT/Card), reference/UTR. Submits a `wallet_transactions` row of type='topup' and immediately credits the wallet (stopgap; banner notes Razorpay webhook will replace this in a future sprint). Adds `db.wallet.adjustBalance` and `db.wallet.setLowBalanceThreshold` helpers. Realtime via `realtimeService.watchWallet`.
+- Files changed: `MogzuApplication/src/lib/db.ts`, `MogzuApplication/src/app/components/WalletPage.tsx`
+- Verification performed: `npm run build` clean
+- Risks / notes: Wallet balance bump is client-side without webhook verification — concurrency / fraud risk if shipped as-is. Razorpay backend webhook handler still needs Supabase Edge Function. Amounts > ₹50,00,000 blocked client-side as a heuristic; should be server-side rule. Low-balance alert is visual only — no email/Slack push yet.
+- Owner: Project team
+- Date: 2026-05-16
 - Summary: Sprint 5 — Mogzu admin commission rates (9.2). New `AdminCommissionsPage` at `/admin/commissions` (mogzu_admin only). Lists active rules with scope (Global/Vendor/Module), rate %, effective_from, status. Form to create rules with live preview (X% on ₹1,000 → platform earns ₹fee, vendor receives ₹net). Deactivate inactive button (soft). CSV export filterable by created_at date range. `EventBookingPage.handleSubmit` now snapshots the active commission onto `bookings.commission_rate` at create time (precedence: vendor → global), so rate changes do not affect existing bookings.
 - Files changed: `MogzuApplication/src/app/components/AdminCommissionsPage.tsx`, `MogzuApplication/src/app/components/EventBookingPage.tsx`, `MogzuApplication/src/app/routes.tsx`
 - Verification performed: `npm run build` clean

@@ -340,6 +340,25 @@ export const wallet = {
 
   recordTransaction: async (data: Omit<WalletTransaction, 'id' | 'created_at'>) =>
     supabase.from('wallet_transactions').insert(data).select().single(),
+
+  adjustBalance: async (corporateId: string, delta: number) => {
+    const { data: w, error: fetchErr } = await supabase
+      .from('wallets')
+      .select('balance')
+      .eq('corporate_id', corporateId)
+      .single()
+    if (fetchErr || !w) return { error: fetchErr ?? new Error('Wallet not found') }
+    return supabase
+      .from('wallets')
+      .update({ balance: w.balance + delta, updated_at: new Date().toISOString() })
+      .eq('corporate_id', corporateId)
+  },
+
+  setLowBalanceThreshold: async (corporateId: string, threshold: number) =>
+    supabase
+      .from('wallets')
+      .update({ low_balance_threshold: threshold, updated_at: new Date().toISOString() })
+      .eq('corporate_id', corporateId),
 }
 
 // ─── Commissions ──────────────────────────────────────────────────────────────
