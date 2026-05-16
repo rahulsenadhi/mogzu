@@ -330,6 +330,20 @@ export default function EventBookingPage() {
       await db.bookings.addAddOns(addOnRows)
     }
 
+    // Notify approver chain if this needs manager approval.
+    if (status === 'pending_approval' && corporateId) {
+      const { data: managers } = await db.userProfiles.listByRole(corporateId, 'l2_manager')
+      ;(managers ?? []).forEach((m) => {
+        db.notifications.notify({
+          userId: m.id,
+          type: 'approval_required',
+          title: 'New booking awaiting your approval',
+          body: `${listing.title} — ₹${totalAmount.toLocaleString('en-IN')} for ${profile.full_name ?? 'a teammate'}.`,
+          linkUrl: `/corporate/approvals/${data.id}`,
+        })
+      })
+    }
+
     setConfirmedBookingId(data.id)
     setConfirmedStatus(status)
     setStep('done')

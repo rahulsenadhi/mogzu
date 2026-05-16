@@ -5,6 +5,7 @@ import svgPaths from '@/imports/svg-camfkj9vq4';
 import { MogzuLogo } from '@/app/components/branding/MogzuLogo';
 import { RoleSwitcher } from '@/app/components/global/RoleSwitcher';
 import { AuthRoleSwitcher } from '@/app/components/global/AuthRoleSwitcher';
+import { NotificationBell } from '@/app/components/global/NotificationBell';
 import { RoleBanner } from '@/app/components/global/RoleBanner';
 import { RoleTopNavItems } from '@/app/components/global/RoleTopNavItems';
 import { useDemoRole } from '@/app/lib/demoRole';
@@ -148,6 +149,8 @@ export function SharedHeader({
         <RoleSwitcher />
 
         <AuthRoleSwitcher />
+
+        <NotificationBell />
 
         <div className="relative" ref={userMenuRef}>
           <button

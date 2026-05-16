@@ -89,6 +89,8 @@ import GiftingSendPage from "@/app/components/GiftingSendPage";
 import SpaceBookingPage from "@/app/components/SpaceBookingPage";
 import VendorPayoutsPage from "@/app/components/VendorPayoutsPage";
 import EmployeeImportPage from "@/app/components/EmployeeImportPage";
+import NotificationsPage from "@/app/components/NotificationsPage";
+import NotificationPreferencesPage from "@/app/components/NotificationPreferencesPage";
 import CelebrationsPage from "@/app/components/CelebrationsPage";
 import CelebrationDetailPage from "@/app/components/CelebrationDetailPage";
 import CelebrationBookingFlow from "@/app/components/CelebrationBookingFlow";
@@ -731,6 +733,16 @@ export const router = createBrowserRouter([
   {
     path: "/corporate/employees/import",
     element: <EmployeeImportPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/notifications",
+    element: <NotificationsPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/settings/notifications",
+    element: <NotificationPreferencesPage />,
     errorElement: <ErrorPage />,
   },
   {

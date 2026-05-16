@@ -219,6 +219,54 @@ export interface BookingAddOn {
   quantity: number
 }
 
+export type NotificationType =
+  | 'booking_confirmed'
+  | 'booking_cancelled'
+  | 'approval_required'
+  | 'approval_decided'
+  | 'payment_received'
+  | 'payment_failed'
+  | 'refund_initiated'
+  | 'refund_failed'
+  | 'reminder_24h'
+  | 'gift_received'
+  | 'gift_pending_approval'
+  | 'support_reply'
+  | 'system'
+
+export const CRITICAL_NOTIFICATION_TYPES: NotificationType[] = [
+  'booking_cancelled',
+  'payment_failed',
+  'refund_initiated',
+  'refund_failed',
+  'support_reply',
+]
+
+export type NotificationEmailStatus = 'skipped' | 'queued' | 'sent' | 'failed'
+
+export interface Notification {
+  id: string
+  user_id: string
+  type: NotificationType
+  title: string
+  body: string | null
+  link_url: string | null
+  metadata: Record<string, unknown>
+  is_read: boolean
+  read_at: string | null
+  email_status: NotificationEmailStatus
+  email_sent_at: string | null
+  created_at: string
+}
+
+export interface NotificationPreference {
+  user_id: string
+  in_app_enabled_types: NotificationType[]
+  email_enabled_types: NotificationType[]
+  created_at: string
+  updated_at: string
+}
+
 export interface Employee {
   id: string
   corporate_id: string
@@ -398,6 +446,16 @@ export interface Database {
         Row: GiftingRule
         Insert: Omit<GiftingRule, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<GiftingRule, 'id' | 'created_at'>>
+      }
+      notifications: {
+        Row: Notification
+        Insert: Omit<Notification, 'id' | 'created_at'>
+        Update: Partial<Omit<Notification, 'id' | 'created_at'>>
+      }
+      notification_preferences: {
+        Row: NotificationPreference
+        Insert: Omit<NotificationPreference, 'created_at' | 'updated_at'>
+        Update: Partial<Omit<NotificationPreference, 'created_at'>>
       }
       employees: {
         Row: Employee

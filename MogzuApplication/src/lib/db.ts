@@ -2,12 +2,16 @@
 // All queries go through these namespaced methods.
 
 import { supabase } from './supabase'
+import { CRITICAL_NOTIFICATION_TYPES } from './database.types'
 import type {
   Booking,
   BookingAddOn,
   BudgetRule,
   Employee,
   GiftingRule,
+  Notification,
+  NotificationPreference,
+  NotificationType,
   Payout,
   Refund,
   RoleSwitchEvent,
@@ -533,6 +537,100 @@ export const commissions = {
     supabase.from('commissions').update({ is_active: false }).eq('id', id),
 }
 
+// ─── Notifications (Story 7.2) ────────────────────────────────────────────────
+
+type NotifyInput = {
+  userId: string
+  type: NotificationType
+  title: string
+  body?: string | null
+  linkUrl?: string | null
+  metadata?: Record<string, unknown>
+}
+
+export const notifications = {
+  listByUser: async (userId: string, limit = 50) =>
+    supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(limit),
+
+  unreadCount: async (userId: string) =>
+    supabase
+      .from('notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('is_read', false),
+
+  markRead: async (id: string) =>
+    supabase
+      .from('notifications')
+      .update({ is_read: true, read_at: new Date().toISOString() })
+      .eq('id', id),
+
+  markAllRead: async (userId: string) =>
+    supabase
+      .from('notifications')
+      .update({ is_read: true, read_at: new Date().toISOString() })
+      .eq('user_id', userId)
+      .eq('is_read', false),
+
+  // Emits a notification, respecting the recipient's preferences. Critical
+  // types bypass the in-app opt-out. Email status is 'queued' if the user
+  // has opted in, otherwise 'skipped' — the future Resend worker drains the
+  // queue.
+  notify: async (input: NotifyInput): Promise<{ error: string | null }> => {
+    const { data: prefs } = await supabase
+      .from('notification_preferences')
+      .select('*')
+      .eq('user_id', input.userId)
+      .maybeSingle()
+
+    const isCritical = CRITICAL_NOTIFICATION_TYPES.includes(input.type)
+    const inAppEnabled =
+      isCritical ||
+      !prefs ||
+      (prefs.in_app_enabled_types ?? []).includes(input.type)
+    if (!inAppEnabled) return { error: null }
+
+    const emailEnabled =
+      isCritical ||
+      (prefs?.email_enabled_types ?? []).includes(input.type)
+
+    const { error } = await supabase.from('notifications').insert({
+      user_id: input.userId,
+      type: input.type,
+      title: input.title,
+      body: input.body ?? null,
+      link_url: input.linkUrl ?? null,
+      metadata: input.metadata ?? {},
+      is_read: false,
+      read_at: null,
+      email_status: emailEnabled ? 'queued' : 'skipped',
+      email_sent_at: null,
+    })
+    return { error: error?.message ?? null }
+  },
+}
+
+export const notificationPreferences = {
+  get: async (userId: string) =>
+    supabase
+      .from('notification_preferences')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle(),
+
+  upsert: async (data: Omit<NotificationPreference, 'created_at' | 'updated_at'>) =>
+    supabase
+      .from('notification_preferences')
+      .upsert(data, { onConflict: 'user_id' })
+      .select()
+      .single(),
+}
+
 // ─── Employees (Story 10.0) ───────────────────────────────────────────────────
 
 export const employees = {
@@ -727,6 +825,8 @@ export const db = {
   categories,
   employees,
   giftingRules,
+  notifications,
+  notificationPreferences,
   payouts,
   refunds,
   roleSwitchEvents,

@@ -343,6 +343,13 @@ function BookingDetailScreen({
         notes: `Booking ${booking.id.slice(0, 8)}`,
       })
     }
+    db.notifications.notify({
+      userId: booking.user_id,
+      type: 'booking_confirmed',
+      title: 'Vendor confirmed your booking',
+      body: `${booking.listings?.title ?? 'Booking'} — slot blocked on calendar.`,
+      linkUrl: `/bookings/${booking.id}`,
+    })
     setActionSuccess('Booking confirmed. Calendar slot blocked.')
     setSubmitting(false)
     onChanged()
@@ -373,6 +380,25 @@ function BookingDetailScreen({
       setActionError(error.message)
       setSubmitting(false)
       return
+    }
+    db.notifications.notify({
+      userId: booking.user_id,
+      type: 'booking_cancelled',
+      title: 'Vendor rejected your booking',
+      body: reason,
+      linkUrl: `/bookings/${booking.id}`,
+    })
+    if (refundId) {
+      db.notifications.notify({
+        userId: booking.user_id,
+        type: 'refund_initiated',
+        title: 'Refund initiated',
+        body:
+          booking.payment_method === 'wallet'
+            ? 'Refund credited to corporate wallet.'
+            : 'Refund initiated on payment gateway. Funds clear in 5–7 business days.',
+        linkUrl: `/bookings/${booking.id}`,
+      })
     }
     setActionSuccess(
       refundId

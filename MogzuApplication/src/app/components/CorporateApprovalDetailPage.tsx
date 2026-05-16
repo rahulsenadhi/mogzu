@@ -127,6 +127,13 @@ export default function CorporateApprovalDetailPage() {
       setSubmitting(false)
       return
     }
+    db.notifications.notify({
+      userId: request.user_id,
+      type: 'approval_decided',
+      title: 'Your booking was approved',
+      body: `${request.listings?.title ?? 'Booking'} — awaiting vendor confirmation. Manager comment: ${approvalComment.trim()}`,
+      linkUrl: `/bookings/${request.id}`,
+    })
     setActionSuccess('Request approved. Vendor will be notified.')
     setSubmitting(false)
     loadRequest()
@@ -151,6 +158,13 @@ export default function CorporateApprovalDetailPage() {
       setSubmitting(false)
       return
     }
+    db.notifications.notify({
+      userId: request.user_id,
+      type: 'booking_cancelled',
+      title: 'Your booking was rejected by manager',
+      body: reason,
+      linkUrl: `/bookings/${request.id}`,
+    })
     setActionSuccess('Request rejected. Employee will be notified.')
     setSubmitting(false)
     loadRequest()
