@@ -48,6 +48,12 @@ Use this for significant implementation updates.
 
 Latest entries:
 - Date: 2026-05-16
+- Summary: Sprint 4 — L2 manager approval queue (2.2). Replaced mock data on `CorporateApprovalsPage` and `CorporateApprovalDetailPage` with real Supabase `db.bookings`. Queue tabs (Pending/Approved/Rejected) map to BookingStatus (`pending_approval`, `pending_vendor|confirmed|completed`, `cancelled`). Approve via `db.bookings.approve` → moves to `pending_vendor`; reject via `db.bookings.cancel(reason)`. Bulk-approve via checkboxes on Pending tab. Role guard: only `l2_manager` / `l3_admin` can access. Realtime via `realtimeService.watchCorporateBookings`.
+- Files changed: `MogzuApplication/src/app/components/CorporateApprovalsPage.tsx`, `CorporateApprovalDetailPage.tsx`
+- Verification performed: `npm run build` clean
+- Risks / notes: Push notifications + Resend email on queue entry deferred — needs N8N hook + Resend wiring (Sprint 4 dependency in plan). "Request modification" action from acceptance criteria not implemented — only approve/reject. Bulk-approve does sequential `approve` calls; if one fails, others still succeed and a partial-success message is shown.
+- Owner: Project team
+- Date: 2026-05-16
 - Summary: Sprint 3 — Vendor gifting catalogue (4.4). Replaced `VendorGiftingDashboardPage` products tab and `VendorGiftingProductFormPage` mock state with Supabase `db.listings` module='gifting'. Form covers MOQ, GST, variants (parsed from text), bulk tiers, branding options, delivery cities, lead-time SLA, packaging, inventory, out-of-stock toggle — non-core fields persisted in `listing.metadata` JSONB. Form is now single-page (replaced 5-step wizard) to fit 4.4 scope tightly. Orders/Performance/Settings tabs on dashboard still read from `vendorGiftingStore` local store — explicitly out of 4.4 scope; banners now note the demo state.
 - Files changed: `MogzuApplication/src/app/components/VendorGiftingDashboardPage.tsx`, `VendorGiftingProductFormPage.tsx`
 - Verification performed: `npm run build` clean
