@@ -48,6 +48,12 @@ Use this for significant implementation updates.
 
 Latest entries:
 - Date: 2026-05-16
+- Summary: Sprint 5 — Mogzu admin commission rates (9.2). New `AdminCommissionsPage` at `/admin/commissions` (mogzu_admin only). Lists active rules with scope (Global/Vendor/Module), rate %, effective_from, status. Form to create rules with live preview (X% on ₹1,000 → platform earns ₹fee, vendor receives ₹net). Deactivate inactive button (soft). CSV export filterable by created_at date range. `EventBookingPage.handleSubmit` now snapshots the active commission onto `bookings.commission_rate` at create time (precedence: vendor → global), so rate changes do not affect existing bookings.
+- Files changed: `MogzuApplication/src/app/components/AdminCommissionsPage.tsx`, `MogzuApplication/src/app/components/EventBookingPage.tsx`, `MogzuApplication/src/app/routes.tsx`
+- Verification performed: `npm run build` clean
+- Risks / notes: Category-scope rules not yet supported in UI (Commission table allows it but no category picker). Module-precedence not in snapshot lookup (vendor → global only) — listing.module-specific rule would be ignored for now. Commission report = raw rule CSV; vendor-payout breakdown report deferred until Sprint 6.4 payout flow.
+- Owner: Project team
+- Date: 2026-05-16
 - Summary: Sprint 4 — Vendor confirms/rejects booking (3.3). New `VendorBookingRequestsPage` at `/vendor/booking-requests` (list) and `/vendor/booking-requests/:bookingId` (detail). Lists vendor's bookings by status tab (pending_vendor / confirmed+completed / cancelled) with SLA countdown badge (urgent < 4h, expired red). Confirm sets booking status=`confirmed` and auto-inserts `calendar_slots` row of type `booked` covering the booking window. Reject calls `db.bookings.cancel(reason)` with refund flag in the cancellation reason when payment_status=`paid`. Realtime subscription via `realtimeService.watchVendorBookings`. Client-side auto-cancel sweep cancels any `pending_vendor` row whose `vendor_response_deadline < now` as a stopgap until N8N workflow ships.
 - Files changed: `MogzuApplication/src/app/components/VendorBookingRequestsPage.tsx`, `MogzuApplication/src/app/routes.tsx`
 - Verification performed: `npm run build` clean

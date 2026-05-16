@@ -266,6 +266,17 @@ export default function EventBookingPage() {
 
     const status = approvalDecision.requiresApproval ? 'pending_approval' : 'pending_vendor'
 
+    // Snapshot active commission rate at booking creation time.
+    // Precedence: vendor-specific → module-specific → global default.
+    let commissionRate: number | null = null
+    const vendorRule = await db.commissions.getForVendor(listing.vendor_id)
+    if (vendorRule.data && vendorRule.data.length > 0) {
+      commissionRate = vendorRule.data[0].rate
+    } else {
+      const globalRule = await db.commissions.getGlobal()
+      if (globalRule.data) commissionRate = globalRule.data.rate
+    }
+
     const { data, error } = await db.bookings.create({
       corporate_id: corporateId,
       user_id: profile.id,
@@ -280,7 +291,7 @@ export default function EventBookingPage() {
       add_ons_amount: addOnsAmount,
       platform_fee: platformFee,
       total_amount: totalAmount,
-      commission_rate: null,
+      commission_rate: commissionRate,
       payment_method: null,
       payment_reference: null,
       payment_status: 'pending',
