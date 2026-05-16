@@ -47,6 +47,7 @@ export interface UserProfile {
   corporate_id: string | null
   vendor_id: string | null
   role: UserRole
+  available_roles: UserRole[]
   full_name: string | null
   phone: string | null
   avatar_url: string | null
@@ -218,6 +219,16 @@ export interface BookingAddOn {
   quantity: number
 }
 
+export interface RoleSwitchEvent {
+  id: string
+  user_id: string
+  from_role: UserRole
+  to_role: UserRole
+  switched_at: string
+  user_agent: string | null
+  ip_address: string | null
+}
+
 export type GiftingTriggerKind = 'fixed_date' | 'birthday' | 'work_anniversary' | 'manual'
 
 export interface GiftingRule {
@@ -332,6 +343,11 @@ export interface Database {
         Row: GiftingRule
         Insert: Omit<GiftingRule, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<GiftingRule, 'id' | 'created_at'>>
+      }
+      role_switch_events: {
+        Row: RoleSwitchEvent
+        Insert: Omit<RoleSwitchEvent, 'id' | 'switched_at'>
+        Update: Partial<Omit<RoleSwitchEvent, 'id' | 'switched_at'>>
       }
     }
   }

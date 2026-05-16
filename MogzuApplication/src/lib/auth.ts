@@ -18,6 +18,7 @@ interface AuthState {
   user: User | null
   profile: UserProfile | null
   role: UserRole | null
+  availableRoles: UserRole[]
   corporateId: string | null
   vendorId: string | null
   corporateAccount: CorporateAccount | null
@@ -30,7 +31,10 @@ interface AuthActions {
   signUp: (email: string, password: string, metadata?: Record<string, unknown>) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
+  setActiveRole: (role: UserRole) => Promise<{ error: string | null }>
 }
+
+const ACTIVE_ROLE_KEY = 'mogzu_active_role'
 
 type AuthContextValue = AuthState & AuthActions
 
@@ -60,11 +64,33 @@ async function fetchCorporateAccount(corporateId: string): Promise<CorporateAcco
   return data
 }
 
+function readStoredRole(): UserRole | null {
+  if (typeof window === 'undefined') return null
+  try {
+    return (window.sessionStorage.getItem(ACTIVE_ROLE_KEY) as UserRole | null) ?? null
+  } catch {
+    return null
+  }
+}
+
+function writeStoredRole(role: UserRole | null) {
+  if (typeof window === 'undefined') return
+  try {
+    if (role) window.sessionStorage.setItem(ACTIVE_ROLE_KEY, role)
+    else window.sessionStorage.removeItem(ACTIVE_ROLE_KEY)
+  } catch {
+    // ignore
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [corporateAccount, setCorporateAccount] = useState<CorporateAccount | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [activeRoleOverride, setActiveRoleOverride] = useState<UserRole | null>(() =>
+    readStoredRole(),
+  )
 
   const loadProfile = async (userId: string) => {
     const p = await fetchProfile(userId)
@@ -142,6 +168,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut()
     setProfile(null)
     setCorporateAccount(null)
+    setActiveRoleOverride(null)
+    writeStoredRole(null)
   }
 
   const refreshProfile = async () => {
@@ -150,12 +178,66 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // Roles the user is permitted to act as. profile.role is always included;
+  // available_roles[] adds extras granted by admins.
+  const availableRoles = useMemo<UserRole[]>(() => {
+    if (!profile) return []
+    const set = new Set<UserRole>([profile.role, ...(profile.available_roles ?? [])])
+    return Array.from(set)
+  }, [profile])
+
+  // Active role = sessionStorage override (if still permitted) else primary role.
+  const activeRole = useMemo<UserRole | null>(() => {
+    if (!profile) return null
+    if (activeRoleOverride && availableRoles.includes(activeRoleOverride)) {
+      return activeRoleOverride
+    }
+    return profile.role
+  }, [profile, activeRoleOverride, availableRoles])
+
+  // Clear stale override if it's no longer permitted (e.g. role grant revoked).
+  useEffect(() => {
+    if (activeRoleOverride && profile && !availableRoles.includes(activeRoleOverride)) {
+      setActiveRoleOverride(null)
+      writeStoredRole(null)
+    }
+  }, [activeRoleOverride, availableRoles, profile])
+
+  const setActiveRole = async (next: UserRole): Promise<{ error: string | null }> => {
+    if (!profile) return { error: 'Not signed in.' }
+    if (!availableRoles.includes(next)) {
+      return { error: `Role ${next} not granted to this user.` }
+    }
+    if (next === activeRole) return { error: null }
+
+    const fromRole = activeRole ?? profile.role
+
+    // Audit (non-blocking — UI switches even if audit insert fails)
+    supabase
+      .from('role_switch_events')
+      .insert({
+        user_id: profile.id,
+        from_role: fromRole,
+        to_role: next,
+        user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+        ip_address: null,
+      })
+      .then(({ error }) => {
+        if (error) console.error('Role switch audit failed:', error.message)
+      })
+
+    setActiveRoleOverride(next)
+    writeStoredRole(next)
+    return { error: null }
+  }
+
   const value = useMemo<AuthContextValue>(
     () => ({
       session,
       user: session?.user ?? null,
       profile,
-      role: profile?.role ?? null,
+      role: activeRole,
+      availableRoles,
       corporateId: profile?.corporate_id ?? null,
       vendorId: profile?.vendor_id ?? null,
       corporateAccount,
@@ -165,8 +247,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signUp,
       signOut,
       refreshProfile,
+      setActiveRole,
     }),
-    [session, profile, corporateAccount, isLoading],
+    [session, profile, corporateAccount, isLoading, activeRole, availableRoles],
   )
 
   return createElement(AuthContext.Provider, { value }, children)

@@ -7,6 +7,7 @@ import type {
   BookingAddOn,
   BudgetRule,
   GiftingRule,
+  RoleSwitchEvent,
   CalendarSlot,
   Commission,
   CorporateAccount,
@@ -394,6 +395,21 @@ export const commissions = {
     supabase.from('commissions').update({ is_active: false }).eq('id', id),
 }
 
+// ─── Role Switch Audit (Story 1.5) ────────────────────────────────────────────
+
+export const roleSwitchEvents = {
+  log: async (data: Omit<RoleSwitchEvent, 'id' | 'switched_at'>) =>
+    supabase.from('role_switch_events').insert(data).select().single(),
+
+  listByUser: async (userId: string, limit = 50) =>
+    supabase
+      .from('role_switch_events')
+      .select('*')
+      .eq('user_id', userId)
+      .order('switched_at', { ascending: false })
+      .limit(limit),
+}
+
 // ─── Gifting Rules (Story 4.1) ────────────────────────────────────────────────
 
 export const giftingRules = {
@@ -454,4 +470,5 @@ export const db = {
   commissions,
   categories,
   giftingRules,
+  roleSwitchEvents,
 }
