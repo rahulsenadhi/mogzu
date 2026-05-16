@@ -48,6 +48,12 @@ Use this for significant implementation updates.
 
 Latest entries:
 - Date: 2026-05-16
+- Summary: Sprint 3 — Vendor gifting catalogue (4.4). Replaced `VendorGiftingDashboardPage` products tab and `VendorGiftingProductFormPage` mock state with Supabase `db.listings` module='gifting'. Form covers MOQ, GST, variants (parsed from text), bulk tiers, branding options, delivery cities, lead-time SLA, packaging, inventory, out-of-stock toggle — non-core fields persisted in `listing.metadata` JSONB. Form is now single-page (replaced 5-step wizard) to fit 4.4 scope tightly. Orders/Performance/Settings tabs on dashboard still read from `vendorGiftingStore` local store — explicitly out of 4.4 scope; banners now note the demo state.
+- Files changed: `MogzuApplication/src/app/components/VendorGiftingDashboardPage.tsx`, `VendorGiftingProductFormPage.tsx`
+- Verification performed: `npm run build` clean
+- Risks / notes: `vendorGiftingStore` still hydrates orders/settings — Sprint 4 order pipeline replaces orders tab; corporate vendor profile sprint replaces settings tab. Variant editor is text-based (one variant per line) for now; structured editor deferred. Sprint 3 scope complete.
+- Owner: Project team
+- Date: 2026-05-16
 - Summary: Sprint 3 — Vendor listings CRUD (5.3 spaces, 3.6 events). Replaced mock-state pages with real Supabase `db.listings` wiring + image upload via `storageService`. Shared pattern: modal form (title/description/category/capacity/pricing/location/cancellation/images), list with status filter + sort, lifecycle actions (submit-for-review, pause/activate, archive draft).
 - Files changed: `MogzuApplication/src/app/components/VendorSpaceXServicesPage.tsx`, `VendorEventsServicesPage.tsx`
 - Verification performed: `npm run build` clean

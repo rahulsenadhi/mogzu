@@ -1,24 +1,39 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
+import { Loader2 } from 'lucide-react'
 import {
-  deleteVendorGiftingProduct,
   loadVendorGiftingState,
   saveVendorGiftingSettings,
   type OrderStatus,
-  type PricingType,
-  type ProductStatus,
   updateVendorGiftingOrderStatus,
   type VendorGiftingOrder,
+  type VendorGiftingSettings,
 } from '@/app/lib/vendorGiftingStore'
+import { useAuth } from '@/lib/auth'
+import { db } from '@/lib/db'
+import { storageService } from '@/lib/storage'
+import type { Listing, ListingImage, ListingStatus } from '@/lib/database.types'
+
+type ListingWithImages = Listing & { listing_images: ListingImage[] }
 
 type DashboardTab = 'products' | 'orders' | 'performance' | 'settings'
 
-const statusClass: Record<ProductStatus, string> = {
+const MODULE_ID = 'gifting' as const
+
+const statusClass: Record<ListingStatus, string> = {
   draft: 'bg-slate-100 text-slate-700',
-  pending: 'bg-amber-100 text-amber-700',
+  pending_approval: 'bg-amber-100 text-amber-700',
   active: 'bg-emerald-100 text-emerald-700',
   paused: 'bg-blue-100 text-blue-700',
   rejected: 'bg-rose-100 text-rose-700',
+}
+
+const statusLabel: Record<ListingStatus, string> = {
+  draft: 'Draft',
+  pending_approval: 'Pending',
+  active: 'Active',
+  paused: 'Paused',
+  rejected: 'Rejected',
 }
 
 const orderStatusClass: Record<OrderStatus, string> = {
@@ -30,85 +45,125 @@ const orderStatusClass: Record<OrderStatus, string> = {
   cancelled: 'bg-rose-100 text-rose-700',
 }
 
-const pricingLabel: Record<PricingType, string> = {
-  fixed: 'Fixed',
-  offer: 'Offer Price',
-  request: 'Request for Price',
+const pricingLabel: Record<Listing['pricing_type'], string> = {
+  transparent: 'Fixed',
+  offer: 'Offer',
+  request_for_price: 'Request',
+}
+
+type GiftingMetadata = {
+  moq?: number
+  inventory?: number
+  outOfStock?: boolean
 }
 
 export default function VendorGiftingDashboardPage() {
   const navigate = useNavigate()
-  const [state, setState] = useState(() => loadVendorGiftingState())
+  const { vendorId } = useAuth()
+
   const [activeTab, setActiveTab] = useState<DashboardTab>('products')
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | ProductStatus>('all')
-  const [categoryFilter, setCategoryFilter] = useState('all')
-  const [pricingFilter, setPricingFilter] = useState<'all' | PricingType>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | ListingStatus>('all')
+
+  // Supabase-backed product catalogue
+  const [products, setProducts] = useState<ListingWithImages[]>([])
+  const [productsLoading, setProductsLoading] = useState(true)
+  const [productsError, setProductsError] = useState('')
+
+  // Mock-backed orders + settings (out of 4.4 scope — future sprint wiring)
+  const [storeState, setStoreState] = useState(() => loadVendorGiftingState())
   const [orderDrawer, setOrderDrawer] = useState<VendorGiftingOrder | null>(null)
 
+  const loadProducts = useCallback(async () => {
+    if (!vendorId) return
+    setProductsLoading(true)
+    setProductsError('')
+    const { data, error } = await db.listings.listByVendor(vendorId)
+    if (error) setProductsError(error.message)
+    else {
+      const all = (data ?? []) as ListingWithImages[]
+      setProducts(all.filter((l) => l.module === MODULE_ID))
+    }
+    setProductsLoading(false)
+  }, [vendorId])
+
+  useEffect(() => {
+    loadProducts()
+  }, [loadProducts])
+
   const filteredProducts = useMemo(() => {
-    return state.products.filter((p) => {
-      if (search && !`${p.productName} ${p.subCategory}`.toLowerCase().includes(search.toLowerCase())) return false
+    return products.filter((p) => {
+      if (search && !p.title.toLowerCase().includes(search.toLowerCase())) return false
       if (statusFilter !== 'all' && p.status !== statusFilter) return false
-      if (categoryFilter !== 'all' && p.category !== categoryFilter) return false
-      if (pricingFilter !== 'all' && p.pricingType !== pricingFilter) return false
       return true
     })
-  }, [state.products, search, statusFilter, categoryFilter, pricingFilter])
+  }, [products, search, statusFilter])
 
   const stats = useMemo(() => {
-    const totalProducts = state.products.length
-    const activeListings = state.products.filter((p) => p.status === 'active').length
-    const pendingOrders = state.orders.filter((o) => ['pending', 'confirmed', 'processing', 'shipped'].includes(o.status)).length
-    const totalRevenue = state.orders.filter((o) => o.status !== 'cancelled').reduce((acc, o) => acc + o.amount, 0)
+    const totalProducts = products.length
+    const activeListings = products.filter((p) => p.status === 'active').length
+    const pendingOrders = storeState.orders.filter((o) =>
+      ['pending', 'confirmed', 'processing', 'shipped'].includes(o.status),
+    ).length
+    const totalRevenue = storeState.orders
+      .filter((o) => o.status !== 'cancelled')
+      .reduce((acc, o) => acc + o.amount, 0)
     return { totalProducts, activeListings, pendingOrders, totalRevenue }
-  }, [state.orders, state.products])
+  }, [products, storeState.orders])
 
-  const topProducts = useMemo(() => {
-    const map = new Map<string, number>()
-    state.orders.forEach((o) => o.products.forEach((p) => map.set(p.productName, (map.get(p.productName) || 0) + p.quantity)))
-    return Array.from(map.entries())
-      .map(([name, qty]) => ({ name, qty }))
-      .sort((a, b) => b.qty - a.qty)
-      .slice(0, 5)
-  }, [state.orders])
+  const handlePauseResume = async (p: ListingWithImages) => {
+    const next: ListingStatus = p.status === 'paused' ? 'active' : 'paused'
+    const { error } = await db.listings.updateStatus(p.id, next)
+    if (!error) loadProducts()
+  }
 
-  const handleDelete = (id: string) => setState(deleteVendorGiftingProduct(id))
-
-  const handlePauseResume = (id: string) => {
-    const next = {
-      ...state,
-      products: state.products.map((p) =>
-        p.id === id ? { ...p, status: p.status === 'paused' ? 'active' : 'paused', updatedAt: new Date().toISOString() } : p,
-      ),
+  const handleDelete = async (p: ListingWithImages) => {
+    if (p.status !== 'draft') return
+    if (!window.confirm(`Delete "${p.title}"? This cannot be undone.`)) return
+    if (p.listing_images?.length) {
+      await storageService.giftImages.delete(p.listing_images.map((i) => i.storage_path))
     }
-    localStorage.setItem('mogzu_vendor_gifting_state_v1', JSON.stringify(next))
-    setState(next)
+    await db.listings.update(p.id, { status: 'paused' })
+    loadProducts()
   }
 
   const handleOrderStatusUpdate = (id: string, status: OrderStatus) => {
     const next = updateVendorGiftingOrderStatus(id, status)
-    setState(next)
+    setStoreState(next)
     setOrderDrawer(next.orders.find((o) => o.id === id) || null)
   }
 
-  const repeatBuyerRate = 42
-  const avgRating = 4.6
-  const avgOrderValue = Math.round((state.orders.reduce((sum, o) => sum + o.amount, 0) || 1) / (state.orders.length || 1))
-  const totalReviews = state.products.length * 7
+  const updateSettings = (patch: Partial<VendorGiftingSettings>) =>
+    setStoreState((s) => ({ ...s, settings: { ...s.settings, ...patch } }))
+
+  const topProducts = useMemo(() => {
+    const map = new Map<string, number>()
+    storeState.orders.forEach((o) =>
+      o.products.forEach((p) => map.set(p.productName, (map.get(p.productName) || 0) + p.quantity)),
+    )
+    return Array.from(map.entries())
+      .map(([name, qty]) => ({ name, qty }))
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 5)
+  }, [storeState.orders])
+
+  const avgOrderValue = Math.round(
+    (storeState.orders.reduce((sum, o) => sum + o.amount, 0) || 1) /
+      (storeState.orders.length || 1),
+  )
 
   return (
     <div className="min-h-screen bg-[#FFFDF9] p-6">
-      <h1 className="text-2xl font-bold text-[#0e1e3f] mb-4">Vendor Gifting Dashboard</h1>
+      <h1 className="mb-4 text-2xl font-bold text-[#0e1e3f]">Vendor Gifting Dashboard</h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Total Products" value={stats.totalProducts} />
         <StatCard label="Active Listings" value={stats.activeListings} />
         <StatCard label="Pending Orders" value={stats.pendingOrders} />
         <StatCard label="Total Revenue" value={`₹${stats.totalRevenue.toLocaleString('en-IN')}`} />
       </div>
 
-      <div className="flex gap-2 mb-4 overflow-x-auto whitespace-nowrap">
+      <div className="mb-4 flex gap-2 overflow-x-auto whitespace-nowrap">
         <TabButton label="My Products" active={activeTab === 'products'} onClick={() => setActiveTab('products')} />
         <TabButton label="Orders" active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} />
         <TabButton label="Performance" active={activeTab === 'performance'} onClick={() => setActiveTab('performance')} />
@@ -116,40 +171,63 @@ export default function VendorGiftingDashboardPage() {
       </div>
 
       {activeTab === 'products' && (
-        <div className="bg-white rounded-xl border border-[#ececec] p-4">
-          <div className="flex flex-col xl:flex-row gap-3 xl:items-center xl:justify-between mb-4">
-            <div className="flex gap-2 flex-wrap">
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" className="h-10 px-3 border border-[#e5e7eb] rounded-lg" />
-              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as 'all' | ProductStatus)} className="h-10 px-3 border border-[#e5e7eb] rounded-lg">
+        <div className="rounded-xl border border-[#ececec] bg-white p-4">
+          <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex flex-wrap gap-2">
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search"
+                className="h-10 rounded-lg border border-[#e5e7eb] px-3"
+              />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as 'all' | ListingStatus)}
+                className="h-10 rounded-lg border border-[#e5e7eb] px-3"
+              >
                 <option value="all">Status: All</option>
                 <option value="draft">Draft</option>
-                <option value="pending">Pending</option>
+                <option value="pending_approval">Pending</option>
                 <option value="active">Active</option>
                 <option value="paused">Paused</option>
                 <option value="rejected">Rejected</option>
               </select>
-              <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="h-10 px-3 border border-[#e5e7eb] rounded-lg">
-                <option value="all">Category: All</option>
-                <option value="Apparel">Apparel</option>
-                <option value="Bags">Bags</option>
-                <option value="Stationary">Stationary</option>
-                <option value="Tech">Tech</option>
-                <option value="Health & Wellness">Health & Wellness</option>
-              </select>
-              <select value={pricingFilter} onChange={(e) => setPricingFilter(e.target.value as 'all' | PricingType)} className="h-10 px-3 border border-[#e5e7eb] rounded-lg">
-                <option value="all">Pricing Type: All</option>
-                <option value="fixed">Fixed</option>
-                <option value="offer">Offer Price</option>
-                <option value="request">Request for Price</option>
-              </select>
             </div>
-            <button onClick={() => navigate('/vendor/gifting/products/new')} className="h-10 px-4 rounded-lg bg-[#2563eb] text-white font-semibold">+ Add Product</button>
+            <button
+              onClick={() => navigate('/vendor/gifting/products/new')}
+              disabled={!vendorId}
+              className="h-10 rounded-lg bg-[#2563eb] px-4 font-semibold text-white disabled:opacity-50"
+            >
+              + Add Product
+            </button>
           </div>
 
-          {filteredProducts.length === 0 ? (
-            <div className="py-14 text-center border border-dashed border-[#cbd5e1] rounded-lg">
-              <p className="text-[#64748b] mb-3">No products yet</p>
-              <button onClick={() => navigate('/vendor/gifting/products/new')} className="h-10 px-4 rounded-lg bg-[#2563eb] text-white font-semibold">Add Product</button>
+          {productsError && (
+            <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3">
+              <p className="text-sm text-red-700">{productsError}</p>
+              <button
+                onClick={loadProducts}
+                className="mt-2 rounded bg-[#2563eb] px-3 py-1.5 text-xs font-medium text-white"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          {productsLoading ? (
+            <div className="flex items-center justify-center py-14">
+              <Loader2 className="size-6 animate-spin text-slate-400" />
+            </div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-[#cbd5e1] py-14 text-center">
+              <p className="mb-3 text-[#64748b]">No products yet</p>
+              <button
+                onClick={() => navigate('/vendor/gifting/products/new')}
+                disabled={!vendorId}
+                className="h-10 rounded-lg bg-[#2563eb] px-4 font-semibold text-white disabled:opacity-50"
+              >
+                Add Product
+              </button>
             </div>
           ) : (
             <div className="overflow-auto">
@@ -158,36 +236,94 @@ export default function VendorGiftingDashboardPage() {
                   <tr className="text-left text-[#64748b]">
                     <th className="py-2">Thumbnail</th>
                     <th className="py-2">Product</th>
-                    <th className="py-2">Category</th>
-                    <th className="py-2">Pricing Type</th>
+                    <th className="py-2">Pricing</th>
                     <th className="py-2">MOQ</th>
                     <th className="py-2">Price / unit</th>
+                    <th className="py-2">Stock</th>
                     <th className="py-2">Status</th>
                     <th className="py-2">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredProducts.map((p) => (
-                    <tr key={p.id} className="border-t border-[#f1f5f9]">
-                      <td className="py-2"><img src={p.primaryImage?.url || 'https://placehold.co/40x40'} alt={p.productName} className="w-10 h-10 rounded object-cover" /></td>
-                      <td className="py-2">
-                        <p className="font-semibold text-[#0e1e3f]">{p.productName}</p>
-                        <span className="text-xs px-2 py-0.5 rounded bg-[#ebf1ff] text-[#2563eb]">{p.subCategory}</span>
-                      </td>
-                      <td className="py-2">{p.category}</td>
-                      <td className="py-2"><span className="text-xs px-2 py-0.5 rounded bg-slate-100">{pricingLabel[p.pricingType]}</span></td>
-                      <td className="py-2">{p.moq}</td>
-                      <td className="py-2">{p.pricingType === 'request' ? '—' : `₹${p.offerPrice || p.pricePerUnit || p.originalPrice || 0}`}</td>
-                      <td className="py-2"><span className={`text-xs px-2 py-0.5 rounded ${statusClass[p.status]}`}>{p.status}</span></td>
-                      <td className="py-2">
-                        <div className="flex gap-2">
-                          <button onClick={() => navigate(`/vendor/gifting/products/${p.id}`)} className="text-[#2563eb]">Edit</button>
-                          <button onClick={() => handlePauseResume(p.id)} className="text-[#2563eb]">{p.status === 'paused' ? 'Resume' : 'Pause'}</button>
-                          <button onClick={() => handleDelete(p.id)} className="text-rose-600">Delete</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredProducts.map((p) => {
+                    const md = (p.metadata ?? {}) as GiftingMetadata
+                    const cover = p.listing_images?.[0]
+                    const lowStock = md.inventory != null && md.inventory < 10
+                    return (
+                      <tr key={p.id} className="border-t border-[#f1f5f9]">
+                        <td className="py-2">
+                          {cover ? (
+                            <img
+                              src={storageService.giftImages.getUrl(cover.storage_path)}
+                              alt=""
+                              className="size-10 rounded object-cover"
+                            />
+                          ) : (
+                            <div className="size-10 rounded bg-slate-100" />
+                          )}
+                        </td>
+                        <td className="py-2">
+                          <p className="font-semibold text-[#0e1e3f]">{p.title}</p>
+                          {p.location_city && (
+                            <span className="text-xs text-slate-500">{p.location_city}</span>
+                          )}
+                        </td>
+                        <td className="py-2">
+                          <span className="rounded bg-slate-100 px-2 py-0.5 text-xs">
+                            {pricingLabel[p.pricing_type]}
+                          </span>
+                        </td>
+                        <td className="py-2">{md.moq ?? '—'}</td>
+                        <td className="py-2">
+                          {p.pricing_type === 'request_for_price' || p.base_price == null
+                            ? '—'
+                            : `₹${p.base_price.toLocaleString('en-IN')}`}
+                        </td>
+                        <td className="py-2">
+                          {md.outOfStock ? (
+                            <span className="rounded bg-rose-100 px-2 py-0.5 text-xs text-rose-700">
+                              Out of stock
+                            </span>
+                          ) : md.inventory != null ? (
+                            <span className={lowStock ? 'text-rose-600 font-medium' : ''}>
+                              {md.inventory}
+                              {lowStock && <span className="ml-1 text-[10px]">(low)</span>}
+                            </span>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td className="py-2">
+                          <span className={`rounded px-2 py-0.5 text-xs ${statusClass[p.status]}`}>
+                            {statusLabel[p.status]}
+                          </span>
+                        </td>
+                        <td className="py-2">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => navigate(`/vendor/gifting/products/${p.id}`)}
+                              className="text-[#2563eb]"
+                            >
+                              Edit
+                            </button>
+                            {(p.status === 'active' || p.status === 'paused') && (
+                              <button
+                                onClick={() => handlePauseResume(p)}
+                                className="text-[#2563eb]"
+                              >
+                                {p.status === 'paused' ? 'Resume' : 'Pause'}
+                              </button>
+                            )}
+                            {p.status === 'draft' && (
+                              <button onClick={() => handleDelete(p)} className="text-rose-600">
+                                Delete
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -196,7 +332,10 @@ export default function VendorGiftingDashboardPage() {
       )}
 
       {activeTab === 'orders' && (
-        <div className="bg-white rounded-xl border border-[#ececec] p-4 overflow-auto">
+        <div className="overflow-auto rounded-xl border border-[#ececec] bg-white p-4">
+          <p className="mb-3 text-xs text-amber-700">
+            Orders are demo data. Real order pipeline ships in Sprint 4.
+          </p>
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-[#64748b]">
@@ -211,17 +350,23 @@ export default function VendorGiftingDashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {state.orders.map((o) => (
+              {storeState.orders.map((o) => (
                 <tr key={o.id} className="border-t border-[#f1f5f9]">
                   <td className="py-2">{o.id}</td>
                   <td className="py-2">{o.corporateName}</td>
                   <td className="py-2">{o.products.map((p) => p.productName).join(', ')}</td>
                   <td className="py-2">{o.quantity}</td>
                   <td className="py-2">₹{o.amount.toLocaleString('en-IN')}</td>
-                  <td className="py-2"><span className={`text-xs px-2 py-0.5 rounded ${orderStatusClass[o.status]}`}>{o.status}</span></td>
+                  <td className="py-2">
+                    <span className={`rounded px-2 py-0.5 text-xs ${orderStatusClass[o.status]}`}>
+                      {o.status}
+                    </span>
+                  </td>
                   <td className="py-2">{o.date}</td>
                   <td className="py-2">
-                    <button onClick={() => setOrderDrawer(o)} className="text-[#2563eb]">View</button>
+                    <button onClick={() => setOrderDrawer(o)} className="text-[#2563eb]">
+                      View
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -231,91 +376,146 @@ export default function VendorGiftingDashboardPage() {
       )}
 
       {activeTab === 'performance' && (
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-          <div className="bg-white rounded-xl border border-[#ececec] p-4 xl:col-span-2">
-            <h3 className="font-semibold text-[#0e1e3f] mb-3">Revenue over time (30 days)</h3>
-            <div className="h-40 flex items-end gap-1">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+          <div className="rounded-xl border border-[#ececec] bg-white p-4 xl:col-span-2">
+            <h3 className="mb-3 font-semibold text-[#0e1e3f]">Revenue over time (30 days, demo)</h3>
+            <div className="flex h-40 items-end gap-1">
               {Array.from({ length: 30 }).map((_, i) => (
-                <div key={i} className="flex-1 bg-[#2563eb1A] rounded-t" style={{ height: `${20 + ((i * 13) % 80)}%` }} />
+                <div
+                  key={i}
+                  className="flex-1 rounded-t bg-[#2563eb1A]"
+                  style={{ height: `${20 + ((i * 13) % 80)}%` }}
+                />
               ))}
             </div>
           </div>
-          <div className="bg-white rounded-xl border border-[#ececec] p-4">
-            <h3 className="font-semibold text-[#0e1e3f] mb-3">Order status breakdown</h3>
-            <div className="w-36 h-36 mx-auto rounded-full border-[14px] border-[#2563eb] border-r-[#f59e0b] border-b-[#10b981] border-l-[#6366f1]" />
-          </div>
-          <div className="bg-white rounded-xl border border-[#ececec] p-4 xl:col-span-2">
-            <h3 className="font-semibold text-[#0e1e3f] mb-3">Top 5 products by orders</h3>
+          <div className="rounded-xl border border-[#ececec] bg-white p-4">
+            <h3 className="mb-3 font-semibold text-[#0e1e3f]">Top 5 products by orders</h3>
             <div className="space-y-2">
               {topProducts.map((p) => (
                 <div key={p.name}>
-                  <div className="flex justify-between text-sm"><span>{p.name}</span><span>{p.qty}</span></div>
-                  <div className="h-2 bg-slate-100 rounded"><div className="h-2 bg-[#2563eb] rounded" style={{ width: `${Math.min(100, p.qty)}%` }} /></div>
+                  <div className="flex justify-between text-sm">
+                    <span>{p.name}</span>
+                    <span>{p.qty}</span>
+                  </div>
+                  <div className="h-2 rounded bg-slate-100">
+                    <div
+                      className="h-2 rounded bg-[#2563eb]"
+                      style={{ width: `${Math.min(100, p.qty)}%` }}
+                    />
+                  </div>
                 </div>
               ))}
             </div>
-          </div>
-          <div className="bg-white rounded-xl border border-[#ececec] p-4">
-            <h3 className="font-semibold text-[#0e1e3f] mb-3">KPIs</h3>
-            <div className="space-y-2 text-sm">
-              <p>Avg order value: <strong>₹{avgOrderValue.toLocaleString('en-IN')}</strong></p>
-              <p>Repeat buyer rate: <strong>{repeatBuyerRate}%</strong></p>
-              <p>Total reviews: <strong>{totalReviews}</strong></p>
-              <p>Avg rating: <strong>{avgRating}</strong></p>
-            </div>
+            <p className="mt-3 text-sm">
+              Avg order value: <strong>₹{avgOrderValue.toLocaleString('en-IN')}</strong>
+            </p>
           </div>
         </div>
       )}
 
       {activeTab === 'settings' && (
-        <div className="bg-white rounded-xl border border-[#ececec] p-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <input value={state.settings.businessName} onChange={(e) => setState((s) => ({ ...s, settings: { ...s.settings, businessName: e.target.value } }))} className="h-10 px-3 border border-[#e5e7eb] rounded-lg" placeholder="Business name" />
-            <input value={state.settings.gstin} onChange={(e) => setState((s) => ({ ...s, settings: { ...s.settings, gstin: e.target.value } }))} className="h-10 px-3 border border-[#e5e7eb] rounded-lg" placeholder="GSTIN" />
-            <input value={state.settings.pan} onChange={(e) => setState((s) => ({ ...s, settings: { ...s.settings, pan: e.target.value } }))} className="h-10 px-3 border border-[#e5e7eb] rounded-lg" placeholder="PAN" />
-            <input value={state.settings.bankDetails} onChange={(e) => setState((s) => ({ ...s, settings: { ...s.settings, bankDetails: e.target.value } }))} className="h-10 px-3 border border-[#e5e7eb] rounded-lg" placeholder="Bank details" />
-            <input value={state.settings.logoUrl} onChange={(e) => setState((s) => ({ ...s, settings: { ...s.settings, logoUrl: e.target.value } }))} className="h-10 px-3 border border-[#e5e7eb] rounded-lg md:col-span-2" placeholder="Logo URL" />
-            <textarea value={state.settings.pickupDeliveryPreferences} onChange={(e) => setState((s) => ({ ...s, settings: { ...s.settings, pickupDeliveryPreferences: e.target.value } }))} className="rounded-lg border border-[#e5e7eb] p-3 md:col-span-2" rows={3} placeholder="Pickup/delivery preferences" />
-            <label className="flex items-center gap-2"><input type="checkbox" checked={state.settings.notifyEmail} onChange={(e) => setState((s) => ({ ...s, settings: { ...s.settings, notifyEmail: e.target.checked } }))} />Email notifications</label>
-            <label className="flex items-center gap-2"><input type="checkbox" checked={state.settings.notifySms} onChange={(e) => setState((s) => ({ ...s, settings: { ...s.settings, notifySms: e.target.checked } }))} />SMS notifications</label>
-            <label className="flex items-center gap-2"><input type="checkbox" checked={state.settings.notifyWhatsapp} onChange={(e) => setState((s) => ({ ...s, settings: { ...s.settings, notifyWhatsapp: e.target.checked } }))} />WhatsApp notifications</label>
+        <div className="rounded-xl border border-[#ececec] bg-white p-4">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <input
+              value={storeState.settings.businessName}
+              onChange={(e) => updateSettings({ businessName: e.target.value })}
+              className="h-10 rounded-lg border border-[#e5e7eb] px-3"
+              placeholder="Business name"
+            />
+            <input
+              value={storeState.settings.gstin}
+              onChange={(e) => updateSettings({ gstin: e.target.value })}
+              className="h-10 rounded-lg border border-[#e5e7eb] px-3"
+              placeholder="GSTIN"
+            />
+            <input
+              value={storeState.settings.pan}
+              onChange={(e) => updateSettings({ pan: e.target.value })}
+              className="h-10 rounded-lg border border-[#e5e7eb] px-3"
+              placeholder="PAN"
+            />
+            <input
+              value={storeState.settings.bankDetails}
+              onChange={(e) => updateSettings({ bankDetails: e.target.value })}
+              className="h-10 rounded-lg border border-[#e5e7eb] px-3"
+              placeholder="Bank details"
+            />
+            <textarea
+              value={storeState.settings.pickupDeliveryPreferences}
+              onChange={(e) => updateSettings({ pickupDeliveryPreferences: e.target.value })}
+              className="rounded-lg border border-[#e5e7eb] p-3 md:col-span-2"
+              rows={3}
+              placeholder="Pickup/delivery preferences"
+            />
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={storeState.settings.notifyEmail}
+                onChange={(e) => updateSettings({ notifyEmail: e.target.checked })}
+              />
+              Email notifications
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={storeState.settings.notifySms}
+                onChange={(e) => updateSettings({ notifySms: e.target.checked })}
+              />
+              SMS notifications
+            </label>
           </div>
           <button
             onClick={() => {
-              const next = saveVendorGiftingSettings(state.settings)
-              setState(next)
+              const next = saveVendorGiftingSettings(storeState.settings)
+              setStoreState(next)
             }}
-            className="h-10 px-4 rounded-lg bg-[#2563eb] text-white font-semibold mt-4"
+            className="mt-4 h-10 rounded-lg bg-[#2563eb] px-4 font-semibold text-white"
           >
             Save Changes
           </button>
+          <p className="mt-2 text-xs text-amber-700">
+            Settings are stored locally for now. Real persistence ships with corporate vendor profile sprint.
+          </p>
         </div>
       )}
 
       {orderDrawer && (
-        <div className="fixed inset-0 bg-black/30 z-50" onClick={() => setOrderDrawer(null)}>
-          <aside className="absolute right-0 top-0 h-full w-full sm:w-[420px] bg-white border-l border-[#ececec] p-4 overflow-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-3">
+        <div className="fixed inset-0 z-50 bg-black/30" onClick={() => setOrderDrawer(null)}>
+          <aside
+            className="absolute right-0 top-0 h-full w-full overflow-auto border-l border-[#ececec] bg-white p-4 sm:w-[420px]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-[#0e1e3f]">Order {orderDrawer.id}</h3>
               <button onClick={() => setOrderDrawer(null)}>Close</button>
             </div>
-            <p className="text-sm text-[#64748b] mb-2">{orderDrawer.corporateName}</p>
-            <p className="text-sm mb-1"><strong>Contact:</strong> {orderDrawer.contactName}</p>
-            <p className="text-sm mb-1"><strong>Email:</strong> {orderDrawer.contactEmail}</p>
-            <p className="text-sm mb-1"><strong>Phone:</strong> {orderDrawer.contactPhone}</p>
-            <p className="text-sm mb-2"><strong>Address:</strong> {orderDrawer.deliveryAddress}</p>
-            <div className="border rounded p-3 mb-3">
+            <p className="mb-2 text-sm text-[#64748b]">{orderDrawer.corporateName}</p>
+            <p className="mb-1 text-sm">
+              <strong>Contact:</strong> {orderDrawer.contactName}
+            </p>
+            <p className="mb-1 text-sm">
+              <strong>Email:</strong> {orderDrawer.contactEmail}
+            </p>
+            <p className="mb-2 text-sm">
+              <strong>Address:</strong> {orderDrawer.deliveryAddress}
+            </p>
+            <div className="mb-3 rounded border p-3">
               {orderDrawer.products.map((p) => (
-                <div key={p.productId} className="flex justify-between text-sm py-1">
-                  <span>{p.productName} x {p.quantity}</span>
+                <div key={p.productId} className="flex justify-between py-1 text-sm">
+                  <span>
+                    {p.productName} x {p.quantity}
+                  </span>
                   <span>₹{(p.quantity * p.unitPrice).toLocaleString('en-IN')}</span>
                 </div>
               ))}
             </div>
             <select
               value={orderDrawer.status}
-              onChange={(e) => handleOrderStatusUpdate(orderDrawer.id, e.target.value as OrderStatus)}
-              className="h-10 px-3 border border-[#e5e7eb] rounded-lg w-full mb-3"
+              onChange={(e) =>
+                handleOrderStatusUpdate(orderDrawer.id, e.target.value as OrderStatus)
+              }
+              className="mb-3 h-10 w-full rounded-lg border border-[#e5e7eb] px-3"
             >
               <option value="pending">Pending</option>
               <option value="confirmed">Confirmed</option>
@@ -324,15 +524,6 @@ export default function VendorGiftingDashboardPage() {
               <option value="delivered">Delivered</option>
               <option value="cancelled">Cancelled</option>
             </select>
-            <h4 className="font-semibold mb-2">Timeline</h4>
-            <div className="space-y-2">
-              {orderDrawer.timeline.map((t, idx) => (
-                <div key={`${t.at}-${idx}`} className="text-sm border-l-2 border-[#e2e8f0] pl-3">
-                  <p>{t.message}</p>
-                  <p className="text-xs text-[#64748b]">{new Date(t.at).toLocaleString()}</p>
-                </div>
-              ))}
-            </div>
           </aside>
         </div>
       )}
@@ -342,21 +533,32 @@ export default function VendorGiftingDashboardPage() {
 
 function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="bg-white border border-[#ececec] rounded-xl p-4">
+    <div className="rounded-xl border border-[#ececec] bg-white p-4">
       <p className="text-sm text-[#64748b]">{label}</p>
       <p className="text-2xl font-bold text-[#0e1e3f]">{value}</p>
     </div>
   )
 }
 
-function TabButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function TabButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string
+  active: boolean
+  onClick: () => void
+}) {
   return (
     <button
       onClick={onClick}
-      className={`h-10 px-4 rounded-lg border text-sm font-medium ${active ? 'bg-[#ebf1ff] border-[#2563eb] text-[#2563eb]' : 'bg-white border-[#e5e7eb] text-[#475569]'}`}
+      className={`h-10 rounded-lg border px-4 text-sm font-medium ${
+        active
+          ? 'border-[#2563eb] bg-[#ebf1ff] text-[#2563eb]'
+          : 'border-[#e5e7eb] bg-white text-[#475569]'
+      }`}
     >
       {label}
     </button>
   )
 }
-
