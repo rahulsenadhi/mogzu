@@ -15,7 +15,8 @@ import { getPricingBadgeConfig, getPricingCtaLabel, getPricingSummaryLine } from
 import { getCompareIds, getWishlistIds, toggleCompareId, toggleWishlistId } from '@/app/lib/listingSessionState';
 import { useDemoRole } from '@/app/lib/demoRole';
 import { getEventActivityCategoryConfigs, getEventIconByCategoryText, getEventServiceCategoryIconConfig } from '@/app/lib/eventsIconMapping';
-
+import svgPathsSpaceX from '@/imports/svg-5pj2l0pukf';
+import { Utensils } from 'lucide-react';
 const imgImage25026 = QA_IMAGES.category.tabActive;
 const imgImage25027 = QA_IMAGES.category.tabInactive;
 const imgImage24995 = QA_IMAGES.eventsHero;
@@ -75,13 +76,17 @@ export default function EventsPage() {
   const [pricingTooltip, setPricingTooltip] = useState<{ id: string; text: string } | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
   const [gridAnimatingOut, setGridAnimatingOut] = useState(false);
-  const EventActivityTabIcon = getEventActivityCategoryConfigs()[0]?.icon;
-  const EventServiceTabIcon = getEventServiceCategoryIconConfig('Catering').icon;
   const firstFilterRunRef = useRef(true);
   useEffect(() => {
     const st = location.state as { tab?: string } | null;
-    if (st?.tab === 'event-service' || st?.tab === 'event-activity') setActiveTab(st.tab);
-  }, [location.state]);
+    if (st?.tab === 'event-service') {
+      navigate('/event-services', { replace: true, state: null });
+      return;
+    }
+    if (st?.tab === 'event-activity') {
+      navigate('/event-activity', { replace: true, state: null });
+    }
+  }, [location.state, navigate]);
   useEffect(() => {
     const id = window.setTimeout(() => setInitialLoading(false), 800);
     return () => window.clearTimeout(id);
@@ -310,7 +315,7 @@ export default function EventsPage() {
   };
 
   const FiltersPanel = (
-    <div className="bg-white rounded-lg p-4 lg:sticky lg:top-4 max-h-[82vh] overflow-y-auto pb-20 relative">
+    <div className="bg-white/55 backdrop-blur-xl rounded-2xl p-5 border border-white/60 shadow-[0_16px_36px_rgba(37,99,235,0.16)] lg:sticky lg:top-4 max-h-[82vh] overflow-y-auto pb-20 relative">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-[#0e1e3f] text-sm font-semibold">Filters</h3>
         <button
@@ -416,7 +421,7 @@ export default function EventsPage() {
         ))}
       </div>
 
-      <div className="sticky bottom-0 left-0 right-0 bg-white pt-3">
+      <div className="sticky bottom-0 left-0 right-0 bg-white/80 backdrop-blur-sm pt-3">
         <button
           type="button"
           onClick={() => setMobileFiltersOpen(false)}
@@ -429,7 +434,7 @@ export default function EventsPage() {
   );
 
   return (
-    <div className="flex h-screen bg-[#FFFDF9] overflow-hidden">
+    <div className="flex h-screen min-h-screen overflow-hidden mogzu-module-shell-bg">
       {/* Left Sidebar */}
       <SharedSidebar 
         collapsed={sidebarCollapsed} 
@@ -440,7 +445,7 @@ export default function EventsPage() {
       {/* Main Content */}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {/* Top Navigation */}
-        <SharedHeader />
+        <SharedHeader variant="blended" />
 
         {/* Content Area */}
         <MogzuCorporateScrollSurface>
@@ -470,49 +475,36 @@ export default function EventsPage() {
               </button>
 
               <button
-                onClick={() => setActiveTab('events')}
-                className={`flex h-9 items-center gap-2 rounded-full border-[1.5px] px-4 text-sm font-medium transition-all ${
-                  activeTab === 'events'
-                    ? 'border-[#2563eb] text-[#0e1e3f] shadow-[1px_2px_6px_0px_rgba(0,0,0,0.16)]'
-                    : 'border-slate-300/25 bg-white/[0.12] text-[#475569] backdrop-blur-sm hover:border-[#93c5fd]'
-                }`}
-                style={activeTab === 'events' ? { backgroundImage: 'linear-gradient(-9.24736deg, rgb(228, 235, 255) 9.7419%, rgb(255, 255, 255) 85.097%)' } : undefined}
-              >
-                <svg width="16" height="16" viewBox="0 0 28 28" fill="none">
-                  <path d={svgPaths.p2ab88b80} fill={activeTab === 'events' ? '#2563eb' : '#64748b'} />
-                </svg>
-                Events
-              </button>
-
-              <button
-                onClick={() => setActiveTab('event-activity')}
+                onClick={() => navigate('/event-activity')}
                 className={`flex h-9 items-center gap-2 rounded-full border-[1.5px] px-4 text-sm font-medium transition-all ${
                   activeTab === 'event-activity'
-                    ? 'border-[#2563eb] text-[#0e1e3f] shadow-[1px_2px_6px_0px_rgba(0,0,0,0.16)]'
+                    ? 'border-[#2563eb] font-semibold text-[#0e1e3f] shadow-[0_10px_24px_rgba(37,99,235,0.24)]'
                     : 'border-slate-300/25 bg-white/[0.12] text-[#475569] backdrop-blur-sm hover:border-[#93c5fd]'
                 }`}
                 style={activeTab === 'event-activity' ? { backgroundImage: 'linear-gradient(-9.24736deg, rgb(228, 235, 255) 9.7419%, rgb(255, 255, 255) 85.097%)' } : undefined}
               >
-                {EventActivityTabIcon ? <EventActivityTabIcon className="h-4 w-4" color={activeTab === 'event-activity' ? '#2563eb' : '#64748b'} /> : null}
+                <svg width="20" height="20" viewBox="0 0 28 28" fill="none" aria-hidden>
+                  <path d={svgPathsSpaceX.p9bd8700} fill="#B45309" />
+                </svg>
                 Event Activity
               </button>
 
               <button
-                onClick={() => setActiveTab('event-service')}
+                onClick={() => navigate('/event-services')}
                 className={`flex h-9 items-center gap-2 rounded-full border-[1.5px] px-4 text-sm font-medium transition-all ${
                   activeTab === 'event-service'
-                    ? 'border-[#2563eb] text-[#0e1e3f] shadow-[1px_2px_6px_0px_rgba(0,0,0,0.16)]'
+                    ? 'border-[#2563eb] font-semibold text-[#0e1e3f] shadow-[0_10px_24px_rgba(37,99,235,0.24)]'
                     : 'border-slate-300/25 bg-white/[0.12] text-[#475569] backdrop-blur-sm hover:border-[#93c5fd]'
                 }`}
                 style={activeTab === 'event-service' ? { backgroundImage: 'linear-gradient(-9.24736deg, rgb(228, 235, 255) 9.7419%, rgb(255, 255, 255) 85.097%)' } : undefined}
               >
-                {EventServiceTabIcon ? <EventServiceTabIcon className="h-4 w-4" color={activeTab === 'event-service' ? '#2563eb' : '#64748b'} /> : null}
+                <Utensils className="h-5 w-5 text-[#0f766e]" strokeWidth={2.2} />
                 Event Service
               </button>
             </div>
           </div>
 
-          <div className="px-6 pb-4 bg-[#eff3f8]">
+          <div className="px-6 pb-6">
             {activeTab === 'event-service' ? (
               <EventServiceContent />
             ) : (
@@ -520,7 +512,7 @@ export default function EventsPage() {
             {/* Banner */}
             <div className="mb-4">
               <div 
-                className="relative h-[160px] rounded-lg overflow-hidden"
+                className="relative min-h-[200px] rounded-3xl overflow-hidden border border-white/60 bg-white/45 backdrop-blur-xl shadow-[0_16px_36px_rgba(37,99,235,0.15)]"
                 style={{
                   backgroundImage: 'linear-gradient(90deg, rgb(93, 143, 240) 0%, rgb(93, 143, 240) 100%)'
                 }}
@@ -568,7 +560,7 @@ export default function EventsPage() {
 
             {/* Category Icons */}
             <div className="mb-4">
-              <div className="bg-white rounded-lg p-4 flex items-center justify-between gap-2">
+              <div className="bg-white/55 backdrop-blur-xl rounded-2xl border border-white/60 p-4 flex items-center justify-between gap-2 shadow-[0_16px_36px_rgba(37,99,235,0.12)]">
                 {categories.map((category, index) => (
                   <button
                     key={index}
@@ -635,7 +627,7 @@ export default function EventsPage() {
               {/* Right Content */}
               <div className="flex-1">
                 {/* Search Bar */}
-                <div className="bg-white rounded-lg p-4 mb-4">
+                <div className="bg-white/55 backdrop-blur-xl rounded-2xl border border-white/60 p-4 mb-4 shadow-[0_16px_36px_rgba(37,99,235,0.12)]">
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
                     <div>
                       <label className="text-[#0e1e3f] text-xs font-medium mb-1 block">Location</label>
@@ -695,7 +687,7 @@ export default function EventsPage() {
                   </div>
                 </div>
 
-                <div className="bg-white rounded-lg p-4 mb-4">
+                <div className="bg-white/55 backdrop-blur-xl rounded-2xl border border-white/60 p-4 mb-4 shadow-[0_16px_36px_rgba(37,99,235,0.12)]">
                   <label className="text-[#0e1e3f] text-xs font-medium mb-1 block">Keyword</label>
                   <input
                     type="text"
@@ -723,7 +715,7 @@ export default function EventsPage() {
                         key={chip.key}
                         type="button"
                         onClick={() => removeChip(chip.key)}
-                        className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700"
+                        className="inline-flex items-center gap-1.5 h-7 px-3 bg-white border border-[#d1d5db] rounded-md text-[12px] text-[#475569] hover:bg-gray-50 transition-colors"
                       >
                         {chip.label} <span className="text-slate-400">✕</span>
                       </button>
@@ -734,7 +726,7 @@ export default function EventsPage() {
                 {/* Event Cards Grid */}
                 <div
                   id="events-results-anchor"
-                  className={`grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 scroll-mt-4 transition-opacity duration-150 ${
+                  className={`grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 scroll-mt-4 transition-opacity duration-150 ${
                     gridAnimatingOut ? 'opacity-0' : 'opacity-100'
                   }`}
                 >
@@ -748,7 +740,7 @@ export default function EventsPage() {
                       </div>
                     ))
                   ) : isError ? (
-                    <div className="col-span-3 flex flex-col items-center justify-center py-16 text-center bg-white rounded-lg border border-[#ececec]">
+                    <div className="col-span-3 flex flex-col items-center justify-center py-16 text-center bg-white/65 backdrop-blur-md rounded-2xl border border-white/50">
                       <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-4">
                         <AlertCircle className="w-10 h-10 text-destructive" />
                       </div>
@@ -788,7 +780,7 @@ export default function EventsPage() {
                       return (
                       <div
                         key={activity.id}
-                        className="group bg-white rounded-lg overflow-hidden cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md h-full flex flex-col"
+                        className="group bg-white/65 backdrop-blur-md rounded-2xl overflow-hidden border border-white/50 shadow-[0_10px_30px_rgba(37,99,235,0.14)] hover:shadow-[0_18px_36px_rgba(37,99,235,0.22)] cursor-pointer transition-all duration-200 hover:-translate-y-0.5 h-full flex flex-col"
                         style={{ animation: 'pageEnter 300ms ease-out both', animationDelay: `${Math.min(400, Number(activity.id.toString().slice(-2)) * 40)}ms` }}
                         onClick={() =>
                           navigate(`/event-activity/${encodeURIComponent(activity.id)}`, {
@@ -797,7 +789,7 @@ export default function EventsPage() {
                         }
                       >
                       {/* Image */}
-                      <div className="relative h-[160px] overflow-hidden">
+                      <div className="relative h-52 overflow-hidden">
                         <img
                           src={activity.image}
                           alt="Event"
@@ -960,7 +952,7 @@ export default function EventsPage() {
                     </div>
                     )})
                 ) : (
-                  <div className="col-span-3 flex flex-col items-center justify-center py-16 text-center bg-white rounded-lg border border-[#ececec]">
+                  <div className="col-span-3 flex flex-col items-center justify-center py-16 text-center bg-white/65 backdrop-blur-md rounded-2xl border border-white/50">
                     <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-4">
                       <Search className="w-10 h-10 text-[#2563eb]" />
                     </div>

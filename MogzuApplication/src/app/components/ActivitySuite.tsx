@@ -74,7 +74,7 @@ const ACTIVITY_SUITE_MODULES: ActivityModule[] = [
     value: '12 live workflows · 4 approvals',
     badge: '4 approvals',
     badgeTone: 'info',
-      route: '/events',
+      route: '/events/home',
     Icon: CalendarCheck2,
     iconBgClass: 'from-[#ffedd5] to-[#fff7ed]',
     iconTextClass: 'text-[#FF5E00]',
@@ -391,7 +391,7 @@ export default function ActivitySuite() {
             Skip to main content
           </a>
 
-          <div className="activitysuite-header-anim relative overflow-hidden border-b border-slate-200/80 bg-gradient-to-r from-white via-[#f8fbff] to-[#f2f7ff] backdrop-blur-xl">
+          <div className="activitysuite-header-anim relative overflow-hidden border-b border-slate-200/80 bg-gradient-to-r from-white via-[#fafaf9] to-[#f8f9fa] backdrop-blur-xl">
             <div className="mx-auto max-w-[1280px] px-5 md:px-8 lg:px-12 py-8 text-center md:text-left">
               <h1 className="activitysuite-title-gradient corp-h1 mb-2 text-[#0e1e3f]">Activity Suite</h1>
               <p className="corp-body text-slate-600">
@@ -608,7 +608,7 @@ export default function ActivitySuite() {
                               key={`${group}-${idx}`}
                               type="button"
                               className="w-full text-left rounded-xl border border-[#e2e8f0] bg-white p-3 hover:bg-[#f8fbff] transition-colors"
-                              onClick={() => navigate(a.module === 'Gifting' ? '/gifting' : a.module === 'Dspace' ? '/spacex' : '/events')}
+                              onClick={() => navigate(a.module === 'Gifting' ? '/gifting' : a.module === 'Dspace' ? '/spacex' : '/events/home')}
                             >
                               <p className="text-sm text-slate-800">
                                 <span className="font-semibold">{a.module}</span> · {a.actor}{' '}

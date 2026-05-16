@@ -224,7 +224,7 @@ export default function WishlistPage() {
                             fading ? 'pointer-events-none opacity-40' : 'opacity-100'
                           }`}
                           onClick={() => {
-                            if (isServiceListingId(id)) navigate('/events', { state: { tab: 'event-service' } });
+                            if (isServiceListingId(id)) navigate('/event-services');
                             else navigate(`/event-activity/${encodeURIComponent(id)}`);
                           }}
                         >
@@ -305,7 +305,7 @@ export default function WishlistPage() {
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (isServiceListingId(id)) navigate('/events', { state: { tab: 'event-service' } });
+                                  if (isServiceListingId(id)) navigate('/event-services');
                                   else navigate(`/event-activity/${encodeURIComponent(id)}`);
                                 }}
                                 className={`w-full rounded-lg py-2 text-sm font-semibold transition-colors ${

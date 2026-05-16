@@ -30,15 +30,15 @@ const DOTS_ONBOARDING = `
             radial-gradient(circle at 50% 14%, rgba(67,121,238,0.07) 0 1.5px, transparent 2.5px)
           `;
 
-/** Landing-aligned workspace: cream-first, Mogzu blue + orange accents, minimal magenta */
+/** Landing-aligned workspace: cream-first, very subtle accents */
 const DOTS_CORPORATE = `
-            radial-gradient(circle at 20% 30%, rgba(67,121,238,0.13) 0 2px, transparent 3px),
-            radial-gradient(circle at 82% 22%, rgba(250,141,64,0.08) 0 2px, transparent 3px),
-            radial-gradient(circle at 58% 76%, rgba(67,121,238,0.07) 0 2px, transparent 3px),
-            radial-gradient(circle at 14% 68%, rgba(21,211,157,0.07) 0 1.5px, transparent 2.5px),
-            radial-gradient(circle at 92% 58%, rgba(155,81,224,0.05) 0 2px, transparent 3px),
-            radial-gradient(circle at 38% 90%, rgba(255,209,0,0.07) 0 2px, transparent 3px),
-            radial-gradient(circle at 50% 14%, rgba(67,121,238,0.09) 0 1.5px, transparent 2.5px)
+            radial-gradient(circle at 20% 30%, rgba(67,121,238,0.07) 0 2px, transparent 3px),
+            radial-gradient(circle at 82% 22%, rgba(250,141,64,0.05) 0 2px, transparent 3px),
+            radial-gradient(circle at 58% 76%, rgba(67,121,238,0.04) 0 2px, transparent 3px),
+            radial-gradient(circle at 14% 68%, rgba(21,211,157,0.05) 0 1.5px, transparent 2.5px),
+            radial-gradient(circle at 92% 58%, rgba(155,81,224,0.04) 0 2px, transparent 3px),
+            radial-gradient(circle at 38% 90%, rgba(255,209,0,0.05) 0 2px, transparent 3px),
+            radial-gradient(circle at 50% 14%, rgba(67,121,238,0.05) 0 1.5px, transparent 2.5px)
           `;
 
 export function MogzuAmbientBackdrop({
@@ -55,9 +55,9 @@ export function MogzuAmbientBackdrop({
     corporate ? DOTS_CORPORATE : onboarding ? DOTS_ONBOARDING : DOTS_DEFAULT;
 
   const dotOpacity = compact
-    ? 'opacity-[0.32]'
+    ? 'opacity-[0.28]'
     : corporate
-      ? 'opacity-[0.44]'
+      ? 'opacity-[0.3]'
       : onboarding
         ? 'opacity-[0.52]'
         : 'opacity-[0.38]';
@@ -66,7 +66,7 @@ export function MogzuAmbientBackdrop({
     <div className={`pointer-events-none absolute inset-0 overflow-hidden ${className}`} aria-hidden>
       {/* Mogzu landing base + airy blue (Snappy-style depth) */}
       <div className="absolute inset-0 bg-[#FFFDF9]" />
-      <div className="absolute inset-0 bg-gradient-to-br from-[#FFFDF9] via-slate-50/90 to-[#e8f0fc]" />
+      <div className="absolute inset-0 bg-gradient-to-br from-[#FFFDF9] via-[#fafaf9] to-[#f7f7f5]" />
 
       {onboarding && (
         <div
@@ -83,7 +83,7 @@ export function MogzuAmbientBackdrop({
           className="absolute inset-0 opacity-95"
           style={{
             background:
-              'radial-gradient(ellipse 80% 55% at 15% 25%, rgba(67,121,238,0.11), transparent 55%), radial-gradient(ellipse 70% 50% at 85% 18%, rgba(250,141,64,0.09), transparent 50%), radial-gradient(ellipse 65% 45% at 50% 88%, rgba(67,121,238,0.06), transparent 55%)',
+              'radial-gradient(ellipse 80% 55% at 15% 25%, rgba(67,121,238,0.035), transparent 55%), radial-gradient(ellipse 70% 50% at 85% 18%, rgba(250,141,64,0.04), transparent 50%), radial-gradient(ellipse 65% 45% at 50% 88%, rgba(67,121,238,0.02), transparent 55%)',
           }}
         />
       )}
@@ -91,13 +91,13 @@ export function MogzuAmbientBackdrop({
       {/* Large soft blooms — Mogzu blue + warm accents; corporate avoids magenta wash */}
       <div
         className={`absolute -left-[28%] -top-[22%] h-[min(88vh,920px)] w-[min(88vw,920px)] rounded-full blur-[128px] ${
-          rich ? 'bg-[#4379ee]/[0.11]' : 'bg-[#4379ee]/[0.065]'
+          rich ? (corporate ? 'bg-[#4379ee]/[0.04]' : 'bg-[#4379ee]/[0.11]') : 'bg-[#4379ee]/[0.065]'
         }`}
       />
       <div
         className={`absolute -right-[18%] top-[0%] h-[min(62vh,680px)] w-[min(62vw,680px)] rounded-full blur-[108px] ${
           corporate
-            ? 'bg-[#4379ee]/[0.055]'
+            ? 'bg-[#4379ee]/[0.025]'
             : onboarding
               ? 'bg-[#EE2A7B]/[0.065]'
               : 'bg-[#EE2A7B]/[0.045]'

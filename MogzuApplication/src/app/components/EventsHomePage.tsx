@@ -17,6 +17,8 @@ import {
 import { SharedHeader } from './layouts/SharedHeader'
 import { SharedSidebar } from './layouts/SharedSidebar'
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface'
+import { EventsDiscoveryNav } from './events/EventsDiscoveryNav'
+import svgPathsSpaceX from '@/imports/svg-5pj2l0pukf'
 import { EVENT_ACTIVITY_LISTINGS, EVENT_SERVICES } from '@/app/lib/eventsServicesData'
 import { getMergedCatalogue } from '@/utils/catalogueUtils'
 
@@ -60,7 +62,7 @@ const quickAccess: Array<{
   },
   {
     label: 'Event Service',
-    route: '/events/new',
+    route: '/event-services',
     icon: <Megaphone className="h-6 w-6 text-[#b45309]" />,
     cardBorder: 'border-[#fde68a]',
     cardShadow: 'hover:shadow-[0_14px_30px_rgba(180,83,9,0.18)]',
@@ -127,7 +129,7 @@ export default function EventsHomePage() {
         chip: service.category,
         subtitle: `${service.name} by ${service.vendorName} in ${service.city} with ${service.rating.toFixed(1)} rating.`,
         cta: idx === 0 ? 'Explore Event Activity →' : idx === 1 ? 'Explore Event Service →' : 'Explore Events →',
-        route: idx === 0 ? '/event-activity' : '/events/new',
+        route: idx === 0 ? '/event-activity' : idx === 1 ? '/event-services' : '/events/home',
         image: service.images[0] || '',
       })),
     [],
@@ -232,7 +234,7 @@ export default function EventsHomePage() {
   }
 
   return (
-    <div className="flex h-screen min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,#f6f7f9_0%,#fbfcff_38%,#fffdf9_100%)]">
+    <div className="flex h-screen min-h-screen overflow-hidden mogzu-module-shell-bg">
       <SharedSidebar collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} activeNav="activity" />
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <SharedHeader variant="blended" onMobileMenuToggle={() => setSidebarCollapsed(!sidebarCollapsed)} searchPlaceholder="Search Events" />
@@ -253,9 +255,14 @@ export default function EventsHomePage() {
                       Home
                     </span>
                   </button>
-                  <button onClick={() => navigate('/events/new')} className="h-9 rounded-full border-[1.5px] border-slate-300/25 bg-white/[0.12] px-4 text-[14px] font-medium text-[#475569] backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#93c5fd] active:scale-[0.98]">Events</button>
-                  <button onClick={() => navigate('/event-activity')} className="h-9 rounded-full border-[1.5px] border-slate-300/25 bg-white/[0.12] px-4 text-[14px] font-medium text-[#475569] backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#93c5fd] active:scale-[0.98]">Event Activity</button>
-                  <button onClick={() => navigate('/events/new')} className="h-9 rounded-full border-[1.5px] border-slate-300/25 bg-white/[0.12] px-4 text-[14px] font-medium text-[#475569] backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#93c5fd] active:scale-[0.98]">Event Service</button>
+                  <button type="button" onClick={() => navigate('/event-activity')} className="h-9 flex items-center gap-2 rounded-full border-[1.5px] border-slate-300/25 bg-white/[0.12] px-4 text-[14px] font-medium text-[#475569] backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#93c5fd] active:scale-[0.98]">
+                    <svg width="20" height="20" viewBox="0 0 28 28" fill="none" aria-hidden><path d={svgPathsSpaceX.p9bd8700} fill="#B45309" /></svg>
+                    <span>Event Activity</span>
+                  </button>
+                  <button type="button" onClick={() => navigate('/event-services')} className="h-9 flex items-center gap-2 rounded-full border-[1.5px] border-slate-300/25 bg-white/[0.12] px-4 text-[14px] font-medium text-[#475569] backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#93c5fd] active:scale-[0.98]">
+                    <Utensils className="h-5 w-5 text-[#0f766e]" strokeWidth={2.2} />
+                    <span>Event Service</span>
+                  </button>
                 </div>
               </div>
             </div>

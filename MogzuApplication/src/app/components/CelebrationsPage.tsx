@@ -721,7 +721,7 @@ export default function CelebrationsPage() {
   }, [location.state, selectedMainCategory, selectedSubcategory]);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,#eef4ff_0%,#f8fbff_38%,#fffdf9_100%)]">
+    <div className="flex h-screen overflow-hidden mogzu-module-shell-bg">
       {/* Left Sidebar */}
       <SharedSidebar 
         collapsed={sidebarCollapsed} 

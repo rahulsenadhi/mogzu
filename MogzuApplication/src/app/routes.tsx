@@ -88,6 +88,7 @@ import EventsCorporateListingPage from "@/app/components/EventsCorporateListingP
 import EventActivityPage from "@/app/components/EventActivityPage";
 import EventDetailPage from "@/app/components/EventDetailPage";
 import EventServiceDetailPage from "@/app/components/EventServiceDetailPage";
+import EventServicePage from "@/app/components/EventServicePage";
 import EventsHomePage from "@/app/components/EventsHomePage";
 import UserManagementPage from "@/app/components/UserManagementPage";
 import NotFoundPage from "@/app/components/NotFoundPage";
@@ -757,6 +758,25 @@ export const router = createBrowserRouter([
         <EventDetailPage />
       </CorporateModuleRouteGuard>
     ),
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/event-services",
+    element: (
+      <CorporateModuleRouteGuard moduleKey="events">
+        <EventServicePage />
+      </CorporateModuleRouteGuard>
+    ),
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/events/activity",
+    element: <Navigate to="/event-activity" replace />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/events/service",
+    element: <Navigate to="/event-services" replace />,
     errorElement: <ErrorPage />,
   },
   {

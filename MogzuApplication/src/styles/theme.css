@@ -632,15 +632,26 @@
   isolation: isolate;
 }
 
+/** Landing-aligned shell for corporate modules (warm cream, minimal blue wash). */
+.mogzu-module-shell-bg {
+  background-color: #fffdf9;
+  background-image: radial-gradient(
+    circle at top left,
+    #fafaf9 0%,
+    #fcfcfb 48%,
+    #fffdf9 100%
+  );
+}
+
 .activitysuite-brand-bg {
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(ellipse 80% 50% at 20% -10%, color-mix(in oklch, var(--color-primary) 8%, transparent), transparent),
-    radial-gradient(ellipse 60% 40% at 80% 110%, color-mix(in oklch, var(--color-primary) 6%, transparent), transparent),
-    radial-gradient(ellipse 40% 30% at 60% 50%, color-mix(in oklch, var(--color-accent) 4%, transparent), transparent);
+    radial-gradient(ellipse 80% 50% at 20% -10%, color-mix(in oklch, var(--color-primary) 3%, transparent), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 110%, color-mix(in oklch, var(--color-primary) 2%, transparent), transparent),
+    radial-gradient(ellipse 40% 30% at 60% 50%, color-mix(in oklch, var(--color-accent) 2%, transparent), transparent);
   animation: activitysuiteBgFade 400ms ease both;
 }
 

@@ -1,20 +1,41 @@
 import type { LucideIcon } from 'lucide-react'
 import {
+  Brain,
+  Camera,
   Car,
   Cpu,
+  Crown,
+  Disc3,
+  DoorOpen,
+  Droplet,
+  Dumbbell,
   FileBadge2,
+  Film,
+  Flower2,
   Gamepad2,
+  Globe,
   GraduationCap,
   HandHeart,
   HeartPulse,
+  LayoutGrid,
   Megaphone,
   Mic2,
   Monitor,
+  Music,
+  Paintbrush,
   Palette,
   PartyPopper,
-  Paintbrush,
+  Scissors,
   Shield,
+  Shirt,
+  Smile,
+  Sparkles,
+  TreePine,
+  Users,
   Utensils,
+  Video,
+  Wand2,
+  Wine,
 } from 'lucide-react'
 
 export type EventActivityCategoryId =
@@ -39,6 +60,61 @@ export type EventServiceCategoryIconConfig = {
   color: string
 }
 
+export type EventActivitySubcategoryConfig = {
+  id: string
+  name: string
+  icon: LucideIcon
+  bgColor: string
+  textColor: string
+  activeBg: string
+  activeText: string
+}
+
+export const EVENT_ACTIVITY_SUBCATEGORIES: Record<EventActivityCategoryId, EventActivitySubcategoryConfig[]> = {
+  workshops_trainings: [
+    { id: 'virtual', name: 'Virtual Workshop', icon: Video, bgColor: '#eff6ff', textColor: '#3b82f6', activeBg: '#2563eb', activeText: '#fff' },
+    { id: 'inperson', name: 'In-Person', icon: Users, bgColor: '#f0fdf4', textColor: '#16a34a', activeBg: '#16a34a', activeText: '#fff' },
+    { id: 'leadership', name: 'Leadership', icon: Crown, bgColor: '#fefce8', textColor: '#ca8a04', activeBg: '#ca8a04', activeText: '#fff' },
+    { id: 'teambuilding', name: 'Team Building', icon: Users, bgColor: '#fdf4ff', textColor: '#9333ea', activeBg: '#9333ea', activeText: '#fff' },
+  ],
+  arts_creativity: [
+    { id: 'painting', name: 'Painting', icon: Paintbrush, bgColor: '#fff7ed', textColor: '#ea580c', activeBg: '#ea580c', activeText: '#fff' },
+    { id: 'photography', name: 'Photography', icon: Camera, bgColor: '#eff6ff', textColor: '#2563eb', activeBg: '#2563eb', activeText: '#fff' },
+    { id: 'crafts', name: 'Crafts', icon: Scissors, bgColor: '#f0fdf4', textColor: '#16a34a', activeBg: '#16a34a', activeText: '#fff' },
+    { id: 'music', name: 'Music', icon: Music, bgColor: '#fdf4ff', textColor: '#9333ea', activeBg: '#9333ea', activeText: '#fff' },
+  ],
+  virtual_games: [
+    { id: 'quiz', name: 'Quiz Night', icon: Brain, bgColor: '#fefce8', textColor: '#ca8a04', activeBg: '#ca8a04', activeText: '#fff' },
+    { id: 'escape', name: 'Escape Room', icon: DoorOpen, bgColor: '#fff1f2', textColor: '#e11d48', activeBg: '#e11d48', activeText: '#fff' },
+    { id: 'trivia', name: 'Trivia', icon: Sparkles, bgColor: '#eff6ff', textColor: '#2563eb', activeBg: '#2563eb', activeText: '#fff' },
+    { id: 'board', name: 'Board Games', icon: LayoutGrid, bgColor: '#f0fdf4', textColor: '#16a34a', activeBg: '#16a34a', activeText: '#fff' },
+  ],
+  wellness_programs: [
+    { id: 'yoga', name: 'Yoga', icon: Flower2, bgColor: '#f0fdf4', textColor: '#16a34a', activeBg: '#16a34a', activeText: '#fff' },
+    { id: 'meditation', name: 'Meditation', icon: Sparkles, bgColor: '#fdf4ff', textColor: '#9333ea', activeBg: '#9333ea', activeText: '#fff' },
+    { id: 'fitness', name: 'Fitness', icon: Dumbbell, bgColor: '#eff6ff', textColor: '#2563eb', activeBg: '#2563eb', activeText: '#fff' },
+    { id: 'spa', name: 'Spa & Wellness', icon: HeartPulse, bgColor: '#fff7ed', textColor: '#ea580c', activeBg: '#ea580c', activeText: '#fff' },
+  ],
+  entertainment: [
+    { id: 'comedy', name: 'Stand-Up Comedy', icon: Smile, bgColor: '#fefce8', textColor: '#ca8a04', activeBg: '#ca8a04', activeText: '#fff' },
+    { id: 'livemusic', name: 'Live Music', icon: Music, bgColor: '#fdf4ff', textColor: '#9333ea', activeBg: '#9333ea', activeText: '#fff' },
+    { id: 'dj', name: 'DJ Night', icon: Disc3, bgColor: '#fff1f2', textColor: '#e11d48', activeBg: '#e11d48', activeText: '#fff' },
+    { id: 'magic', name: 'Magician', icon: Wand2, bgColor: '#eff6ff', textColor: '#2563eb', activeBg: '#2563eb', activeText: '#fff' },
+  ],
+  themed_parties: [
+    { id: 'bollywood', name: 'Bollywood', icon: Film, bgColor: '#fff7ed', textColor: '#ea580c', activeBg: '#ea580c', activeText: '#fff' },
+    { id: 'costume', name: 'Costume Party', icon: Shirt, bgColor: '#fdf4ff', textColor: '#9333ea', activeBg: '#9333ea', activeText: '#fff' },
+    { id: 'gala', name: 'Gala Dinner', icon: Wine, bgColor: '#fefce8', textColor: '#ca8a04', activeBg: '#ca8a04', activeText: '#fff' },
+    { id: 'cultural', name: 'Cultural Night', icon: Globe, bgColor: '#f0fdf4', textColor: '#16a34a', activeBg: '#16a34a', activeText: '#fff' },
+  ],
+  csr: [
+    { id: 'plantation', name: 'Tree Plantation', icon: TreePine, bgColor: '#f0fdf4', textColor: '#16a34a', activeBg: '#16a34a', activeText: '#fff' },
+    { id: 'blood', name: 'Blood Donation', icon: Droplet, bgColor: '#fff1f2', textColor: '#e11d48', activeBg: '#e11d48', activeText: '#fff' },
+    { id: 'skilltraining', name: 'Skill Training', icon: GraduationCap, bgColor: '#eff6ff', textColor: '#2563eb', activeBg: '#2563eb', activeText: '#fff' },
+    { id: 'community', name: 'Community Service', icon: HandHeart, bgColor: '#fefce8', textColor: '#ca8a04', activeBg: '#ca8a04', activeText: '#fff' },
+  ],
+}
+
 export const EVENT_ACTIVITY_CATEGORY_ICONS: Record<EventActivityCategoryId, EventActivityCategoryIconConfig> = {
   workshops_trainings: {
     id: 'workshops_trainings',
@@ -50,37 +126,37 @@ export const EVENT_ACTIVITY_CATEGORY_ICONS: Record<EventActivityCategoryId, Even
     id: 'arts_creativity',
     label: 'Arts &\nCreativity',
     icon: Palette,
-    color: '#2563eb',
+    color: '#9333ea',
   },
   virtual_games: {
     id: 'virtual_games',
     label: 'Virtual\ngames',
     icon: Gamepad2,
-    color: '#2563eb',
+    color: '#6366f1',
   },
   wellness_programs: {
     id: 'wellness_programs',
     label: 'Wellness\nPrograms',
     icon: HeartPulse,
-    color: '#2563eb',
+    color: '#15803d',
   },
   entertainment: {
     id: 'entertainment',
     label: 'Entertainment',
     icon: Mic2,
-    color: '#2563eb',
+    color: '#ea580c',
   },
   themed_parties: {
     id: 'themed_parties',
     label: 'Themed\nparties',
     icon: PartyPopper,
-    color: '#2563eb',
+    color: '#db2777',
   },
   csr: {
     id: 'csr',
     label: 'Corporate social\nresponsibility (CSR)',
     icon: HandHeart,
-    color: '#2563eb',
+    color: '#0f766e',
   },
 }
 

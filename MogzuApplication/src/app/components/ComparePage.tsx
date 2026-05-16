@@ -79,7 +79,7 @@ export default function ComparePage() {
   }, [items]);
 
   const openListing = (id: string, item?: CatalogueItem) => {
-    if (item && isServiceListingId(id)) navigate('/events', { state: { tab: 'event-service' } });
+    if (item && isServiceListingId(id)) navigate('/event-services');
     else navigate(`/event-activity/${encodeURIComponent(id)}`);
   };
 

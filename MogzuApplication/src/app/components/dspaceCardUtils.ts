@@ -10,6 +10,11 @@ export const getListingSlideImages = (...sources: Array<string | null | undefine
     ),
   )
 
+export const getListingSlideImagesFromRecord = (item: {
+  image?: string | null
+  images?: string[] | null
+}) => getListingSlideImages(item.image, ...(item.images ?? []))
+
 const UNIT_LABELS: Record<string, string> = {
   hr: '/hour',
   hour: '/hour',

@@ -55,6 +55,7 @@ export type EventActivityListing = {
   rating: number
   ratingCount: number
   image: string
+  images: string[]
   availabilityDates: string[]
   supportedEventTypes: EventType[]
 }
@@ -266,6 +267,7 @@ export const EVENT_ACTIVITY_LISTINGS: EventActivityListing[] = [
     rating: 4.6,
     ratingCount: 132,
     image: cardImages[0],
+    images: [cardImages[0], cardImages[1], cardImages[2], cardImages[3], cardImages[4]],
     availabilityDates: seedDates('2026-04-10', 10, 3),
     supportedEventTypes: ['Conference', 'Team Outing', 'Networking', 'Other'],
   },
@@ -280,6 +282,7 @@ export const EVENT_ACTIVITY_LISTINGS: EventActivityListing[] = [
     rating: 4.5,
     ratingCount: 96,
     image: cardImages[1],
+    images: [cardImages[1], cardImages[2], cardImages[3], cardImages[4], cardImages[0]],
     availabilityDates: seedDates('2026-04-09', 12, 2),
     supportedEventTypes: ['Team Outing', 'Birthday', 'Other'],
   },
@@ -292,6 +295,7 @@ export const EVENT_ACTIVITY_LISTINGS: EventActivityListing[] = [
     rating: 4.4,
     ratingCount: 74,
     image: cardImages[2],
+    images: [cardImages[2], cardImages[3], cardImages[4], cardImages[0], cardImages[1]],
     availabilityDates: seedDates('2026-04-12', 9, 3),
     supportedEventTypes: ['Team Outing', 'Conference', 'Other'],
   },
@@ -306,6 +310,7 @@ export const EVENT_ACTIVITY_LISTINGS: EventActivityListing[] = [
     rating: 4.7,
     ratingCount: 188,
     image: cardImages[3],
+    images: [cardImages[3], cardImages[4], cardImages[0], cardImages[1], cardImages[2]],
     availabilityDates: seedDates('2026-04-11', 8, 4),
     supportedEventTypes: ['Product Launch', 'Networking', 'Other'],
   },

@@ -151,7 +151,7 @@ export default function DSpaceHomePage() {
   }, [slide])
 
   return (
-    <div className="flex h-screen min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,#f6f7f9_0%,#fbfcff_38%,#fffdf9_100%)]">
+    <div className="flex h-screen min-h-screen overflow-hidden mogzu-module-shell-bg">
       <SharedSidebar collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} activeNav="activity" />
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <SharedHeader variant="blended" onMobileMenuToggle={() => setSidebarCollapsed(!sidebarCollapsed)} searchPlaceholder="Search D Space" />

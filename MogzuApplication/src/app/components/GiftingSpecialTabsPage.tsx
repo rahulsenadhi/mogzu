@@ -515,7 +515,7 @@ export default function GiftingSpecialTabsPage() {
   }
 
   return (
-    <div className="flex h-screen min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,#eef4ff_0%,#f8fbff_38%,#fffdf9_100%)]">
+    <div className="flex h-screen min-h-screen overflow-hidden mogzu-module-shell-bg">
       <SharedSidebar collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} activeNav="shop" />
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <SharedHeader variant="blended" onMobileMenuToggle={() => setSidebarCollapsed(!sidebarCollapsed)} searchPlaceholder="Search gifting" />

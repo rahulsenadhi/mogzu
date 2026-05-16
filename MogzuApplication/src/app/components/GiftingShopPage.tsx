@@ -2415,7 +2415,7 @@ export default function GiftingShopPage() {
   ]);
 
   return (
-    <div className="flex min-h-screen h-screen bg-[radial-gradient(circle_at_top_left,#eef4ff_0%,#f8fbff_38%,#fffdf9_100%)] overflow-hidden">
+    <div className="flex min-h-screen h-screen mogzu-module-shell-bg overflow-hidden">
       {/* Left Sidebar Navigation */}
       <SharedSidebar 
         collapsed={sidebarCollapsed} 

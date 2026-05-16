@@ -15,6 +15,9 @@ import {
   type EventType,
 } from '@/app/lib/eventsServicesData'
 import { getPricingBadgeConfig } from './ui/PriceBlock'
+import { ListingCardImageGallery } from './ui/ListingCardImageGallery'
+import { getListingSlideImages, getListingSlideImagesFromRecord } from './dspaceCardUtils'
+import { useListingCardImageScroller } from '@/app/hooks/useListingCardImageScroller'
 
 type RatingMin = 0 | 3 | 4 | 4.5
 
@@ -42,6 +45,7 @@ export default function EventsCorporateListingPage() {
   const [keyword, setKeyword] = useState('')
   const [searchAppliedAt, setSearchAppliedAt] = useState(0)
   const [listingMode, setListingMode] = useState<'all' | 'services' | 'activities'>('all')
+  const { goToPrevCardImage, goToNextCardImage, getActiveIndex } = useListingCardImageScroller()
 
   const effectiveCity = sidebarCity !== 'All' ? sidebarCity : city
   const effectiveBudgetMax = sidebarBudgetMax !== 100000 ? sidebarBudgetMax : budgetMax
@@ -113,21 +117,21 @@ export default function EventsCorporateListingPage() {
   }
 
   return (
-    <div className="flex h-screen bg-[#FFFDF9] overflow-hidden">
+    <div className="flex h-screen min-h-screen overflow-hidden mogzu-module-shell-bg">
       <SharedSidebar collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} activeNav="activity" />
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <SharedHeader onMobileMenuToggle={() => setSidebarCollapsed(!sidebarCollapsed)} searchPlaceholder="Search events..." />
+        <SharedHeader variant="blended" onMobileMenuToggle={() => setSidebarCollapsed(!sidebarCollapsed)} searchPlaceholder="Search events..." />
 
         <MogzuCorporateScrollSurface>
-          <div className="bg-white border-b border-[#ececec]">
+          <div className="border-b border-slate-300/[0.1] bg-transparent">
             <div className="max-w-7xl mx-auto px-6 py-4">
-              <div className="flex items-center gap-2 text-[12px] mb-3">
-                <button type="button" onClick={() => navigate('/dashboard')} className="text-[#2563eb] hover:underline">
+              <div className="inline-flex items-center gap-2 rounded-full border border-slate-400/10 bg-[#fffdf9]/[0.22] px-4 py-1 text-[12px] backdrop-blur-[2px] mb-3">
+                <button type="button" onClick={() => navigate('/dashboard')} className="text-[#7b879a] font-medium hover:text-[#2563eb]">
                   Dashboard
                 </button>
-                <ChevronDown className="size-4 text-[#878e9e] -rotate-90" />
-                <span className="text-[#878e9e]">Events</span>
+                <ChevronDown className="size-4 text-[#a0aec0] -rotate-90" />
+                <span className="text-[#0e1e3f] font-semibold">Events</span>
               </div>
 
               <div className="flex items-end justify-between gap-4">
@@ -161,7 +165,7 @@ export default function EventsCorporateListingPage() {
               </div>
 
               {/* Top filter bar */}
-              <div className="mt-4 bg-[#f8fafc] border border-[#ececec] rounded-xl p-4">
+              <div className="mt-4 rounded-2xl border border-white/60 bg-white/55 backdrop-blur-xl p-4 shadow-[0_16px_36px_rgba(37,99,235,0.12)]">
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3 items-end">
                   <div>
                     <label className="text-[12px] font-semibold text-[#0e1e3f]">City</label>
@@ -272,12 +276,14 @@ export default function EventsCorporateListingPage() {
                         type="button"
                         onClick={() => setActiveCategoryChip(c)}
                         className={`h-9 px-4 rounded-full border-[1.5px] text-[13px] transition-all ${
-                          active ? 'border-[#2563eb] shadow-[1px_2px_6px_0px_rgba(0,0,0,0.16)] font-semibold text-[#0e1e3f]' : 'border-[#c8c8c8] text-[#475569] hover:border-[#878e9e]'
+                          active
+                            ? 'border-[#2563eb] shadow-[0_10px_24px_rgba(37,99,235,0.24)] font-semibold text-[#0e1e3f]'
+                            : 'border-slate-300/25 bg-white/[0.12] text-[#475569] backdrop-blur-sm hover:border-[#93c5fd]'
                         }`}
                         style={
                           active
                             ? { backgroundImage: 'linear-gradient(-9.24736deg, rgb(228, 235, 255) 9.7419%, rgb(255, 255, 255) 85.097%)' }
-                            : { backgroundColor: 'rgba(255,255,255,0.7)' }
+                            : undefined
                         }
                       >
                         {c}
@@ -288,20 +294,33 @@ export default function EventsCorporateListingPage() {
               </div>
 
               <div className="mt-3 flex gap-2">
-                {[
-                  { id: 'all', label: 'All Listings' },
-                  { id: 'services', label: 'Event Services' },
-                  { id: 'activities', label: 'Event Activity' },
-                ].map((mode) => {
+                {([
+                  { id: 'all' as const, label: 'All Listings' },
+                  { id: 'services' as const, label: 'Event Services', href: '/event-services' as const },
+                  { id: 'activities' as const, label: 'Event Activity', href: '/event-activity' as const },
+                ]).map((mode) => {
                   const active = listingMode === mode.id
                   return (
                     <button
                       key={mode.id}
                       type="button"
-                      onClick={() => setListingMode(mode.id as 'all' | 'services' | 'activities')}
-                      className={`h-8 px-3 rounded-full border text-[12px] font-semibold ${
-                        active ? 'border-[#2563eb] text-[#2563eb] bg-blue-50' : 'border-[#d1d5db] text-[#475569] bg-white'
+                      onClick={() => {
+                        if (mode.id !== 'all') {
+                          navigate(mode.href)
+                          return
+                        }
+                        setListingMode('all')
+                      }}
+                      className={`h-9 px-4 rounded-full border-[1.5px] text-[13px] font-semibold transition-all ${
+                        active
+                          ? 'border-[#2563eb] shadow-[0_10px_24px_rgba(37,99,235,0.24)] text-[#0e1e3f]'
+                          : 'border-slate-300/25 bg-white/[0.12] text-[#475569] backdrop-blur-sm hover:border-[#93c5fd]'
                       }`}
+                      style={
+                        active
+                          ? { backgroundImage: 'linear-gradient(-9.24736deg, rgb(228, 235, 255) 9.7419%, rgb(255, 255, 255) 85.097%)' }
+                          : undefined
+                      }
                     >
                       {mode.label}
                     </button>
@@ -314,8 +333,8 @@ export default function EventsCorporateListingPage() {
           <div className="max-w-7xl mx-auto px-6 py-6">
             <div className="flex gap-4">
               {/* Sidebar filters (desktop only) */}
-              <aside className="hidden lg:block w-[260px] shrink-0">
-                <div className="bg-white rounded-xl border border-[#ececec] p-4 sticky top-4">
+              <aside className="hidden lg:block w-[240px] shrink-0">
+                <div className="bg-white/55 backdrop-blur-xl rounded-2xl border border-white/60 p-5 shadow-[0_16px_36px_rgba(37,99,235,0.16)] sticky top-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-[14px] font-semibold text-[#0e1e3f]">Filters</h3>
                     <button type="button" onClick={handleClearAll} className="text-[12px] text-[#2563eb] hover:underline">
@@ -450,19 +469,33 @@ export default function EventsCorporateListingPage() {
                 >
                   {(listingMode === 'all' || listingMode === 'services') &&
                     filtered.map((s) => {
+                    const cardId = `svc-${s.id}`
+                    const slideImages = getListingSlideImages(...s.images)
+                    const activeImageIndex = getActiveIndex(cardId)
                     const badge = getPricingBadgeConfig(s.pricingType)
                     const showPrice = s.pricingType !== 'request_for_price' && typeof s.price === 'number'
                     return (
                       <article
                         key={s.id}
-                        className="bg-white rounded-xl border border-[#ececec] overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-[3px] transition-all h-full flex flex-col"
+                        className="group bg-white/65 backdrop-blur-md rounded-2xl border border-white/50 overflow-hidden shadow-[0_10px_30px_rgba(37,99,235,0.14)] hover:shadow-[0_18px_36px_rgba(37,99,235,0.22)] hover:-translate-y-0.5 transition-all h-full flex flex-col"
                       >
-                        <div className="h-40 bg-slate-100 relative">
-                          <img src={s.images[0]} alt={s.name} className="h-full w-full object-cover" />
-                          <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 text-[11px] font-semibold text-[#0e1e3f]">
+                        <ListingCardImageGallery
+                          images={slideImages}
+                          alt={s.name}
+                          activeIndex={activeImageIndex}
+                          onPrev={(e) => {
+                            e.stopPropagation()
+                            goToPrevCardImage(cardId, slideImages.length)
+                          }}
+                          onNext={(e) => {
+                            e.stopPropagation()
+                            goToNextCardImage(cardId, slideImages.length)
+                          }}
+                        >
+                          <span className="absolute left-3 top-3 z-[3] inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 text-[11px] font-semibold text-[#0e1e3f]">
                             <Star className="size-3 fill-[#FFCC47] text-[#FFCC47]" /> {s.rating.toFixed(1)} <span className="text-[#878e9e]">({s.ratingCount})</span>
                           </span>
-                        </div>
+                        </ListingCardImageGallery>
 
                         <div className="p-[14px] flex-1 flex flex-col">
                           <div className="flex items-start justify-between gap-2">
@@ -514,19 +547,33 @@ export default function EventsCorporateListingPage() {
 
                   {(listingMode === 'all' || listingMode === 'activities') &&
                     filteredActivities.map((a) => {
+                      const cardId = `act-${a.id}`
+                      const slideImages = getListingSlideImagesFromRecord(a)
+                      const activeImageIndex = getActiveIndex(cardId)
                       const badge = getPricingBadgeConfig(a.pricingType)
                       const showPrice = a.pricingType !== 'request_for_price' && typeof a.price === 'number'
                       return (
                         <article
                           key={`act-${a.id}`}
-                          className="bg-white rounded-xl border border-[#ececec] overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-[3px] transition-all h-full flex flex-col"
+                          className="group bg-white/65 backdrop-blur-md rounded-2xl border border-white/50 overflow-hidden shadow-[0_10px_30px_rgba(37,99,235,0.14)] hover:shadow-[0_18px_36px_rgba(37,99,235,0.22)] hover:-translate-y-0.5 transition-all h-full flex flex-col"
                         >
-                          <div className="h-40 bg-slate-100 relative">
-                            <img src={a.image} alt={a.name} className="h-full w-full object-cover" />
-                            <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 text-[11px] font-semibold text-[#0e1e3f]">
+                          <ListingCardImageGallery
+                            images={slideImages}
+                            alt={a.name}
+                            activeIndex={activeImageIndex}
+                            onPrev={(e) => {
+                              e.stopPropagation()
+                              goToPrevCardImage(cardId, slideImages.length)
+                            }}
+                            onNext={(e) => {
+                              e.stopPropagation()
+                              goToNextCardImage(cardId, slideImages.length)
+                            }}
+                          >
+                            <span className="absolute left-3 top-3 z-[3] inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 text-[11px] font-semibold text-[#0e1e3f]">
                               <Star className="size-3 fill-[#FFCC47] text-[#FFCC47]" /> {a.rating.toFixed(1)} <span className="text-[#878e9e]">({a.ratingCount})</span>
                             </span>
-                          </div>
+                          </ListingCardImageGallery>
 
                           <div className="p-[14px] flex-1 flex flex-col">
                             <div className="flex items-start justify-between gap-2">
@@ -579,7 +626,7 @@ export default function EventsCorporateListingPage() {
                   {(listingMode === 'services' && filtered.length === 0) ||
                   (listingMode === 'activities' && filteredActivities.length === 0) ||
                   (listingMode === 'all' && filtered.length + filteredActivities.length === 0) ? (
-                    <div className="col-span-full bg-white rounded-xl border border-[#ececec] p-10 text-center">
+                    <div className="col-span-full bg-white/65 backdrop-blur-md rounded-2xl border border-white/50 p-10 text-center">
                       <div className="mx-auto size-12 rounded-full bg-blue-50 grid place-items-center mb-3">
                         <Search className="size-6 text-[#2563eb]" />
                       </div>
