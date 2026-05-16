@@ -6,6 +6,7 @@ import type {
   Booking,
   BookingAddOn,
   BudgetRule,
+  Employee,
   GiftingRule,
   Payout,
   Refund,
@@ -532,6 +533,28 @@ export const commissions = {
     supabase.from('commissions').update({ is_active: false }).eq('id', id),
 }
 
+// ─── Employees (Story 10.0) ───────────────────────────────────────────────────
+
+export const employees = {
+  listByCorporate: async (corporateId: string) =>
+    supabase
+      .from('employees')
+      .select('*')
+      .eq('corporate_id', corporateId)
+      .order('full_name'),
+
+  upsertBatch: async (
+    rows: Omit<Employee, 'id' | 'created_at' | 'updated_at' | 'imported_at'>[],
+  ) =>
+    supabase
+      .from('employees')
+      .upsert(rows, { onConflict: 'corporate_id,email' })
+      .select(),
+
+  deactivate: async (id: string) =>
+    supabase.from('employees').update({ is_active: false }).eq('id', id),
+}
+
 // ─── Vendor Payouts (Story 6.4) ───────────────────────────────────────────────
 
 export const payouts = {
@@ -702,6 +725,7 @@ export const db = {
   wallet,
   commissions,
   categories,
+  employees,
   giftingRules,
   payouts,
   refunds,

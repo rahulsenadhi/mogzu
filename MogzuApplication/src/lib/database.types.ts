@@ -219,6 +219,22 @@ export interface BookingAddOn {
   quantity: number
 }
 
+export interface Employee {
+  id: string
+  corporate_id: string
+  email: string
+  full_name: string
+  department: string | null
+  role_hint: string | null
+  dob: string | null
+  join_date: string | null
+  phone: string | null
+  is_active: boolean
+  imported_at: string
+  created_at: string
+  updated_at: string
+}
+
 export type PayoutStatus = 'scheduled' | 'processed' | 'held' | 'failed'
 
 export interface Payout {
@@ -382,6 +398,11 @@ export interface Database {
         Row: GiftingRule
         Insert: Omit<GiftingRule, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<GiftingRule, 'id' | 'created_at'>>
+      }
+      employees: {
+        Row: Employee
+        Insert: Omit<Employee, 'id' | 'created_at' | 'updated_at' | 'imported_at'>
+        Update: Partial<Omit<Employee, 'id' | 'created_at'>>
       }
       payouts: {
         Row: Payout
