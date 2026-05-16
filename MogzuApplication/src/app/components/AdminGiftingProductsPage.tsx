@@ -1,112 +1,487 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { approveProducts, getAdminGiftingState } from '@/app/lib/adminGiftingStore'
-import type { ProductStatus } from '@/app/lib/vendorGiftingStore'
+import { CheckCircle2, Loader2, ShieldAlert, XCircle } from 'lucide-react'
+import { useAuth } from '@/lib/auth'
+import { db } from '@/lib/db'
+import { storageService } from '@/lib/storage'
+import type {
+  Listing,
+  ListingImage,
+  ListingStatus,
+  Vendor,
+} from '@/lib/database.types'
+
+type ListingWithRefs = Listing & {
+  listing_images: ListingImage[]
+  vendors: Pick<Vendor, 'id' | 'business_name'> | null
+}
+
+type TabKey = 'all' | 'pending' | 'approved' | 'rejected' | 'paused'
+
+const TAB_FILTERS: Record<TabKey, ListingStatus[] | null> = {
+  all: null,
+  pending: ['pending_approval'],
+  approved: ['active'],
+  rejected: ['rejected'],
+  paused: ['paused'],
+}
+
+const STATUS_BADGE: Record<ListingStatus, { label: string; className: string }> = {
+  draft: { label: 'Draft', className: 'bg-slate-100 text-slate-600' },
+  pending_approval: { label: 'Pending', className: 'bg-amber-100 text-amber-800' },
+  active: { label: 'Active', className: 'bg-emerald-100 text-emerald-700' },
+  paused: { label: 'Paused', className: 'bg-blue-100 text-blue-700' },
+  rejected: { label: 'Rejected', className: 'bg-rose-100 text-rose-700' },
+}
+
+type RejectFormState = {
+  reason: string
+  custom: string
+  fields: string[]
+}
+
+const REJECT_REASONS = [
+  'Images below quality standard',
+  'Pricing not compliant',
+  'Missing product information',
+  'Prohibited item',
+  'Other',
+]
+
+const FIELD_OPTIONS = [
+  'Images',
+  'Description',
+  'Pricing',
+  'Variants',
+  'MOQ',
+  'Delivery cities',
+  'Branding',
+]
+
+function emptyRejectForm(): RejectFormState {
+  return { reason: REJECT_REASONS[0], custom: '', fields: [] }
+}
 
 export default function AdminGiftingProductsPage() {
   const navigate = useNavigate()
-  const [state, setState] = useState(() => getAdminGiftingState())
-  const [statusTab, setStatusTab] = useState<'all' | ProductStatus>('all')
-  const [selected, setSelected] = useState<string[]>([])
+  const { profile, role } = useAuth()
+  const isAdmin = role === 'mogzu_admin'
 
-  const products = useMemo(
-    () => (statusTab === 'all' ? state.products : state.products.filter((p) => p.status === statusTab)),
-    [state.products, statusTab],
-  )
+  const [tab, setTab] = useState<TabKey>('pending')
+  const [listings, setListings] = useState<ListingWithRefs[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [notice, setNotice] = useState('')
 
-  const toggleOne = (id: string) => {
-    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
-  }
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [busy, setBusy] = useState(false)
+
+  const [rejectOpen, setRejectOpen] = useState(false)
+  const [rejectForm, setRejectForm] = useState<RejectFormState>(emptyRejectForm())
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setLoadError('')
+    // listings.listByModule defaults to 'active' — need raw query for all statuses.
+    // Use listPendingApproval + supplement with status fetches via listByModule per status.
+    const tabStatuses = TAB_FILTERS[tab]
+    if (tabStatuses) {
+      const results = await Promise.all(
+        tabStatuses.map((s) => db.listings.listByModule('gifting', s)),
+      )
+      const merged: ListingWithRefs[] = []
+      for (const r of results) {
+        if (r.error) {
+          setLoadError(r.error.message)
+          continue
+        }
+        merged.push(...((r.data ?? []) as ListingWithRefs[]))
+      }
+      setListings(merged)
+    } else {
+      const statuses: ListingStatus[] = ['pending_approval', 'active', 'paused', 'rejected']
+      const results = await Promise.all(
+        statuses.map((s) => db.listings.listByModule('gifting', s)),
+      )
+      const merged: ListingWithRefs[] = []
+      for (const r of results) {
+        if (r.error) {
+          setLoadError(r.error.message)
+          continue
+        }
+        merged.push(...((r.data ?? []) as ListingWithRefs[]))
+      }
+      merged.sort((a, b) => b.created_at.localeCompare(a.created_at))
+      setListings(merged)
+    }
+    setSelected(new Set())
+    setLoading(false)
+  }, [tab])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const sameVendorSelection = useMemo(() => {
+    if (selected.size === 0) return null
+    const vendorIds = new Set(
+      listings.filter((l) => selected.has(l.id)).map((l) => l.vendor_id),
+    )
+    return vendorIds.size === 1 ? Array.from(vendorIds)[0] : null
+  }, [selected, listings])
+
+  const toggleOne = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
 
   const toggleAll = () => {
-    if (selected.length === products.length) {
-      setSelected([])
+    if (selected.size === listings.length) setSelected(new Set())
+    else setSelected(new Set(listings.map((l) => l.id)))
+  }
+
+  const handleApproveSelected = async () => {
+    if (selected.size === 0 || !profile) return
+    setBusy(true)
+    const ids = Array.from(selected)
+    const results = await Promise.all(
+      ids.map((id) =>
+        db.listings.update(id, {
+          status: 'active',
+          metadata: {
+            approvedBy: profile.id,
+            approvedAt: new Date().toISOString(),
+          } as unknown as Record<string, unknown>,
+        }),
+      ),
+    )
+    const failed = results.filter((r) => r.error).length
+    setBusy(false)
+    setNotice(
+      failed === 0
+        ? `Approved ${ids.length} product${ids.length !== 1 ? 's' : ''}.`
+        : `Approved ${ids.length - failed} / ${ids.length}. ${failed} failed.`,
+    )
+    load()
+  }
+
+  const openReject = () => {
+    if (selected.size === 0) return
+    setRejectForm(emptyRejectForm())
+    setRejectOpen(true)
+  }
+
+  const handleReject = async () => {
+    if (!profile) return
+    const reasonText =
+      rejectForm.reason === 'Other' ? rejectForm.custom.trim() : rejectForm.reason
+    if (!reasonText) {
+      setNotice('Provide a rejection reason.')
       return
     }
-    setSelected(products.map((p) => p.id))
+    setBusy(true)
+    const ids = Array.from(selected)
+    const results = await Promise.all(
+      ids.map((id) => {
+        const existing = listings.find((l) => l.id === id)
+        const prevMeta = (existing?.metadata ?? {}) as Record<string, unknown>
+        return db.listings.update(id, {
+          status: 'rejected',
+          metadata: {
+            ...prevMeta,
+            rejectionReason: reasonText,
+            rejectionFields: rejectForm.fields,
+            rejectedBy: profile.id,
+            rejectedAt: new Date().toISOString(),
+          } as unknown as Record<string, unknown>,
+        })
+      }),
+    )
+    const failed = results.filter((r) => r.error).length
+    setBusy(false)
+    setRejectOpen(false)
+    setNotice(
+      failed === 0
+        ? `Rejected ${ids.length} product${ids.length !== 1 ? 's' : ''}. Vendor will be notified.`
+        : `Rejected ${ids.length - failed} / ${ids.length}. ${failed} failed.`,
+    )
+    load()
   }
 
-  const handleApproveAll = () => {
-    if (!selected.length) return
-    const next = approveProducts(selected)
-    setState(next)
-    setSelected([])
-  }
-
-  const handleRejectAll = () => {
-    if (!selected.length) return
-    const reason = 'Bulk rejection by admin'
-    let next = state
-    selected.forEach((id) => {
-      next = {
-        ...next,
-        products: next.products.map((p) =>
-          p.id === id
-            ? { ...p, status: 'rejected', rejectionReason: reason, activityLog: [{ at: new Date().toISOString(), message: `Rejected by admin: ${reason}` }, ...(p.activityLog || [])] }
-            : p,
-        ),
-      }
-    })
-    localStorage.setItem('mogzu_vendor_gifting_state_v1', JSON.stringify(next))
-    setState(next)
-    setSelected([])
+  if (!isAdmin) {
+    return (
+      <div className="p-12 text-center">
+        <ShieldAlert className="mx-auto mb-2 size-8 text-amber-500" />
+        <p className="text-sm text-amber-800">Mogzu admin access required.</p>
+      </div>
+    )
   }
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold text-[#0e1e3f] mb-4">Gifting Product Approval Queue</h1>
-      <div className="flex gap-2 mb-4 overflow-x-auto whitespace-nowrap">
-        {(['all', 'pending', 'active', 'rejected', 'paused'] as const).map((tab) => (
+      <h1 className="mb-1 text-2xl font-bold text-[#0e1e3f]">Gifting product approval queue</h1>
+      <p className="mb-4 text-sm text-slate-500">
+        Review vendor submissions. Approve to make products visible in the gifting shop.
+      </p>
+
+      {notice && (
+        <p
+          role="status"
+          className="mb-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-700"
+        >
+          {notice}
+        </p>
+      )}
+
+      <div className="mb-4 flex gap-2 overflow-x-auto whitespace-nowrap">
+        {(['pending', 'approved', 'rejected', 'paused', 'all'] as const).map((t) => (
           <button
-            key={tab}
-            onClick={() => setStatusTab(tab)}
-            className={`h-9 px-4 rounded-lg border text-sm ${statusTab === tab ? 'bg-[#ebf1ff] border-[#2563eb] text-[#2563eb]' : 'bg-white border-[#e5e7eb]'}`}
+            key={t}
+            type="button"
+            onClick={() => setTab(t)}
+            className={`h-9 rounded-lg border px-4 text-sm ${
+              tab === t
+                ? 'border-[#2563eb] bg-[#ebf1ff] text-[#2563eb]'
+                : 'border-slate-200 bg-white text-slate-600'
+            }`}
           >
-            {tab === 'all' ? 'All' : tab[0].toUpperCase() + tab.slice(1)}
+            {t === 'all' ? 'All' : t[0].toUpperCase() + t.slice(1)}
           </button>
         ))}
       </div>
-      <div className="flex gap-2 mb-3">
-        <button onClick={handleApproveAll} className="h-9 px-3 rounded bg-emerald-600 text-white text-sm">Approve All</button>
-        <button onClick={handleRejectAll} className="h-9 px-3 rounded bg-rose-600 text-white text-sm">Reject All</button>
-      </div>
-      <div className="bg-white border border-[#ececec] rounded-xl overflow-auto">
-        <table className="w-full text-sm">
-          <thead className="text-left text-[#64748b]">
-            <tr>
-              <th className="py-2 px-2"><input type="checkbox" checked={selected.length > 0 && selected.length === products.length} onChange={toggleAll} /></th>
-              <th className="py-2">Thumbnail</th>
-              <th className="py-2">Product Name</th>
-              <th className="py-2">Vendor Name</th>
-              <th className="py-2">Category</th>
-              <th className="py-2">Pricing Type</th>
-              <th className="py-2">Submitted Date</th>
-              <th className="py-2">Status</th>
-              <th className="py-2">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {products.map((p) => (
-              <tr key={p.id} className="border-t border-[#f1f5f9] hover:bg-[#fafafa]">
-                <td className="py-2 px-2"><input type="checkbox" checked={selected.includes(p.id)} onChange={() => toggleOne(p.id)} /></td>
-                <td className="py-2"><img src={p.primaryImage?.url || 'https://placehold.co/40x40'} alt={p.productName} className="w-10 h-10 rounded object-cover" /></td>
-                <td className="py-2">{p.productName}</td>
-                <td className="py-2">{p.vendorName || 'Mogzu Vendor Pvt Ltd'}</td>
-                <td className="py-2">{p.category}</td>
-                <td className="py-2">{p.pricingType}</td>
-                <td className="py-2">{new Date(p.createdAt).toLocaleDateString()}</td>
-                <td className="py-2">{p.status}</td>
-                <td className="py-2">
-                  <button onClick={() => navigate(`/admin/gifting/products/${p.id}`)} className="text-[#2563eb]">
-                    View
-                  </button>
-                </td>
+
+      {selected.size > 0 && (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-50 px-4 py-2">
+          <p className="text-sm text-slate-700">
+            {selected.size} selected
+            {sameVendorSelection && (
+              <span className="ml-2 rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                Same vendor — bulk approve recommended
+              </span>
+            )}
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleApproveSelected}
+              disabled={busy}
+              className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+            >
+              {busy && <Loader2 className="size-3 animate-spin" />}
+              <CheckCircle2 className="size-4" /> Approve
+            </button>
+            <button
+              type="button"
+              onClick={openReject}
+              disabled={busy}
+              className="inline-flex items-center gap-1.5 rounded-md bg-rose-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-60"
+            >
+              <XCircle className="size-4" /> Reject
+            </button>
+          </div>
+        </div>
+      )}
+
+      {loadError && (
+        <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3">
+          <p className="text-sm text-red-700">{loadError}</p>
+          <button
+            type="button"
+            onClick={load}
+            className="mt-2 rounded-md bg-[#2563eb] px-3 py-1.5 text-xs font-medium text-white"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      <div className="overflow-auto rounded-xl border border-[#ececec] bg-white">
+        {loading ? (
+          <div className="flex items-center justify-center py-14">
+            <Loader2 className="size-6 animate-spin text-slate-400" />
+          </div>
+        ) : listings.length === 0 ? (
+          <div className="p-12 text-center text-sm text-slate-500">
+            No products in this tab.
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500">
+              <tr>
+                <th className="px-3 py-2">
+                  <input
+                    type="checkbox"
+                    checked={selected.size > 0 && selected.size === listings.length}
+                    onChange={toggleAll}
+                  />
+                </th>
+                <th className="py-2">Thumbnail</th>
+                <th className="py-2">Product</th>
+                <th className="py-2">Vendor</th>
+                <th className="py-2">Pricing</th>
+                <th className="py-2">Submitted</th>
+                <th className="py-2">Status</th>
+                <th className="py-2">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {listings.map((l) => {
+                const cover = l.listing_images?.[0]
+                const badge = STATUS_BADGE[l.status]
+                return (
+                  <tr key={l.id} className="border-t border-[#f1f5f9] hover:bg-[#fafafa]">
+                    <td className="px-3 py-2">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(l.id)}
+                        onChange={() => toggleOne(l.id)}
+                      />
+                    </td>
+                    <td className="py-2">
+                      {cover ? (
+                        <img
+                          src={storageService.giftImages.getUrl(cover.storage_path)}
+                          alt=""
+                          className="size-10 rounded object-cover"
+                        />
+                      ) : (
+                        <div className="size-10 rounded bg-slate-100" />
+                      )}
+                    </td>
+                    <td className="py-2 font-medium text-slate-900">{l.title}</td>
+                    <td className="py-2">{l.vendors?.business_name ?? '—'}</td>
+                    <td className="py-2">{l.pricing_type}</td>
+                    <td className="py-2">
+                      {new Date(l.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="py-2">
+                      <span
+                        className={`rounded px-2 py-0.5 text-xs font-medium ${badge.className}`}
+                      >
+                        {badge.label}
+                      </span>
+                    </td>
+                    <td className="py-2">
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/admin/gifting/products/${l.id}`)}
+                        className="text-[#2563eb]"
+                      >
+                        View
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
+
+      {rejectOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+              <h2 className="text-base font-bold text-slate-900">
+                Reject {selected.size} product{selected.size !== 1 ? 's' : ''}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setRejectOpen(false)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="space-y-4 px-6 py-5">
+              <div>
+                <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Reason
+                </label>
+                <select
+                  value={rejectForm.reason}
+                  onChange={(e) =>
+                    setRejectForm((f) => ({ ...f, reason: e.target.value }))
+                  }
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
+                >
+                  {REJECT_REASONS.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {rejectForm.reason === 'Other' && (
+                <div>
+                  <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                    Custom reason
+                  </label>
+                  <input
+                    value={rejectForm.custom}
+                    onChange={(e) =>
+                      setRejectForm((f) => ({ ...f, custom: e.target.value }))
+                    }
+                    placeholder="Explain why"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
+                  />
+                </div>
+              )}
+              <div>
+                <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Fields to revise
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {FIELD_OPTIONS.map((f) => {
+                    const active = rejectForm.fields.includes(f)
+                    return (
+                      <button
+                        key={f}
+                        type="button"
+                        onClick={() =>
+                          setRejectForm((s) => ({
+                            ...s,
+                            fields: active
+                              ? s.fields.filter((x) => x !== f)
+                              : [...s.fields, f],
+                          }))
+                        }
+                        className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                          active
+                            ? 'border-rose-400 bg-rose-50 text-rose-700'
+                            : 'border-slate-200 text-slate-600'
+                        }`}
+                      >
+                        {f}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setRejectOpen(false)}
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleReject}
+                  disabled={busy}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-60"
+                >
+                  {busy && <Loader2 className="size-4 animate-spin" />}
+                  Confirm rejection
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
-

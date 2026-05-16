@@ -48,6 +48,12 @@ Use this for significant implementation updates.
 
 Latest entries:
 - Date: 2026-05-16
+- Summary: Sprint 6 — Admin gifting product approval (4.5). Rebuilt `AdminGiftingProductsPage` and `AdminGiftingProductDetailPage` from mock `adminGiftingStore` to Supabase `listings` module='gifting'. Queue: tabs (Pending/Approved/Rejected/Paused/All), thumbnails via `storageService.giftImages`. Bulk approve and bulk reject; rejection captures `metadata.rejectionReason`, `metadata.rejectionFields[]`, and audit (`rejectedBy`, `rejectedAt`). Same-vendor selection highlighted to encourage post-trust bulk approval. Detail view renders all stored metadata (MOQ, GST, variants, bulk tiers, branding, delivery cities, packaging, inventory) + rejection panel for rejected products. Approve flips `status='active'` so listing appears in shop (visible via `listings.listByModule('gifting','active')`).
+- Files changed: `MogzuApplication/src/app/components/AdminGiftingProductsPage.tsx`, `AdminGiftingProductDetailPage.tsx`
+- Verification performed: `npm run build` clean
+- Risks / notes: Field-level comments (acceptance criteria) captured as a tag list in `metadata.rejectionFields`, not free-text per field — richer per-field comments deferred. Vendor notification on rejection is in-memory only (badge on vendor page once they reload); push/email deferred (Resend). Old `adminGiftingStore` still exists but is no longer read by these pages.
+- Owner: Project team
+- Date: 2026-05-16
 - Summary: Sprint 5 — Booking payment checkout (6.1). New `BookingPaymentPage` at `/bookings/:id/pay`. Three methods: Corporate Wallet (instant debit via `db.wallet.recordTransaction('debit')` + `adjustBalance(-total)`), Card, UPI. Wallet path validates `wallet.balance >= total`; below-total shows shortfall and a top-up CTA. Card/UPI paths show an amber Razorpay-pending banner with a manual reference/UTR field — operator pastes Razorpay payment id to mark paid (stopgap until backend webhook ships). Booking is updated with `payment_method`, `payment_reference`, `payment_status='paid'`. Already-paid bookings short-circuit to a receipt view. Failed payment keeps booking unchanged so retry works.
 - Files changed: `MogzuApplication/src/app/components/BookingPaymentPage.tsx`, `MogzuApplication/src/app/routes.tsx`
 - Verification performed: `npm run build` clean
