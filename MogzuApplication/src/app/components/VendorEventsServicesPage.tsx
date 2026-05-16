@@ -1,748 +1,840 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
-import { BarChart2, Bell, Calendar, Eye, FileText, HelpCircle, Megaphone, Plus, Search, Trash2, X } from 'lucide-react';
-import { VendorAppShell } from './layouts/VendorAppShell';
-import { VendorTopRightMenu } from './layouts/VendorTopRightMenu';
-import { VendorRejectionFeedbackDrawer, type VendorRejectionListing } from './vendor/VendorRejectionFeedbackDrawer';
-import { VendorPerformanceStatsDrawer, type VendorPerformanceListing } from './vendor/VendorPerformanceStatsDrawer';
-import type { RejectionReasonCategory } from '@/app/lib/vendorRejectionChecklist';
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate, useParams } from 'react-router'
+import {
+  Eye,
+  FileText,
+  HelpCircle,
+  Loader2,
+  Megaphone,
+  Plus,
+  Search,
+  Trash2,
+  X,
+  Bell,
+} from 'lucide-react'
+import { VendorAppShell } from './layouts/VendorAppShell'
+import { VendorTopRightMenu } from './layouts/VendorTopRightMenu'
+import { useAuth } from '@/lib/auth'
+import { db } from '@/lib/db'
+import { storageService } from '@/lib/storage'
+import type {
+  Listing,
+  ListingCategory,
+  ListingImage,
+  ListingStatus,
+} from '@/lib/database.types'
 
-const COVER_PLACEHOLDER =
-  'https://images.unsplash.com/photo-1517502884422-41eaead166d4?auto=format&fit=crop&q=80&w=200';
+const MODULE_ID = 'events' as const
 
-type VendorEventService = {
-  id: string;
-  title: string;
-  category: 'conference' | 'corporate-events' | 'workshops';
-  capacity: number;
-  status: 'Active' | 'Draft' | 'Paused' | 'Rejected';
-  createdAt: string;
-  coverUrl: string;
-  hasAddOns?: boolean;
-  resubmission_notes?: string;
-  rejection?: {
-    submissionDate: string;
-    rejectionDate: string;
-    reasonCategory: RejectionReasonCategory;
-    rejectionReason?: string;
-  };
-};
+type ListingWithImages = Listing & { listing_images: ListingImage[] }
 
-function formatDate(d: Date) {
-  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: '2-digit' });
+type FormState = {
+  title: string
+  description: string
+  categoryId: string
+  minCapacity: string
+  maxCapacity: string
+  pricingType: Listing['pricing_type']
+  basePrice: string
+  priceUnit: NonNullable<Listing['price_unit']>
+  locationCity: string
+  cancellationPolicy: string
 }
 
-export default function VendorEventsServicesPage() {
-  const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const createFormRef = useRef<HTMLDivElement | null>(null);
+const EMPTY_FORM: FormState = {
+  title: '',
+  description: '',
+  categoryId: '',
+  minCapacity: '',
+  maxCapacity: '100',
+  pricingType: 'transparent',
+  basePrice: '',
+  priceUnit: 'per_person',
+  locationCity: '',
+  cancellationPolicy: '',
+}
 
-  const [activeTab, setActiveTab] = useState<'services' | 'requests'>('services');
-  const [search, setSearch] = useState('');
+function statusBadge(s: ListingStatus): { label: string; className: string } {
+  switch (s) {
+    case 'active':
+      return { label: 'Active', className: 'bg-emerald-50 text-emerald-700' }
+    case 'draft':
+      return { label: 'Draft', className: 'bg-slate-100 text-slate-600' }
+    case 'paused':
+      return { label: 'Paused', className: 'bg-amber-50 text-amber-800' }
+    case 'pending_approval':
+      return { label: 'Pending review', className: 'bg-blue-50 text-blue-700' }
+    case 'rejected':
+      return { label: 'Rejected', className: 'bg-rose-50 text-rose-700' }
+  }
+}
 
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
-  const [services, setServices] = useState<VendorEventService[]>([]);
-  const [statusFilter, setStatusFilter] = useState<'all' | VendorEventService['status']>('all');
-  const [categoryFilter, setCategoryFilter] = useState<'all' | VendorEventService['category']>('all');
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+  })
+}
 
-  const [submitError, setSubmitError] = useState('');
-  const [submitSuccess, setSubmitSuccess] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+// ─── Form Modal ──────────────────────────────────────────────────────────────
 
-  const [title, setTitle] = useState('');
-  const [category, setCategory] = useState<VendorEventService['category']>('conference');
-  const [capacity, setCapacity] = useState<string>('100');
+function ListingFormModal({
+  initial,
+  categories,
+  vendorId,
+  onClose,
+  onSaved,
+}: {
+  initial: ListingWithImages | null
+  categories: ListingCategory[]
+  vendorId: string
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const isEdit = !!initial
+  const [form, setForm] = useState<FormState>(() =>
+    initial
+      ? {
+          title: initial.title,
+          description: initial.description ?? '',
+          categoryId: initial.category_id ?? categories[0]?.id ?? '',
+          minCapacity: initial.min_capacity != null ? String(initial.min_capacity) : '',
+          maxCapacity: String(initial.max_capacity ?? ''),
+          pricingType: initial.pricing_type,
+          basePrice: initial.base_price != null ? String(initial.base_price) : '',
+          priceUnit: initial.price_unit ?? 'per_person',
+          locationCity: initial.location_city ?? '',
+          cancellationPolicy: initial.cancellation_policy ?? '',
+        }
+      : { ...EMPTY_FORM, categoryId: categories[0]?.id ?? '' },
+  )
+  const [imageFiles, setImageFiles] = useState<File[]>([])
+  const [existingImages, setExistingImages] = useState<ListingImage[]>(
+    initial?.listing_images ?? [],
+  )
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
 
-  const [description, setDescription] = useState(''); // currently informational (future wiring)
-  const [capacityError, setCapacityError] = useState('');
-  const [titleError, setTitleError] = useState('');
+  const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
+    setForm((f) => ({ ...f, [k]: v }))
 
-  const [requestsNotice, setRequestsNotice] = useState('');
-  const [requestLoading, setRequestLoading] = useState(false);
-  const [requestError, setRequestError] = useState('');
-  const [uiNotice, setUiNotice] = useState<string | null>(null);
+  const totalImages = existingImages.length + imageFiles.length
 
-  const [rejectionOpen, setRejectionOpen] = useState(false);
-  const [performanceOpen, setPerformanceOpen] = useState(false);
-  const [rejectionListing, setRejectionListing] = useState<VendorRejectionListing | null>(null);
-  const [performanceListing, setPerformanceListing] = useState<VendorPerformanceListing | null>(null);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return services.filter(
-      (s) =>
-        (!q ||
-          s.title.toLowerCase().includes(q) ||
-          s.category.toLowerCase().includes(q) ||
-          s.status.toLowerCase().includes(q)) &&
-        (statusFilter === 'all' || s.status === statusFilter) &&
-        (categoryFilter === 'all' || s.category === categoryFilter),
-    );
-  }, [services, search, statusFilter, categoryFilter]);
-
-  const toRejectionListing = (s: VendorEventService): VendorRejectionListing | null => {
-    if (s.status !== 'Rejected' || !s.rejection) return null;
-    return {
-      id: s.id,
-      title: s.title,
-      categoryLabel: s.category.replace(/-/g, ' '),
-      coverUrl: s.coverUrl,
-      submissionDate: s.rejection.submissionDate,
-      rejectionDate: s.rejection.rejectionDate,
-      reasonCategory: s.rejection.reasonCategory,
-      rejectionReason: s.rejection.rejectionReason,
-      resubmission_notes: s.resubmission_notes,
-    };
-  };
-
-  const toPerformanceListing = (s: VendorEventService): VendorPerformanceListing => ({
-    id: s.id,
-    title: s.title,
-    categoryLabel: s.category.replace(/-/g, ' '),
-    coverUrl: s.coverUrl,
-    status: s.status,
-    hasAddOns: s.hasAddOns,
-  });
-
-  const clearVendorQuery = () => {
-    if (searchParams.get('rejection') || searchParams.get('stats')) setSearchParams({});
-  };
-
-  useEffect(() => {
-    const r = searchParams.get('rejection');
-    const st = searchParams.get('stats');
-    if (!services.length) return;
-    if (r) {
-      const row = services.find((x) => x.id === r);
-      const mapped = row ? toRejectionListing(row) : null;
-      if (mapped) {
-        setRejectionListing(mapped);
-        setRejectionOpen(true);
-        setPerformanceOpen(false);
-      }
+  const validate = (): string => {
+    if (!form.title.trim()) return 'Title is required.'
+    if (!form.categoryId) return 'Category is required.'
+    const max = Number(form.maxCapacity)
+    if (!max || max < 1) return 'Max capacity must be a positive number.'
+    if (form.minCapacity) {
+      const min = Number(form.minCapacity)
+      if (!min || min < 1) return 'Min capacity must be a positive number.'
+      if (min > max) return 'Min capacity cannot exceed max capacity.'
     }
-    if (st) {
-      const row = services.find((x) => x.id === st);
-      if (row) {
-        setPerformanceListing(toPerformanceListing(row));
-        setPerformanceOpen(true);
-        setRejectionOpen(false);
-      }
+    if (form.pricingType === 'transparent') {
+      const p = Number(form.basePrice)
+      if (!p || p <= 0) return 'Base price is required for transparent pricing.'
     }
-  }, [searchParams, services]);
+    if (totalImages > 10) return 'Maximum 10 images allowed.'
+    return ''
+  }
 
-  useEffect(() => {
-    setLoading(true);
-    setLoadError('');
-    const t = window.setTimeout(() => {
-      // Demo fetch: either show a list or an error.
-      const fail = Math.random() < 0.08;
-      if (fail) {
-        setLoadError('Unable to load your event services right now. Please retry.');
-        setLoading(false);
-        return;
-      }
+  const removeExistingImage = async (img: ListingImage) => {
+    setExistingImages((prev) => prev.filter((x) => x.id !== img.id))
+    await db.listings.deleteImage(img.id)
+    await storageService.listingImages.delete([img.storage_path])
+  }
 
-      setServices([
-        {
-          id: 'es-1',
-          title: 'Corporate Conference Facilities',
-          category: 'conference',
-          capacity: 250,
-          status: 'Active',
-          createdAt: formatDate(new Date(Date.now() - 1000 * 60 * 60 * 24 * 18)),
-          coverUrl: COVER_PLACEHOLDER,
-          hasAddOns: true,
-        },
-        {
-          id: 'es-2',
-          title: 'Boardroom + AV Package',
-          category: 'corporate-events',
-          capacity: 80,
-          status: 'Draft',
-          createdAt: formatDate(new Date(Date.now() - 1000 * 60 * 60 * 24 * 8)),
-          coverUrl: COVER_PLACEHOLDER,
-          hasAddOns: true,
-        },
-        {
-          id: 'es-rejected-1',
-          title: 'Rooftop Networking Mixer',
-          category: 'corporate-events',
-          capacity: 120,
-          status: 'Rejected',
-          createdAt: formatDate(new Date(Date.now() - 1000 * 60 * 60 * 24 * 3)),
-          coverUrl: COVER_PLACEHOLDER,
-          hasAddOns: false,
-          rejection: {
-            submissionDate: formatDate(new Date(Date.now() - 1000 * 60 * 60 * 24 * 5)),
-            rejectionDate: formatDate(new Date(Date.now() - 1000 * 60 * 60 * 24 * 1)),
-            reasonCategory: 'Incomplete Information',
-            rejectionReason:
-              'The description needs more detail on AV inclusions and catering options. Please also confirm fire capacity for the terrace.',
-          },
-        },
-      ]);
-      setLoading(false);
-    }, 650);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const v = validate()
+    if (v) {
+      setError(v)
+      return
+    }
+    setError('')
+    setSubmitting(true)
 
-    return () => window.clearTimeout(t);
-  }, []);
-
-  const resetForm = () => {
-    setTitle('');
-    setCategory('conference');
-    setCapacity('100');
-    setDescription('');
-    setTitleError('');
-    setCapacityError('');
-    setSubmitError('');
-    setSubmitSuccess('');
-  };
-
-  const validate = () => {
-    let ok = true;
-    setSubmitError('');
-    setSubmitSuccess('');
-    setTitleError('');
-    setCapacityError('');
-
-    const t = title.trim();
-    if (!t) {
-      setTitleError('Please enter a title for the service.');
-      ok = false;
+    const basePayload = {
+      vendor_id: vendorId,
+      module: MODULE_ID,
+      category_id: form.categoryId || null,
+      title: form.title.trim(),
+      description: form.description.trim() || null,
+      pricing_type: form.pricingType,
+      base_price:
+        form.pricingType === 'transparent' && form.basePrice
+          ? Number(form.basePrice)
+          : null,
+      price_unit: form.pricingType === 'transparent' ? form.priceUnit : null,
+      min_capacity: form.minCapacity ? Number(form.minCapacity) : null,
+      max_capacity: Number(form.maxCapacity),
+      location_city: form.locationCity.trim() || null,
+      location_address: null,
+      cancellation_policy: form.cancellationPolicy.trim() || null,
+      confirmation_sla_hours: 24,
+      is_mogzu_direct: false,
+      metadata: {},
     }
 
-    const cap = Number(capacity);
-    if (!capacity || Number.isNaN(cap) || cap < 1) {
-      setCapacityError('Capacity must be a positive number.');
-      ok = false;
+    let listingId = initial?.id ?? ''
+
+    if (isEdit) {
+      const { error: updErr } = await db.listings.update(initial!.id, basePayload)
+      if (updErr) {
+        setError(updErr.message)
+        setSubmitting(false)
+        return
+      }
+    } else {
+      const { data, error: insErr } = await db.listings.create({
+        ...basePayload,
+        status: 'draft',
+      })
+      if (insErr || !data) {
+        setError(insErr?.message ?? 'Failed to create listing.')
+        setSubmitting(false)
+        return
+      }
+      listingId = data.id
     }
 
-    if (!ok) setSubmitError('Fix the highlighted fields and try again.');
-    return ok;
-  };
-
-  const submit = () => {
-    if (!validate()) return;
-    setSubmitting(true);
-    setRequestsNotice('');
-    setRequestError('');
-
-    window.setTimeout(() => {
-      const cap = Number(capacity);
-      const now = new Date();
-      const row: VendorEventService = {
-        id: `es-${now.getTime()}`,
-        title: title.trim(),
-        category,
-        capacity: cap,
-        status: 'Active',
-        createdAt: formatDate(now),
-        coverUrl: COVER_PLACEHOLDER,
-        hasAddOns: true,
-      };
-      setServices((prev) => [row, ...prev]);
-      setSubmitSuccess('Event service created. You can pause or edit it in a future release.');
-      setSubmitting(false);
-      setTitle('');
-      setCapacity('100');
-      setDescription('');
-    }, 900);
-  };
-
-  const handleRetryLoad = () => {
-    setLoading(true);
-    setLoadError('');
-    setServices([]);
-    setSubmitError('');
-    setSubmitSuccess('');
-    // Re-run fetch
-    const t = window.setTimeout(() => {
-      setServices([
-        {
-          id: 'es-1',
-          title: 'Corporate Conference Facilities',
-          category: 'conference',
-          capacity: 250,
-          status: 'Active',
-          createdAt: formatDate(new Date(Date.now() - 1000 * 60 * 60 * 24 * 18)),
-          coverUrl: COVER_PLACEHOLDER,
-          hasAddOns: true,
-        },
-      ]);
-      setLoading(false);
-    }, 650);
-  };
-
-  const openRequests = () => {
-    setRequestsNotice('');
-    setRequestLoading(true);
-    setRequestError('');
-
-    window.setTimeout(() => {
-      // Demo: sometimes show empty, sometimes show error.
-      const r = Math.random();
-      if (r < 0.12) {
-        setRequestError('We could not load booking requests. Please retry.');
-        setRequestLoading(false);
-        return;
+    if (imageFiles.length > 0) {
+      const uploads = await Promise.all(
+        imageFiles.map((file) =>
+          storageService.listingImages.upload(vendorId, listingId, file),
+        ),
+      )
+      const successful = uploads
+        .map((u, i) => ({ u, i }))
+        .filter(({ u }) => !u.error)
+      if (successful.length > 0) {
+        const baseOrder = existingImages.length
+        await db.listings.addImages(
+          successful.map(({ u, i }) => ({
+            listing_id: listingId,
+            storage_path: u.path,
+            display_order: baseOrder + i,
+          })),
+        )
       }
-      if (r < 0.35) {
-        setRequestsNotice('No pending booking requests right now.');
-        setRequestLoading(false);
-        return;
-      }
-      setRequestsNotice('2 booking requests are ready to review (demo).');
-      setRequestLoading(false);
-    }, 750);
-  };
+    }
 
-  const deleteService = (id: string) => {
-    setServices((prev) => prev.filter((s) => s.id !== id));
-    setSubmitSuccess('Service removed (demo).');
-  };
-  const duplicateService = (id: string) =>
-    setServices((prev) => {
-      const src = prev.find((x) => x.id === id);
-      if (!src) return prev;
-      return [{ ...src, id: `es-${Date.now()}`, title: `${src.title} (Copy)`, status: 'Draft', createdAt: formatDate(new Date()) }, ...prev];
-    });
-  const togglePauseActivate = (id: string) =>
-    setServices((prev) => prev.map((x) => (x.id === id ? { ...x, status: x.status === 'Active' ? 'Paused' : 'Active' } : x)));
+    setSubmitting(false)
+    onSaved()
+  }
 
   return (
-    <VendorAppShell
-      activeNav="events-services"
-      routeSource="vendor-events-services"
-      onNavNotice={(msg) => setUiNotice(msg)}
-      headerSearch={
-        <>
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search event services"
-            className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50/80 py-2 pl-9 pr-4 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-          />
-        </>
-      }
-      headerEnd={
-        <>
+    <div className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-black/40 p-4">
+      <div className="my-8 w-full max-w-2xl rounded-2xl bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+          <div>
+            <h2 className="text-base font-bold text-slate-900">
+              {isEdit ? 'Edit event listing' : 'New event listing'}
+            </h2>
+            <p className="text-xs text-slate-500">
+              {isEdit
+                ? 'Update event details, pricing, and images.'
+                : 'Create a draft. Submit for admin review when ready.'}
+            </p>
+          </div>
           <button
             type="button"
-            className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-gray-100"
-            onClick={() => setSubmitError('Help is not wired in this demo screen yet.')}
-            aria-label="Help"
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"
           >
-            <HelpCircle className="h-5 w-5" />
+            <X className="size-5" />
           </button>
-          <button
-            type="button"
-            className="relative rounded-lg p-2 text-slate-500 transition-colors hover:bg-gray-100"
-            onClick={() => navigate('/vendor/calendar')}
-            aria-label="Open calendar"
-          >
-            <Bell className="h-5 w-5" />
-            <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-0.5 text-[9px] font-semibold text-white">
-              3
-            </span>
-          </button>
-          <VendorTopRightMenu />
-        </>
-      }
-    >
-      <main className="min-h-full w-full bg-transparent">
-        {uiNotice ? (
-          <p
-            className="border-b border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700 sm:px-6"
-            role="status"
-          >
-            {uiNotice}
-          </p>
-        ) : null}
+        </div>
 
-        <div className="p-4 sm:p-6">
-            <div className="mb-4 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setActiveTab('services')}
-                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
-                  activeTab === 'services'
-                    ? 'border-[#2563EB] bg-white text-[#2563EB] shadow-sm'
-                    : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
-                }`}
-              >
-                <FileText className="h-4 w-4" />
-                Services
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab('requests');
-                  openRequests();
-                }}
-                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
-                  activeTab === 'requests'
-                    ? 'border-[#2563EB] bg-white text-[#2563EB] shadow-sm'
-                    : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
-                }`}
-              >
-                <Calendar className="h-4 w-4" />
-                Enquiries
-              </button>
+        <form onSubmit={handleSubmit} className="space-y-4 px-6 py-5">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                Title <span className="text-rose-500">*</span>
+              </label>
+              <input
+                value={form.title}
+                onChange={(e) => set('title', e.target.value)}
+                placeholder="e.g., Annual Day Celebration Package"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+              />
             </div>
 
-            {activeTab === 'services' && (
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                Description
+              </label>
+              <textarea
+                value={form.description}
+                onChange={(e) => set('description', e.target.value)}
+                rows={3}
+                placeholder="Event format, what's included, expected outcomes…"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                Category <span className="text-rose-500">*</span>
+              </label>
+              <select
+                value={form.categoryId}
+                onChange={(e) => set('categoryId', e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+              >
+                {categories.length === 0 && <option value="">No categories</option>}
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                Location (city)
+              </label>
+              <input
+                value={form.locationCity}
+                onChange={(e) => set('locationCity', e.target.value)}
+                placeholder="e.g., Mumbai"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                Min capacity
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={form.minCapacity}
+                onChange={(e) => set('minCapacity', e.target.value)}
+                placeholder="optional"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                Max capacity <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={form.maxCapacity}
+                onChange={(e) => set('maxCapacity', e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                Pricing type
+              </label>
+              <select
+                value={form.pricingType}
+                onChange={(e) => set('pricingType', e.target.value as Listing['pricing_type'])}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+              >
+                <option value="transparent">Transparent</option>
+                <option value="offer">Offer</option>
+                <option value="request_for_price">Request for price</option>
+              </select>
+            </div>
+
+            {form.pricingType === 'transparent' && (
               <>
-                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h1 className="text-lg font-semibold text-slate-900">Event services</h1>
-                    <p className="text-sm text-slate-500">{loading ? 'Loading…' : `Total ${filtered.length}`}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSubmitError('');
-                      setSubmitSuccess('');
-                      setTitle('');
-                      setCapacity('100');
-                      setDescription('');
-                      setTitleError('');
-                      setCapacityError('');
-                    }}
-                    className="inline-flex items-center justify-center gap-2 rounded-md bg-[#2563EB] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
+                <div>
+                  <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                    Base price (₹) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="50"
+                    value={form.basePrice}
+                    onChange={(e) => set('basePrice', e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                    Price unit
+                  </label>
+                  <select
+                    value={form.priceUnit}
+                    onChange={(e) => set('priceUnit', e.target.value as FormState['priceUnit'])}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
                   >
-                    <Plus className="h-4 w-4" />
-                    Add new
-                  </button>
-                </div>
-                <div className="mb-3 flex flex-wrap gap-2">
-                  <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)} className="h-9 rounded-md border border-slate-200 px-2 text-sm">
-                    <option value="all">Status: All</option>
-                    <option value="Draft">Draft</option>
-                    <option value="Active">Active</option>
-                    <option value="Paused">Paused</option>
-                    <option value="Rejected">Rejected</option>
+                    <option value="per_person">Per person</option>
+                    <option value="flat">Flat</option>
+                    <option value="per_hour">Per hour</option>
+                    <option value="per_day">Per day</option>
                   </select>
-                  <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value as typeof categoryFilter)} className="h-9 rounded-md border border-slate-200 px-2 text-sm">
-                    <option value="all">Category: All</option>
-                    <option value="conference">conference</option>
-                    <option value="corporate-events">corporate-events</option>
-                    <option value="workshops">workshops</option>
-                  </select>
-                </div>
-
-                {loading ? (
-                  <div className="rounded-lg border border-dashed border-slate-200 bg-white p-12 text-center">
-                    <div className="mx-auto mb-3 h-10 w-10 rounded-full bg-slate-100" />
-                    <p className="text-sm font-medium text-slate-700">Loading event services…</p>
-                  </div>
-                ) : loadError ? (
-                  <div className="rounded-lg border border-red-200 bg-white p-6">
-                    <div className="flex items-start gap-3">
-                      <div className="mt-0.5 rounded-full bg-red-50 p-2">
-                        <X className="h-5 w-5 text-red-600" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-red-700">{loadError}</p>
-                        <p className="mt-1 text-xs text-slate-500">Try again to refresh the listing.</p>
-                        <button
-                          type="button"
-                          onClick={handleRetryLoad}
-                          className="mt-3 inline-flex rounded-md bg-[#2563EB] px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                        >
-                          Retry
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ) : filtered.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-slate-200 bg-white p-12 text-center">
-                    <Megaphone className="mx-auto mb-3 h-10 w-10 text-slate-300" />
-                    <p className="text-sm font-medium text-slate-700">No event services found</p>
-                    <p className="mt-1 text-sm text-slate-500">Create a service to start receiving enquiries.</p>
-                  </div>
-                ) : (
-                  <ul className="space-y-3">
-                    {filtered.map((s) => (
-                      <li
-                        key={s.id}
-                        className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center"
-                      >
-                        <div className="flex flex-1 flex-col gap-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-semibold text-slate-900 truncate">{s.title}</p>
-                            <span
-                              className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                                s.status === 'Active'
-                                  ? 'bg-emerald-50 text-emerald-700'
-                                  : s.status === 'Draft'
-                                    ? 'bg-slate-50 text-slate-600'
-                                    : s.status === 'Rejected'
-                                      ? 'bg-red-50 text-red-800'
-                                      : 'bg-amber-50 text-amber-800'
-                              }`}
-                            >
-                              {s.status}
-                            </span>
-                          </div>
-                          <p className="text-sm text-slate-500">
-                            {s.category.replace('-', ' ')} • Capacity: {s.capacity}
-                          </p>
-                          <p className="text-[11px] text-slate-400">{s.createdAt}</p>
-                        </div>
-                        <div className="flex shrink-0 flex-wrap gap-2 sm:gap-3 items-center">
-                          {s.status === 'Rejected' && s.rejection ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setRejectionListing(toRejectionListing(s)!);
-                                setRejectionOpen(true);
-                              }}
-                              className="text-xs font-semibold text-[#2563eb] hover:underline"
-                            >
-                              View Reason
-                            </button>
-                          ) : null}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setPerformanceListing(toPerformanceListing(s));
-                              setPerformanceOpen(true);
-                            }}
-                            className="rounded p-2 text-slate-500 hover:bg-slate-100 hover:text-[#2563eb]"
-                            title="View Performance Stats"
-                            aria-label="View Performance Stats"
-                          >
-                            <BarChart2 className="h-5 w-5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setSubmitSuccess(`Preview opened for: ${s.title} (demo).`)}
-                            className="rounded p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                            title="Preview"
-                          >
-                            <Eye className="h-5 w-5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => togglePauseActivate(s.id)}
-                            className="rounded p-2 text-slate-500 hover:bg-slate-100 hover:text-blue-600"
-                            title={s.status === 'Active' ? 'Pause' : 'Activate'}
-                          >
-                            {s.status === 'Active' ? 'Pause' : 'Activate'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => duplicateService(s.id)}
-                            className="rounded p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                            title="Duplicate"
-                          >
-                            Duplicate
-                          </button>
-                          <button
-                            type="button"
-                            disabled={s.status !== 'Draft'}
-                            onClick={() => deleteService(s.id)}
-                            className="rounded p-2 text-slate-500 hover:bg-slate-100 hover:text-red-600"
-                            title="Remove (demo)"
-                          >
-                            <Trash2 className="h-5 w-5" />
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-
-                <div ref={createFormRef} className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
-                  <h2 className="text-sm font-semibold text-slate-900">Create event service</h2>
-                  <p className="mt-1 text-xs text-slate-500">Used for corporate event enquiries and bookings (demo).</p>
-
-                  {submitError && (
-                    <p className="mt-3 text-xs text-red-800 bg-red-50 border border-red-200 rounded-lg px-3 py-2" role="status">
-                      {submitError}
-                    </p>
-                  )}
-                  {submitSuccess && (
-                    <p className="mt-3 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2" role="status">
-                      {submitSuccess}
-                    </p>
-                  )}
-
-                  <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Service title*</label>
-                      <input
-                        value={title}
-                        onChange={(e) => {
-                          setTitle(e.target.value);
-                          setTitleError('');
-                          setSubmitError('');
-                          setSubmitSuccess('');
-                        }}
-                        placeholder="e.g., Corporate Conference Facilities"
-                        className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
-                      />
-                      {titleError && <p className="mt-1 text-[11px] text-red-700">{titleError}</p>}
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Category*</label>
-                      <select
-                        value={category}
-                        onChange={(e) => setCategory(e.target.value as VendorEventService['category'])}
-                        className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
-                      >
-                        <option value="conference">conference</option>
-                        <option value="corporate-events">corporate-events</option>
-                        <option value="workshops">workshops</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Capacity (seats)*</label>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        min={1}
-                        value={capacity}
-                        onChange={(e) => {
-                          setCapacity(e.target.value);
-                          setCapacityError('');
-                          setSubmitError('');
-                          setSubmitSuccess('');
-                        }}
-                        className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
-                      />
-                      {capacityError && <p className="mt-1 text-[11px] text-red-700">{capacityError}</p>}
-                    </div>
-
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Description</label>
-                      <textarea
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        placeholder="Optional details shown in enquiry summaries (demo)"
-                        rows={3}
-                        className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="mt-4 flex items-center justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={resetForm}
-                      className="rounded-md border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                    >
-                      Reset
-                    </button>
-                    <button
-                      type="button"
-                      onClick={submit}
-                      disabled={submitting}
-                      className="rounded-md bg-[#2563EB] px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
-                    >
-                      {submitting ? 'Saving…' : 'Create service'}
-                    </button>
-                  </div>
                 </div>
               </>
             )}
 
-            {activeTab === 'requests' && (
-              <div className="rounded-lg border border-slate-200 bg-white p-5">
-                <h2 className="text-sm font-semibold text-slate-900">Booking enquiries</h2>
-                <p className="mt-1 text-xs text-slate-500">Review and respond to corporate event requests (demo).</p>
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                Cancellation policy
+              </label>
+              <textarea
+                value={form.cancellationPolicy}
+                onChange={(e) => set('cancellationPolicy', e.target.value)}
+                rows={2}
+                placeholder="e.g., Full refund up to 72h before. 50% within 24h. No refund after start."
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+              />
+            </div>
+          </div>
 
-                {requestLoading ? (
-                  <div className="mt-4 rounded-lg border border-dashed border-slate-200 bg-white p-10 text-center">
-                    <p className="text-sm font-medium text-slate-700">Loading enquiries…</p>
-                  </div>
-                ) : requestError ? (
-                  <div className="mt-4 rounded-lg border border-red-200 bg-white p-4">
-                    <p className="text-sm font-medium text-red-700">{requestError}</p>
+          {/* Images */}
+          <div>
+            <label className="mb-1 flex items-center justify-between text-xs font-medium uppercase tracking-wide text-slate-500">
+              <span>Images</span>
+              <span className="font-normal text-slate-400">{totalImages}/10</span>
+            </label>
+            {existingImages.length > 0 && (
+              <div className="mb-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
+                {existingImages.map((img) => (
+                  <div
+                    key={img.id}
+                    className="relative aspect-square overflow-hidden rounded-lg border border-slate-200"
+                  >
+                    <img
+                      src={storageService.listingImages.getUrl(img.storage_path)}
+                      alt=""
+                      className="size-full object-cover"
+                    />
                     <button
                       type="button"
-                      onClick={openRequests}
-                      className="mt-3 inline-flex rounded-md bg-[#2563EB] px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                      onClick={() => removeExistingImage(img)}
+                      className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white hover:bg-black/80"
                     >
-                      Retry
+                      <X className="size-3" />
                     </button>
                   </div>
-                ) : (
-                  <div className="mt-4">
-                    {requestsNotice ? (
-                      <p className="text-sm text-slate-700">{requestsNotice}</p>
-                    ) : (
-                      <p className="text-sm text-slate-500">Choose “Enquiries” to load your request list.</p>
-                    )}
-                    <div className="mt-4 flex flex-col sm:flex-row gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setRequestsNotice('Accepted (demo). The corporate portal will be notified in a future release.')}
-                        className="flex-1 rounded-md bg-[#2563EB] px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                      >
-                        Review & accept
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setRequestsNotice('Declined (demo). You can submit a counter-offer later.')}
-                        className="flex-1 rounded-md border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                      >
-                        Decline
-                      </button>
-                    </div>
-                  </div>
-                )}
+                ))}
               </div>
             )}
-        </div>
-      </main>
-      <VendorRejectionFeedbackDrawer
-        open={rejectionOpen}
-        onClose={() => {
-          setRejectionOpen(false);
-          clearVendorQuery();
-        }}
-        listing={rejectionListing}
-        onEditResubmit={(listingId, notes) => {
-          setServices((prev) => {
-            const row = prev.find((x) => x.id === listingId);
-            if (row) {
-              setTitle(row.title);
-              setCategory(row.category);
-              setCapacity(String(row.capacity));
-            }
-            return prev.map((x) =>
-              x.id === listingId ? { ...x, resubmission_notes: notes, status: 'Draft' as const, rejection: undefined } : x,
-            );
-          });
-          createFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }}
-        onToast={(msg) => setSubmitSuccess(msg)}
-      />
-      <VendorPerformanceStatsDrawer
-        open={performanceOpen}
-        onClose={() => {
-          setPerformanceOpen(false);
-          clearVendorQuery();
-        }}
-        listing={performanceListing}
-        onEditListing={(listingId) => {
-          const row = services.find((x) => x.id === listingId);
-          if (row) {
-            setTitle(row.title);
-            setCategory(row.category);
-            setCapacity(String(row.capacity));
-          }
-          createFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }}
-      />
-    </VendorAppShell>
-  );
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(e) => setImageFiles(Array.from(e.target.files ?? []))}
+              className="block w-full text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-xs file:font-medium file:text-slate-700 hover:file:bg-slate-200"
+            />
+            {imageFiles.length > 0 && (
+              <p className="mt-1 text-[11px] text-slate-500">
+                {imageFiles.length} new image{imageFiles.length !== 1 ? 's' : ''} ready to upload.
+              </p>
+            )}
+          </div>
+
+          {error && (
+            <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+              {error}
+            </p>
+          )}
+
+          <div className="flex justify-end gap-3 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-[#2563EB] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#1D4ED8] disabled:opacity-60"
+            >
+              {submitting && <Loader2 className="size-4 animate-spin" />}
+              {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Create listing'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
 }
 
+// ─── Main Page ───────────────────────────────────────────────────────────────
+
+export default function VendorEventsServicesPage() {
+  const navigate = useNavigate()
+  const params = useParams()
+  const { vendorId } = useAuth()
+
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | ListingStatus>('all')
+  const [sortBy, setSortBy] = useState<'created' | 'title' | 'status'>('created')
+
+  const [listings, setListings] = useState<ListingWithImages[]>([])
+  const [categories, setCategories] = useState<ListingCategory[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [actionNotice, setActionNotice] = useState('')
+
+  const [editing, setEditing] = useState<ListingWithImages | null>(null)
+  const [showForm, setShowForm] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  const loadListings = useCallback(async () => {
+    if (!vendorId) return
+    setLoading(true)
+    setLoadError('')
+    const { data, error } = await db.listings.listByVendor(vendorId)
+    if (error) setLoadError(error.message)
+    else {
+      const all = (data ?? []) as ListingWithImages[]
+      setListings(all.filter((l) => l.module === MODULE_ID))
+    }
+    setLoading(false)
+  }, [vendorId])
+
+  useEffect(() => {
+    loadListings()
+  }, [loadListings])
+
+  useEffect(() => {
+    db.categories.listByModule(MODULE_ID).then(({ data }) => {
+      setCategories(data ?? [])
+    })
+  }, [])
+
+  // Route-driven new/edit
+  useEffect(() => {
+    if (loading) return
+    const path = window.location.pathname
+    if (path.endsWith('/new')) {
+      setEditing(null)
+      setShowForm(true)
+      return
+    }
+    if (params.id) {
+      const match = listings.find((l) => l.id === params.id)
+      if (match) {
+        setEditing(match)
+        setShowForm(true)
+      }
+    }
+  }, [loading, listings, params.id])
+
+  const categoryName = useMemo(
+    () => Object.fromEntries(categories.map((c) => [c.id, c.name])),
+    [categories],
+  )
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    const base = listings.filter(
+      (l) =>
+        (!q ||
+          l.title.toLowerCase().includes(q) ||
+          (l.description ?? '').toLowerCase().includes(q) ||
+          (l.location_city ?? '').toLowerCase().includes(q)) &&
+        (statusFilter === 'all' || l.status === statusFilter),
+    )
+    return [...base].sort((a, b) => {
+      if (sortBy === 'title') return a.title.localeCompare(b.title)
+      if (sortBy === 'status') return a.status.localeCompare(b.status)
+      return b.created_at.localeCompare(a.created_at)
+    })
+  }, [listings, search, statusFilter, sortBy])
+
+  const handleNew = () => {
+    setEditing(null)
+    setShowForm(true)
+  }
+
+  const handleEdit = (l: ListingWithImages) => {
+    setEditing(l)
+    setShowForm(true)
+  }
+
+  const closeForm = () => {
+    setShowForm(false)
+    setEditing(null)
+    if (window.location.pathname !== '/vendor/events') {
+      navigate('/vendor/events', { replace: true })
+    }
+  }
+
+  const handleSaved = () => {
+    setActionNotice('Listing saved.')
+    closeForm()
+    loadListings()
+  }
+
+  const handleTogglePause = async (l: ListingWithImages) => {
+    const next: ListingStatus = l.status === 'active' ? 'paused' : 'active'
+    const { error } = await db.listings.updateStatus(l.id, next)
+    if (error) setActionNotice(`Update failed: ${error.message}`)
+    else {
+      setActionNotice(next === 'active' ? 'Listing activated.' : 'Listing paused.')
+      loadListings()
+    }
+  }
+
+  const handleSubmitForReview = async (l: ListingWithImages) => {
+    const { error } = await db.listings.updateStatus(l.id, 'pending_approval')
+    if (error) setActionNotice(`Submit failed: ${error.message}`)
+    else {
+      setActionNotice('Submitted for admin approval.')
+      loadListings()
+    }
+  }
+
+  const handleDelete = async (l: ListingWithImages) => {
+    if (l.status !== 'draft') return
+    if (!window.confirm(`Delete "${l.title}"? This cannot be undone.`)) return
+    setDeletingId(l.id)
+    if (l.listing_images?.length) {
+      await storageService.listingImages.delete(l.listing_images.map((i) => i.storage_path))
+    }
+    await db.listings.update(l.id, { status: 'paused' })
+    setDeletingId(null)
+    setActionNotice('Listing archived. Admin can purge if needed.')
+    loadListings()
+  }
+
+  return (
+    <>
+      <VendorAppShell
+        activeNav="events"
+        routeSource="vendor-events-services"
+        headerSearch={
+          <>
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search event listings"
+              className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50/80 py-2 pl-9 pr-4 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            />
+          </>
+        }
+        headerEnd={
+          <>
+            <button
+              type="button"
+              className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-gray-100"
+              onClick={() => setActionNotice('Help center coming soon.')}
+              aria-label="Help"
+            >
+              <HelpCircle className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-gray-100"
+              onClick={() => navigate('/vendor/calendar')}
+              aria-label="Open calendar"
+            >
+              <Bell className="h-5 w-5" />
+            </button>
+            <VendorTopRightMenu />
+          </>
+        }
+      >
+        <main className="min-h-full w-full bg-transparent">
+          <div className="p-4 sm:p-6">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h1 className="text-lg font-semibold text-slate-900">Event listings</h1>
+                <p className="text-sm text-slate-500">
+                  {loading ? 'Loading…' : `${filtered.length} listing${filtered.length !== 1 ? 's' : ''}`}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleNew}
+                disabled={!vendorId}
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-[#2563EB] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
+              >
+                <Plus className="h-4 w-4" />
+                Add new
+              </button>
+            </div>
+
+            <div className="mb-3 flex flex-wrap gap-2">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+                className="h-9 rounded-md border border-slate-200 px-2 text-sm"
+              >
+                <option value="all">Status: All</option>
+                <option value="draft">Draft</option>
+                <option value="pending_approval">Pending</option>
+                <option value="active">Active</option>
+                <option value="paused">Paused</option>
+                <option value="rejected">Rejected</option>
+              </select>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                className="h-9 rounded-md border border-slate-200 px-2 text-sm"
+              >
+                <option value="created">Sort: Created</option>
+                <option value="title">Sort: Title</option>
+                <option value="status">Sort: Status</option>
+              </select>
+            </div>
+
+            {actionNotice && (
+              <p
+                role="status"
+                className="mb-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700"
+              >
+                {actionNotice}
+              </p>
+            )}
+
+            {loadError && (
+              <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3">
+                <p className="text-sm text-red-700">{loadError}</p>
+                <button
+                  type="button"
+                  onClick={loadListings}
+                  className="mt-2 inline-flex rounded-md bg-[#2563EB] px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {loading ? (
+              <div className="rounded-lg border border-dashed border-slate-200 bg-white p-12 text-center">
+                <Loader2 className="mx-auto mb-2 size-6 animate-spin text-slate-400" />
+                <p className="text-sm text-slate-500">Loading events…</p>
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-slate-200 bg-white p-12 text-center">
+                <Megaphone className="mx-auto mb-3 h-10 w-10 text-slate-300" />
+                <p className="text-sm font-medium text-slate-700">No event listings yet</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Create a listing to start receiving corporate bookings.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleNew}
+                  disabled={!vendorId}
+                  className="mt-4 inline-flex items-center gap-2 rounded-md bg-[#2563EB] px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create first listing
+                </button>
+              </div>
+            ) : (
+              <ul className="space-y-3">
+                {filtered.map((l) => {
+                  const badge = statusBadge(l.status)
+                  const cover = l.listing_images?.[0]
+                  return (
+                    <li
+                      key={l.id}
+                      className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center"
+                    >
+                      <div className="size-16 shrink-0 overflow-hidden rounded-lg bg-slate-100 sm:size-20">
+                        {cover ? (
+                          <img
+                            src={storageService.listingImages.getUrl(cover.storage_path)}
+                            alt=""
+                            className="size-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex size-full items-center justify-center text-slate-300">
+                            <FileText className="size-6" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex min-w-0 flex-1 flex-col gap-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate font-semibold text-slate-900">{l.title}</p>
+                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${badge.className}`}>
+                            {badge.label}
+                          </span>
+                        </div>
+                        <p className="text-sm text-slate-500">
+                          {categoryName[l.category_id ?? ''] ?? 'Uncategorized'}
+                          {l.max_capacity ? ` • Up to ${l.max_capacity}` : ''}
+                          {l.location_city ? ` • ${l.location_city}` : ''}
+                        </p>
+                        <p className="text-[11px] text-slate-400">
+                          Created {formatDate(l.created_at)}
+                          {l.base_price != null && (
+                            <span className="ml-2">
+                              ₹{l.base_price.toLocaleString('en-IN')}
+                              {l.price_unit ? ` / ${l.price_unit.replace('_', ' ')}` : ''}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(l)}
+                          className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                          title="Edit"
+                        >
+                          <Eye className="h-4 w-4" />
+                          Edit
+                        </button>
+                        {l.status === 'draft' && (
+                          <button
+                            type="button"
+                            onClick={() => handleSubmitForReview(l)}
+                            className="rounded-md bg-[#2563EB] px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                          >
+                            Submit for review
+                          </button>
+                        )}
+                        {(l.status === 'active' || l.status === 'paused') && (
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePause(l)}
+                            className="rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                          >
+                            {l.status === 'active' ? 'Pause' : 'Activate'}
+                          </button>
+                        )}
+                        {l.status === 'draft' && (
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(l)}
+                            disabled={deletingId === l.id}
+                            className="rounded-md p-1.5 text-slate-500 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+        </main>
+      </VendorAppShell>
+
+      {showForm && vendorId && (
+        <ListingFormModal
+          initial={editing}
+          categories={categories}
+          vendorId={vendorId}
+          onClose={closeForm}
+          onSaved={handleSaved}
+        />
+      )}
+    </>
+  )
+}

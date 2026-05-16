@@ -1,277 +1,540 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
-import { Bell, Calendar, Eye, FileText, HelpCircle, Megaphone, Plus, Search, Trash2, X } from 'lucide-react';
-import { VendorAppShell } from './layouts/VendorAppShell';
-import { VendorTopRightMenu } from './layouts/VendorTopRightMenu';
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router'
+import {
+  Bell,
+  Eye,
+  FileText,
+  HelpCircle,
+  Loader2,
+  Megaphone,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from 'lucide-react'
+import { VendorAppShell } from './layouts/VendorAppShell'
+import { VendorTopRightMenu } from './layouts/VendorTopRightMenu'
+import { useAuth } from '@/lib/auth'
+import { db } from '@/lib/db'
+import { storageService } from '@/lib/storage'
+import type {
+  Listing,
+  ListingCategory,
+  ListingImage,
+  ListingStatus,
+} from '@/lib/database.types'
 
-type VendorSpaceListing = {
-  id: string;
-  title: string;
-  category: 'conference' | 'corporate-events' | 'casual';
-  capacity: number;
-  pricingType: 'transparent' | 'offer' | 'on_request';
-  status: 'Active' | 'Draft' | 'Paused';
-  createdAt: string;
-};
+const MODULE_ID = 'spacex_coworking' as const
 
-type BookingRequest = {
-  id: string;
-  serviceTitle: string;
-  date: string;
-  teamSize: number;
-  status: 'Pending' | 'Accepted' | 'Declined';
-};
+type ListingWithImages = Listing & { listing_images: ListingImage[] }
 
-function formatDate(d: Date) {
-  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: '2-digit' });
+type FormState = {
+  title: string
+  description: string
+  categoryId: string
+  maxCapacity: string
+  pricingType: Listing['pricing_type']
+  basePrice: string
+  priceUnit: NonNullable<Listing['price_unit']>
+  locationCity: string
 }
 
+const EMPTY_FORM: FormState = {
+  title: '',
+  description: '',
+  categoryId: '',
+  maxCapacity: '50',
+  pricingType: 'transparent',
+  basePrice: '',
+  priceUnit: 'per_hour',
+  locationCity: '',
+}
+
+function statusBadge(s: ListingStatus): { label: string; className: string } {
+  switch (s) {
+    case 'active':
+      return { label: 'Active', className: 'bg-emerald-50 text-emerald-700' }
+    case 'draft':
+      return { label: 'Draft', className: 'bg-slate-100 text-slate-600' }
+    case 'paused':
+      return { label: 'Paused', className: 'bg-amber-50 text-amber-800' }
+    case 'pending_approval':
+      return { label: 'Pending review', className: 'bg-blue-50 text-blue-700' }
+    case 'rejected':
+      return { label: 'Rejected', className: 'bg-rose-50 text-rose-700' }
+  }
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+  })
+}
+
+// ─── Form Modal ──────────────────────────────────────────────────────────────
+
+function ListingFormModal({
+  initial,
+  categories,
+  vendorId,
+  onClose,
+  onSaved,
+}: {
+  initial: ListingWithImages | null
+  categories: ListingCategory[]
+  vendorId: string
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const isEdit = !!initial
+  const [form, setForm] = useState<FormState>(() =>
+    initial
+      ? {
+          title: initial.title,
+          description: initial.description ?? '',
+          categoryId: initial.category_id ?? categories[0]?.id ?? '',
+          maxCapacity: String(initial.max_capacity ?? ''),
+          pricingType: initial.pricing_type,
+          basePrice: initial.base_price != null ? String(initial.base_price) : '',
+          priceUnit: initial.price_unit ?? 'per_hour',
+          locationCity: initial.location_city ?? '',
+        }
+      : { ...EMPTY_FORM, categoryId: categories[0]?.id ?? '' },
+  )
+  const [imageFiles, setImageFiles] = useState<File[]>([])
+  const [existingImages, setExistingImages] = useState<ListingImage[]>(
+    initial?.listing_images ?? [],
+  )
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+
+  const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
+    setForm((f) => ({ ...f, [k]: v }))
+
+  const validate = (): string => {
+    if (!form.title.trim()) return 'Title is required.'
+    if (!form.categoryId) return 'Category is required.'
+    const cap = Number(form.maxCapacity)
+    if (!cap || cap < 1) return 'Capacity must be a positive number.'
+    if (form.pricingType === 'transparent') {
+      const p = Number(form.basePrice)
+      if (!p || p <= 0) return 'Base price is required for transparent pricing.'
+    }
+    return ''
+  }
+
+  const removeExistingImage = async (img: ListingImage) => {
+    setExistingImages((prev) => prev.filter((x) => x.id !== img.id))
+    await db.listings.deleteImage(img.id)
+    await storageService.spaceImages.delete([img.storage_path])
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const v = validate()
+    if (v) {
+      setError(v)
+      return
+    }
+    setError('')
+    setSubmitting(true)
+
+    const basePayload = {
+      vendor_id: vendorId,
+      module: MODULE_ID,
+      category_id: form.categoryId || null,
+      title: form.title.trim(),
+      description: form.description.trim() || null,
+      pricing_type: form.pricingType,
+      base_price:
+        form.pricingType === 'transparent' && form.basePrice
+          ? Number(form.basePrice)
+          : null,
+      price_unit: form.pricingType === 'transparent' ? form.priceUnit : null,
+      min_capacity: null,
+      max_capacity: Number(form.maxCapacity),
+      location_city: form.locationCity.trim() || null,
+      location_address: null,
+      cancellation_policy: null,
+      confirmation_sla_hours: 24,
+      is_mogzu_direct: false,
+      metadata: {},
+    }
+
+    let listingId = initial?.id ?? ''
+
+    if (isEdit) {
+      const { error: updErr } = await db.listings.update(initial!.id, basePayload)
+      if (updErr) {
+        setError(updErr.message)
+        setSubmitting(false)
+        return
+      }
+    } else {
+      const { data, error: insErr } = await db.listings.create({
+        ...basePayload,
+        status: 'draft',
+      })
+      if (insErr || !data) {
+        setError(insErr?.message ?? 'Failed to create listing.')
+        setSubmitting(false)
+        return
+      }
+      listingId = data.id
+    }
+
+    if (imageFiles.length > 0) {
+      const uploads = await Promise.all(
+        imageFiles.map((file) => storageService.spaceImages.upload(vendorId, listingId, file)),
+      )
+      const successful = uploads
+        .map((u, i) => ({ u, i }))
+        .filter(({ u }) => !u.error)
+      if (successful.length > 0) {
+        const baseOrder = existingImages.length
+        await db.listings.addImages(
+          successful.map(({ u, i }) => ({
+            listing_id: listingId,
+            storage_path: u.path,
+            display_order: baseOrder + i,
+          })),
+        )
+      }
+    }
+
+    setSubmitting(false)
+    onSaved()
+  }
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4 overflow-y-auto">
+      <div className="w-full max-w-2xl my-8 rounded-2xl bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+          <div>
+            <h2 className="text-base font-bold text-slate-900">
+              {isEdit ? 'Edit space listing' : 'New space listing'}
+            </h2>
+            <p className="text-xs text-slate-500">
+              {isEdit ? 'Update space details, pricing, and images.' : 'Create a draft. You can publish it after review.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"
+          >
+            <X className="size-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4 px-6 py-5">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                Title <span className="text-rose-500">*</span>
+              </label>
+              <input
+                value={form.title}
+                onChange={(e) => set('title', e.target.value)}
+                placeholder="e.g., Premium Conference Room"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                Description
+              </label>
+              <textarea
+                value={form.description}
+                onChange={(e) => set('description', e.target.value)}
+                rows={3}
+                placeholder="Amenities, layout, special features…"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                Category <span className="text-rose-500">*</span>
+              </label>
+              <select
+                value={form.categoryId}
+                onChange={(e) => set('categoryId', e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+              >
+                {categories.length === 0 && <option value="">No categories</option>}
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                Max capacity <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={form.maxCapacity}
+                onChange={(e) => set('maxCapacity', e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                Pricing type
+              </label>
+              <select
+                value={form.pricingType}
+                onChange={(e) => set('pricingType', e.target.value as Listing['pricing_type'])}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+              >
+                <option value="transparent">Transparent</option>
+                <option value="offer">Offer</option>
+                <option value="request_for_price">Request for price</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                Location (city)
+              </label>
+              <input
+                value={form.locationCity}
+                onChange={(e) => set('locationCity', e.target.value)}
+                placeholder="e.g., Bengaluru"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+              />
+            </div>
+
+            {form.pricingType === 'transparent' && (
+              <>
+                <div>
+                  <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                    Base price (₹) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="50"
+                    value={form.basePrice}
+                    onChange={(e) => set('basePrice', e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                    Price unit
+                  </label>
+                  <select
+                    value={form.priceUnit}
+                    onChange={(e) => set('priceUnit', e.target.value as FormState['priceUnit'])}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+                  >
+                    <option value="per_hour">Per hour</option>
+                    <option value="per_day">Per day</option>
+                    <option value="flat">Flat</option>
+                    <option value="per_person">Per person</option>
+                  </select>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Images */}
+          <div>
+            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+              Images
+            </label>
+            {existingImages.length > 0 && (
+              <div className="mb-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
+                {existingImages.map((img) => (
+                  <div key={img.id} className="relative aspect-square overflow-hidden rounded-lg border border-slate-200">
+                    <img
+                      src={storageService.spaceImages.getUrl(img.storage_path)}
+                      alt=""
+                      className="size-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeExistingImage(img)}
+                      className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white hover:bg-black/80"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(e) => setImageFiles(Array.from(e.target.files ?? []))}
+              className="block w-full text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-xs file:font-medium file:text-slate-700 hover:file:bg-slate-200"
+            />
+            {imageFiles.length > 0 && (
+              <p className="mt-1 text-[11px] text-slate-500">
+                {imageFiles.length} image{imageFiles.length !== 1 ? 's' : ''} selected for upload.
+              </p>
+            )}
+          </div>
+
+          {error && (
+            <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+              {error}
+            </p>
+          )}
+
+          <div className="flex justify-end gap-3 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-[#2563EB] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#1D4ED8] disabled:opacity-60"
+            >
+              {submitting && <Loader2 className="size-4 animate-spin" />}
+              {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Create listing'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main Page ───────────────────────────────────────────────────────────────
+
 export default function VendorSpaceXServicesPage() {
-  const navigate = useNavigate();
+  const navigate = useNavigate()
+  const { vendorId } = useAuth()
 
-  const [activeTab, setActiveTab] = useState<'listings' | 'requests'>('listings');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | ListingStatus>('all')
+  const [sortBy, setSortBy] = useState<'created' | 'title' | 'status'>('created')
 
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
-  const [listings, setListings] = useState<VendorSpaceListing[]>([]);
-  const [statusFilter, setStatusFilter] = useState<'all' | VendorSpaceListing['status']>('all');
-  const [categoryFilter, setCategoryFilter] = useState<'all' | VendorSpaceListing['category']>('all');
-  const [sortBy, setSortBy] = useState<'title' | 'status' | 'created'>('created');
+  const [listings, setListings] = useState<ListingWithImages[]>([])
+  const [categories, setCategories] = useState<ListingCategory[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [actionNotice, setActionNotice] = useState('')
 
-  const [listTitle, setListTitle] = useState('');
-  const [titleError, setTitleError] = useState('');
-  const [category, setCategory] = useState<VendorSpaceListing['category']>('conference');
-  const [capacity, setCapacity] = useState<string>('100');
-  const [capacityError, setCapacityError] = useState('');
-  const [pricingType, setPricingType] = useState<VendorSpaceListing['pricingType']>('transparent');
+  const [editing, setEditing] = useState<ListingWithImages | null>(null)
+  const [showForm, setShowForm] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  const [submitError, setSubmitError] = useState('');
-  const [submitSuccess, setSubmitSuccess] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-
-  const [requestLoading, setRequestLoading] = useState(false);
-  const [requestError, setRequestError] = useState('');
-  const [requestsNotice, setRequestsNotice] = useState('');
-  const [requests, setRequests] = useState<BookingRequest[]>([]);
-  const [uiNotice, setUiNotice] = useState<string | null>(null);
-
-  const [previewTitle, setPreviewTitle] = useState<string>('');
-  const closePreview = () => setPreviewTitle('');
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const base = listings.filter(
-      (s) =>
-        (!q ||
-          s.title.toLowerCase().includes(q) ||
-          s.category.toLowerCase().includes(q) ||
-          s.status.toLowerCase().includes(q) ||
-          String(s.capacity).includes(q)) &&
-        (statusFilter === 'all' || s.status === statusFilter) &&
-        (categoryFilter === 'all' || s.category === categoryFilter),
-    );
-    return [...base].sort((a, b) => {
-      if (sortBy === 'title') return a.title.localeCompare(b.title);
-      if (sortBy === 'status') return a.status.localeCompare(b.status);
-      return b.createdAt.localeCompare(a.createdAt);
-    });
-  }, [listings, search, statusFilter, categoryFilter, sortBy]);
+  const loadListings = useCallback(async () => {
+    if (!vendorId) return
+    setLoading(true)
+    setLoadError('')
+    const { data, error } = await db.listings.listByVendor(vendorId)
+    if (error) setLoadError(error.message)
+    else {
+      const all = (data ?? []) as ListingWithImages[]
+      setListings(all.filter((l) => l.module === MODULE_ID))
+    }
+    setLoading(false)
+  }, [vendorId])
 
   useEffect(() => {
-    setLoading(true);
-    setLoadError('');
+    loadListings()
+  }, [loadListings])
 
-    const t = window.setTimeout(() => {
-      const fail = Math.random() < 0.08;
-      if (fail) {
-        setLoadError('Unable to load your spaces right now. Please retry.');
-        setLoading(false);
-        return;
-      }
+  useEffect(() => {
+    db.categories.listByModule(MODULE_ID).then(({ data }) => {
+      setCategories(data ?? [])
+    })
+  }, [])
 
-      setListings([
-        {
-          id: 'sx-1',
-          title: 'Premium Conference Rooms',
-          category: 'conference',
-          capacity: 120,
-          pricingType: 'transparent',
-          status: 'Active',
-          createdAt: formatDate(new Date(Date.now() - 1000 * 60 * 60 * 24 * 11)),
-        },
-        {
-          id: 'sx-2',
-          title: 'Corporate Event Venue (AV Included)',
-          category: 'corporate-events',
-          capacity: 350,
-          pricingType: 'offer',
-          status: 'Draft',
-          createdAt: formatDate(new Date(Date.now() - 1000 * 60 * 60 * 24 * 6)),
-        },
-      ]);
-      setLoading(false);
-    }, 650);
+  const categoryName = useMemo(
+    () => Object.fromEntries(categories.map((c) => [c.id, c.name])),
+    [categories],
+  )
 
-    return () => window.clearTimeout(t);
-  }, []);
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    const base = listings.filter(
+      (l) =>
+        (!q ||
+          l.title.toLowerCase().includes(q) ||
+          (l.description ?? '').toLowerCase().includes(q) ||
+          (l.location_city ?? '').toLowerCase().includes(q)) &&
+        (statusFilter === 'all' || l.status === statusFilter),
+    )
+    return [...base].sort((a, b) => {
+      if (sortBy === 'title') return a.title.localeCompare(b.title)
+      if (sortBy === 'status') return a.status.localeCompare(b.status)
+      return b.created_at.localeCompare(a.created_at)
+    })
+  }, [listings, search, statusFilter, sortBy])
 
-  const resetForm = () => {
-    setListTitle('');
-    setTitleError('');
-    setCategory('conference');
-    setCapacity('100');
-    setCapacityError('');
-    setPricingType('transparent');
-    setSubmitError('');
-    setSubmitSuccess('');
-  };
+  const handleNew = () => {
+    setEditing(null)
+    setShowForm(true)
+  }
 
-  const validate = () => {
-    let ok = true;
-    setTitleError('');
-    setCapacityError('');
-    setSubmitError('');
-    setSubmitSuccess('');
+  const handleEdit = (l: ListingWithImages) => {
+    setEditing(l)
+    setShowForm(true)
+  }
 
-    const t = listTitle.trim();
-    if (!t) {
-      setTitleError('Please enter a space title.');
-      ok = false;
+  const handleSaved = () => {
+    setShowForm(false)
+    setEditing(null)
+    setActionNotice('Listing saved.')
+    loadListings()
+  }
+
+  const handleTogglePause = async (l: ListingWithImages) => {
+    const next: ListingStatus = l.status === 'active' ? 'paused' : 'active'
+    const { error } = await db.listings.updateStatus(l.id, next)
+    if (error) setActionNotice(`Update failed: ${error.message}`)
+    else {
+      setActionNotice(next === 'active' ? 'Listing activated.' : 'Listing paused.')
+      loadListings()
     }
+  }
 
-    const cap = Number(capacity);
-    if (!capacity || Number.isNaN(cap) || cap < 1) {
-      setCapacityError('Capacity must be a positive number.');
-      ok = false;
+  const handleSubmitForReview = async (l: ListingWithImages) => {
+    const { error } = await db.listings.updateStatus(l.id, 'pending_approval')
+    if (error) setActionNotice(`Submit failed: ${error.message}`)
+    else {
+      setActionNotice('Submitted for admin approval.')
+      loadListings()
     }
+  }
 
-    if (!ok) setSubmitError('Fix the highlighted fields and try again.');
-    return ok;
-  };
-
-  const submitListing = () => {
-    if (!validate()) return;
-    setSubmitting(true);
-    setSubmitError('');
-    setSubmitSuccess('');
-
-    window.setTimeout(() => {
-      if (Math.random() < 0.12) {
-        setSubmitError('Unable to create the listing right now. Please retry.');
-        setSubmitting(false);
-        return;
-      }
-
-      const cap = Number(capacity);
-      const row: VendorSpaceListing = {
-        id: `sx-${Date.now()}`,
-        title: listTitle.trim(),
-        category,
-        capacity: cap,
-        pricingType,
-        status: 'Active',
-        createdAt: formatDate(new Date()),
-      };
-
-      setListings((prev) => [row, ...prev]);
-      setSubmitSuccess('Space listing created. Enquiries will show up in Requests (demo).');
-      setSubmitting(false);
-      resetForm();
-    }, 900);
-  };
-
-  const handleRetryLoad = () => {
-    setLoading(true);
-    setLoadError('');
-    setListings([]);
-
-    const t = window.setTimeout(() => {
-      setListings([
-        {
-          id: 'sx-1',
-          title: 'Premium Conference Rooms',
-          category: 'conference',
-          capacity: 120,
-          pricingType: 'transparent',
-          status: 'Active',
-          createdAt: formatDate(new Date(Date.now() - 1000 * 60 * 60 * 24 * 11)),
-        },
-      ]);
-      setLoading(false);
-    }, 650);
-  };
-
-  const openRequests = () => {
-    setRequestLoading(true);
-    setRequestError('');
-    setRequestsNotice('');
-    setRequests([]);
-
-    window.setTimeout(() => {
-      const r = Math.random();
-      if (r < 0.12) {
-        setRequestError('Unable to load booking requests right now. Please retry.');
-        setRequestLoading(false);
-        return;
-      }
-      if (r < 0.35) {
-        setRequestsNotice('No pending booking requests right now.');
-        setRequestLoading(false);
-        return;
-      }
-
-      setRequests([
-        {
-          id: 'br-1',
-          serviceTitle: 'Premium Conference Rooms',
-          date: 'Jul 15, 2024',
-          teamSize: 60,
-          status: 'Pending',
-        },
-        {
-          id: 'br-2',
-          serviceTitle: 'Corporate Event Venue (AV Included)',
-          date: 'Jul 22, 2024',
-          teamSize: 180,
-          status: 'Pending',
-        },
-      ]);
-      setRequestsNotice('2 booking requests ready to review (demo).');
-      setRequestLoading(false);
-    }, 750);
-  };
-
-  const updateRequestStatus = (id: string, status: BookingRequest['status']) => {
-    setRequests((prev) => prev.map((x) => (x.id === id ? { ...x, status } : x)));
-    setRequestsNotice(
-      status === 'Accepted'
-        ? 'Request accepted (demo). The corporate portal will be notified in a future release.'
-        : status === 'Declined'
-          ? 'Request declined (demo). The corporate portal will be notified in a future release.'
-          : 'Request updated (demo).',
-    );
-  };
-
-  const deleteListing = (id: string) => {
-    setListings((prev) => prev.filter((s) => s.id !== id));
-    setSubmitSuccess('Listing removed (demo).');
-  };
-  const togglePauseActivate = (id: string) =>
-    setListings((prev) => prev.map((row) => row.id === id ? { ...row, status: row.status === 'Active' ? 'Paused' : 'Active' } : row));
-  const duplicateListing = (id: string) =>
-    setListings((prev) => {
-      const src = prev.find((x) => x.id === id);
-      if (!src) return prev;
-      return [{ ...src, id: `sx-${Date.now()}`, title: `${src.title} (Copy)`, status: 'Draft', createdAt: formatDate(new Date()) }, ...prev];
-    });
+  const handleDelete = async (l: ListingWithImages) => {
+    if (l.status !== 'draft') return
+    if (!window.confirm(`Delete "${l.title}"? This cannot be undone.`)) return
+    setDeletingId(l.id)
+    if (l.listing_images?.length) {
+      await storageService.spaceImages.delete(l.listing_images.map((i) => i.storage_path))
+    }
+    await db.listings.update(l.id, { status: 'paused' })
+    setDeletingId(null)
+    setActionNotice('Listing archived. Admin can purge if needed.')
+    loadListings()
+  }
 
   return (
     <>
       <VendorAppShell
         activeNav="spacex"
         routeSource="vendor-spacex-services"
-        onNavNotice={(msg) => setUiNotice(msg)}
         headerSearch={
           <>
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -279,7 +542,7 @@ export default function VendorSpaceXServicesPage() {
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search D Space listings"
+              placeholder="Search space listings"
               className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50/80 py-2 pl-9 pr-4 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             />
           </>
@@ -289,423 +552,217 @@ export default function VendorSpaceXServicesPage() {
             <button
               type="button"
               className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-gray-100"
-              onClick={() => setSubmitError('Help is not wired in this demo screen yet.')}
+              onClick={() => setActionNotice('Help center coming soon.')}
               aria-label="Help"
             >
               <HelpCircle className="h-5 w-5" />
             </button>
             <button
               type="button"
-              className="relative rounded-lg p-2 text-slate-500 transition-colors hover:bg-gray-100"
+              className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-gray-100"
               onClick={() => navigate('/vendor/calendar')}
               aria-label="Open calendar"
             >
               <Bell className="h-5 w-5" />
-              <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-0.5 text-[9px] font-semibold text-white">
-                3
-              </span>
             </button>
             <VendorTopRightMenu />
           </>
         }
       >
         <main className="min-h-full w-full bg-transparent">
-          {uiNotice ? (
-            <p
-              className="border-b border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700 sm:px-6"
-              role="status"
-            >
-              {uiNotice}
-            </p>
-          ) : null}
-
           <div className="p-4 sm:p-6">
-            <div className="mb-4 flex flex-wrap gap-2">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h1 className="text-lg font-semibold text-slate-900">Space listings</h1>
+                <p className="text-sm text-slate-500">
+                  {loading ? 'Loading…' : `${filtered.length} listing${filtered.length !== 1 ? 's' : ''}`}
+                </p>
+              </div>
               <button
                 type="button"
-                onClick={() => setActiveTab('listings')}
-                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
-                  activeTab === 'listings'
-                    ? 'border-[#2563EB] bg-white text-[#2563EB] shadow-sm'
-                    : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
-                }`}
+                onClick={handleNew}
+                disabled={!vendorId}
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-[#2563EB] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
               >
-                <FileText className="h-4 w-4" />
-                Spaces
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab('requests');
-                  openRequests();
-                }}
-                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
-                  activeTab === 'requests'
-                    ? 'border-[#2563EB] bg-white text-[#2563EB] shadow-sm'
-                    : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
-                }`}
-              >
-                <Calendar className="h-4 w-4" />
-                Requests
+                <Plus className="h-4 w-4" />
+                Add new
               </button>
             </div>
 
-            {activeTab === 'listings' && (
-              <>
-                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h1 className="text-lg font-semibold text-slate-900">D Space listings</h1>
-                    <p className="text-sm text-slate-500">
-                      {loading ? 'Loading…' : `Total ${filtered.length}`}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSubmitError('');
-                      setSubmitSuccess('');
-                      setListTitle('');
-                      setTitleError('');
-                      setCategory('conference');
-                      setCapacity('100');
-                      setCapacityError('');
-                      setPricingType('transparent');
-                    }}
-                    className="inline-flex items-center justify-center gap-2 rounded-md bg-[#2563EB] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add new
-                  </button>
-                </div>
-                <div className="mb-3 flex flex-wrap gap-2">
-                  <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)} className="h-9 rounded-md border border-slate-200 px-2 text-sm">
-                    <option value="all">Status: All</option>
-                    <option value="Draft">Draft</option>
-                    <option value="Active">Active</option>
-                    <option value="Paused">Paused</option>
-                  </select>
-                  <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value as typeof categoryFilter)} className="h-9 rounded-md border border-slate-200 px-2 text-sm">
-                    <option value="all">Category: All</option>
-                    <option value="conference">conference</option>
-                    <option value="corporate-events">corporate-events</option>
-                    <option value="casual">casual</option>
-                  </select>
-                  <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)} className="h-9 rounded-md border border-slate-200 px-2 text-sm">
-                    <option value="created">Sort: Created</option>
-                    <option value="title">Sort: Title</option>
-                    <option value="status">Sort: Status</option>
-                  </select>
-                </div>
+            <div className="mb-3 flex flex-wrap gap-2">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+                className="h-9 rounded-md border border-slate-200 px-2 text-sm"
+              >
+                <option value="all">Status: All</option>
+                <option value="draft">Draft</option>
+                <option value="pending_approval">Pending</option>
+                <option value="active">Active</option>
+                <option value="paused">Paused</option>
+                <option value="rejected">Rejected</option>
+              </select>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                className="h-9 rounded-md border border-slate-200 px-2 text-sm"
+              >
+                <option value="created">Sort: Created</option>
+                <option value="title">Sort: Title</option>
+                <option value="status">Sort: Status</option>
+              </select>
+            </div>
 
-                {loading ? (
-                  <div className="rounded-lg border border-dashed border-slate-200 bg-white p-12 text-center">
-                    <div className="mx-auto mb-3 h-10 w-10 rounded-full bg-slate-100" />
-                    <p className="text-sm font-medium text-slate-700">Loading spaces…</p>
-                  </div>
-                ) : loadError ? (
-                  <div className="rounded-lg border border-red-200 bg-white p-6">
-                    <div className="flex items-start gap-3">
-                      <div className="mt-0.5 rounded-full bg-red-50 p-2">
-                        <X className="h-5 w-5 text-red-600" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-red-700">{loadError}</p>
-                        <p className="mt-1 text-xs text-slate-500">Try again to refresh the listing.</p>
-                        <button
-                          type="button"
-                          onClick={handleRetryLoad}
-                          className="mt-3 inline-flex rounded-md bg-[#2563EB] px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                        >
-                          Retry
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ) : filtered.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-slate-200 bg-white p-12 text-center">
-                    <Megaphone className="mx-auto mb-3 h-10 w-10 text-slate-300" />
-                    <p className="text-sm font-medium text-slate-700">No spaces found</p>
-                    <p className="mt-1 text-sm text-slate-500">Create a listing to start receiving corporate bookings.</p>
-                  </div>
-                ) : (
-                  <ul className="space-y-3">
-                    {filtered.map((s) => (
-                      <li
-                        key={s.id}
-                        className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center"
-                      >
-                        <div className="flex flex-1 flex-col gap-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-semibold text-slate-900 truncate">{s.title}</p>
-                            <span
-                              className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                                s.status === 'Active'
-                                  ? 'bg-emerald-50 text-emerald-700'
-                                  : s.status === 'Draft'
-                                    ? 'bg-slate-50 text-slate-600'
-                                    : 'bg-amber-50 text-amber-800'
-                              }`}
-                            >
-                              {s.status}
-                            </span>
-                          </div>
-                          <p className="text-sm text-slate-500">
-                            {s.category} • Capacity {s.capacity}
-                          </p>
-                          <p className="text-[11px] text-slate-400">{s.createdAt}</p>
-                        </div>
-                        <div className="flex shrink-0 flex-wrap gap-2 sm:gap-3 items-center">
-                          <button
-                            type="button"
-                            onClick={() => setPreviewTitle(s.title)}
-                            className="rounded p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                            title="Preview"
-                          >
-                            <Eye className="h-5 w-5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => togglePauseActivate(s.id)}
-                            className="rounded p-2 text-slate-500 hover:bg-slate-100 hover:text-blue-600"
-                            title={s.status === 'Active' ? 'Pause' : 'Activate'}
-                          >
-                            {s.status === 'Active' ? 'Pause' : 'Activate'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => duplicateListing(s.id)}
-                            className="rounded p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                            title="Duplicate"
-                          >
-                            Duplicate
-                          </button>
-                          <button
-                            type="button"
-                            disabled={s.status !== 'Draft'}
-                            onClick={() => deleteListing(s.id)}
-                            className="rounded p-2 text-slate-500 hover:bg-slate-100 hover:text-red-600"
-                            title="Remove (demo)"
-                          >
-                            <Trash2 className="h-5 w-5" />
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-
-                <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
-                  <h2 className="text-sm font-semibold text-slate-900">Create space listing</h2>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Used for corporate space bookings (demo).
-                  </p>
-
-                  {submitError && (
-                    <p className="mt-3 text-xs text-red-800 bg-red-50 border border-red-200 rounded-lg px-3 py-2" role="status">
-                      {submitError}
-                    </p>
-                  )}
-                  {submitSuccess && (
-                    <p className="mt-3 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2" role="status">
-                      {submitSuccess}
-                    </p>
-                  )}
-
-                  <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Listing title*</label>
-                      <input
-                        value={listTitle}
-                        onChange={(e) => {
-                          setListTitle(e.target.value);
-                          setTitleError('');
-                          setSubmitError('');
-                          setSubmitSuccess('');
-                        }}
-                        placeholder="e.g., Executive Meeting Spaces"
-                        className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
-                      />
-                      {titleError && <p className="mt-1 text-[11px] text-red-700">{titleError}</p>}
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Category*</label>
-                      <select
-                        value={category}
-                        onChange={(e) => setCategory(e.target.value as VendorSpaceListing['category'])}
-                        className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
-                      >
-                        <option value="conference">conference</option>
-                        <option value="corporate-events">corporate-events</option>
-                        <option value="casual">casual</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Capacity (seats)*</label>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        min={1}
-                        value={capacity}
-                        onChange={(e) => {
-                          setCapacity(e.target.value);
-                          setCapacityError('');
-                          setSubmitError('');
-                          setSubmitSuccess('');
-                        }}
-                        className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
-                      />
-                      {capacityError && <p className="mt-1 text-[11px] text-red-700">{capacityError}</p>}
-                    </div>
-
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Pricing type</label>
-                      <select
-                        value={pricingType}
-                        onChange={(e) => setPricingType(e.target.value as VendorSpaceListing['pricingType'])}
-                        className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
-                      >
-                        <option value="transparent">transparent</option>
-                        <option value="offer">offer</option>
-                        <option value="on_request">on_request</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 flex items-center justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={resetForm}
-                      className="rounded-md border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                    >
-                      Reset
-                    </button>
-                    <button
-                      type="button"
-                      onClick={submitListing}
-                      disabled={submitting}
-                      className="rounded-md bg-[#2563EB] px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
-                    >
-                      {submitting ? 'Saving…' : 'Create listing'}
-                    </button>
-                  </div>
-                </div>
-              </>
+            {actionNotice && (
+              <p
+                role="status"
+                className="mb-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700"
+              >
+                {actionNotice}
+              </p>
             )}
 
-            {activeTab === 'requests' && (
-              <div className="rounded-lg border border-slate-200 bg-white p-5">
-                <h2 className="text-sm font-semibold text-slate-900">Space booking enquiries</h2>
-                <p className="mt-1 text-xs text-slate-500">
-                  Review and accept/decline corporate booking requests (demo).
-                </p>
-
-                {requestLoading ? (
-                  <div className="mt-4 rounded-lg border border-dashed border-slate-200 bg-white p-10 text-center">
-                    <p className="text-sm font-medium text-slate-700">Loading enquiries…</p>
-                  </div>
-                ) : requestError ? (
-                  <div className="mt-4 rounded-lg border border-red-200 bg-white p-4">
-                    <p className="text-sm font-medium text-red-700">{requestError}</p>
-                    <button
-                      type="button"
-                      onClick={openRequests}
-                      className="mt-3 inline-flex rounded-md bg-[#2563EB] px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                    >
-                      Retry
-                    </button>
-                  </div>
-                ) : (
-                  <div className="mt-4">
-                    {requestsNotice ? (
-                      <p className="text-sm text-slate-700">{requestsNotice}</p>
-                    ) : (
-                      <p className="text-sm text-slate-500">Choose “Requests” to load your request list.</p>
-                    )}
-
-                    <div className="mt-4 space-y-3">
-                      {requests.map((r) => (
-                        <div key={r.id} className="rounded-lg border border-slate-200 bg-white p-4">
-                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-                            <div>
-                              <p className="text-sm font-semibold text-slate-900">{r.serviceTitle}</p>
-                              <p className="text-xs text-slate-500 mt-1">
-                                {r.date} • Team size {r.teamSize}
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <p
-                                className={`text-xs font-semibold rounded-full px-2 py-1 inline-block ${
-                                  r.status === 'Pending'
-                                    ? 'bg-amber-50 text-amber-800'
-                                    : r.status === 'Accepted'
-                                      ? 'bg-emerald-50 text-emerald-700'
-                                      : 'bg-red-50 text-red-600'
-                                }`}
-                              >
-                                {r.status}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="mt-3 flex flex-col sm:flex-row gap-2 justify-end">
-                            <button
-                              type="button"
-                              onClick={() => updateRequestStatus(r.id, 'Accepted')}
-                              disabled={r.status !== 'Pending'}
-                              className="rounded-md bg-[#2563EB] px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
-                            >
-                              Accept
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => updateRequestStatus(r.id, 'Declined')}
-                              disabled={r.status !== 'Pending'}
-                              className="rounded-md border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                            >
-                              Decline
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+            {loadError && (
+              <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3">
+                <p className="text-sm text-red-700">{loadError}</p>
+                <button
+                  type="button"
+                  onClick={loadListings}
+                  className="mt-2 inline-flex rounded-md bg-[#2563EB] px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                >
+                  Retry
+                </button>
               </div>
+            )}
+
+            {loading ? (
+              <div className="rounded-lg border border-dashed border-slate-200 bg-white p-12 text-center">
+                <Loader2 className="mx-auto mb-2 size-6 animate-spin text-slate-400" />
+                <p className="text-sm text-slate-500">Loading spaces…</p>
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-slate-200 bg-white p-12 text-center">
+                <Megaphone className="mx-auto mb-3 h-10 w-10 text-slate-300" />
+                <p className="text-sm font-medium text-slate-700">No space listings yet</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Create a listing to start receiving corporate bookings.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleNew}
+                  disabled={!vendorId}
+                  className="mt-4 inline-flex items-center gap-2 rounded-md bg-[#2563EB] px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create first listing
+                </button>
+              </div>
+            ) : (
+              <ul className="space-y-3">
+                {filtered.map((l) => {
+                  const badge = statusBadge(l.status)
+                  const cover = l.listing_images?.[0]
+                  return (
+                    <li
+                      key={l.id}
+                      className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center"
+                    >
+                      <div className="size-16 shrink-0 overflow-hidden rounded-lg bg-slate-100 sm:size-20">
+                        {cover ? (
+                          <img
+                            src={storageService.spaceImages.getUrl(cover.storage_path)}
+                            alt=""
+                            className="size-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex size-full items-center justify-center text-slate-300">
+                            <FileText className="size-6" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex min-w-0 flex-1 flex-col gap-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate font-semibold text-slate-900">{l.title}</p>
+                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${badge.className}`}>
+                            {badge.label}
+                          </span>
+                        </div>
+                        <p className="text-sm text-slate-500">
+                          {categoryName[l.category_id ?? ''] ?? 'Uncategorized'}
+                          {l.max_capacity ? ` • Capacity ${l.max_capacity}` : ''}
+                          {l.location_city ? ` • ${l.location_city}` : ''}
+                        </p>
+                        <p className="text-[11px] text-slate-400">
+                          Created {formatDate(l.created_at)}
+                          {l.base_price != null && (
+                            <span className="ml-2">
+                              ₹{l.base_price.toLocaleString('en-IN')}
+                              {l.price_unit ? ` / ${l.price_unit.replace('_', ' ')}` : ''}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(l)}
+                          className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                          title="Edit"
+                        >
+                          <Eye className="h-4 w-4" />
+                          Edit
+                        </button>
+                        {l.status === 'draft' && (
+                          <button
+                            type="button"
+                            onClick={() => handleSubmitForReview(l)}
+                            className="rounded-md bg-[#2563EB] px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                          >
+                            Submit for review
+                          </button>
+                        )}
+                        {(l.status === 'active' || l.status === 'paused') && (
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePause(l)}
+                            className="rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                          >
+                            {l.status === 'active' ? 'Pause' : 'Activate'}
+                          </button>
+                        )}
+                        {l.status === 'draft' && (
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(l)}
+                            disabled={deletingId === l.id}
+                            className="rounded-md p-1.5 text-slate-500 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
             )}
           </div>
         </main>
       </VendorAppShell>
 
-      {previewTitle && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog">
-          <div className="max-h-[90vh] w-full max-w-lg overflow-auto rounded-xl bg-white p-6 shadow-xl">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-slate-900">Listing preview</h3>
-              <button
-                type="button"
-                onClick={closePreview}
-                className="rounded p-1 text-slate-500 hover:bg-slate-100"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <p className="text-sm font-semibold text-slate-900">{previewTitle}</p>
-            <p className="mt-2 text-sm text-slate-600">
-              Demo preview screen. In the next iteration, we’ll add full booking configuration + media details.
-            </p>
-            <button
-              type="button"
-              onClick={closePreview}
-              className="mt-6 w-full rounded-md border border-slate-200 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              Close
-            </button>
-          </div>
-        </div>
+      {showForm && vendorId && (
+        <ListingFormModal
+          initial={editing}
+          categories={categories}
+          vendorId={vendorId}
+          onClose={() => {
+            setShowForm(false)
+            setEditing(null)
+          }}
+          onSaved={handleSaved}
+        />
       )}
     </>
-  );
+  )
 }
-

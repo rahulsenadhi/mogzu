@@ -48,6 +48,12 @@ Use this for significant implementation updates.
 
 Latest entries:
 - Date: 2026-05-16
+- Summary: Sprint 3 — Vendor listings CRUD (5.3 spaces, 3.6 events). Replaced mock-state pages with real Supabase `db.listings` wiring + image upload via `storageService`. Shared pattern: modal form (title/description/category/capacity/pricing/location/cancellation/images), list with status filter + sort, lifecycle actions (submit-for-review, pause/activate, archive draft).
+- Files changed: `MogzuApplication/src/app/components/VendorSpaceXServicesPage.tsx`, `VendorEventsServicesPage.tsx`
+- Verification performed: `npm run build` clean
+- Risks / notes: Drawer-based features (`VendorRejectionFeedbackDrawer`, `VendorPerformanceStatsDrawer`) dropped from events page — needed real rejection-reason + analytics data flow before re-adding. Recurring blocks + buffer-time (5.3 acceptance) deferred. Sprint 3 remaining: 4.4 gifting listings.
+- Owner: Project team
+- Date: 2026-05-16
 - Summary: Sprint 3 — Vendor calendar (8.2). Refactored `VendorCalendarPage` from mock state to real Supabase. Week-based view, block/unblock slot modals, real-time `calendar_slots` subscription, listing-scoped slots, today highlight.
 - Files changed: `MogzuApplication/src/app/components/VendorCalendarPage.tsx`
 - Verification performed: `npm run build` clean
