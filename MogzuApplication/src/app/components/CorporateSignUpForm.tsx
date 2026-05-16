@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link } from 'react-router';
 import { AlertCircle, X } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import svgPaths from '@/imports/svg-o29bchayym';
 import imgGoogleIcon from 'figma:asset/623e1bc74569caceb0c89f1e0be048c9a6e5221f.png';
 import { MogzuLogo } from '@/app/components/branding/MogzuLogo';
+import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/db';
 
 export default function CorporateSignUpForm() {
-  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -20,9 +21,6 @@ export default function CorporateSignUpForm() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [signupStep, setSignupStep] = useState<'form' | 'verify-email'>('form');
-  const [verificationOtp, setVerificationOtp] = useState('');
-  const [otpError, setOtpError] = useState('');
-  const [otpSecondsLeft, setOtpSecondsLeft] = useState(120);
   const [fieldErrors, setFieldErrors] = useState({
     fullName: '',
     email: '',
@@ -40,13 +38,7 @@ export default function CorporateSignUpForm() {
     }
   }, [error]);
 
-  useEffect(() => {
-    if (signupStep !== 'verify-email' || otpSecondsLeft <= 0) return;
-    const timer = setTimeout(() => setOtpSecondsLeft((prev) => prev - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [signupStep, otpSecondsLeft]);
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setFieldErrors({
@@ -93,63 +85,39 @@ export default function CorporateSignUpForm() {
     }
 
     setIsSubmitting(true);
+    const { error: signUpError, data } = await supabase.auth.signUp({
+      email: formData.email.trim(),
+      password: formData.password,
+      options: {
+        data: { full_name: formData.fullName.trim() },
+      },
+    });
 
-    // Mock async registration request
-    setTimeout(() => {
-      const normalizedEmail = formData.email.trim().toLowerCase();
-      const mockExistingEmails = [
-        'existing@company.com',
-        'hr@acme.com',
-        'admin@mogzu.com',
-      ];
-
-      if (mockExistingEmails.includes(normalizedEmail)) {
-        setIsSubmitting(false);
-        setError('This email is already registered. Please login instead.');
-        return;
-      }
-
-      try {
-        console.log('Corporate sign up:', formData);
-        setIsSubmitting(false);
-        setSignupStep('verify-email');
-        setVerificationOtp('');
-        setOtpError('');
-        setOtpSecondsLeft(120);
-      } catch (err) {
-        setIsSubmitting(false);
-        setError('Something went wrong. Please try again or contact support.');
-      }
-    }, 700);
-  };
-
-  const handleVerifyEmailOtp = (e: React.FormEvent) => {
-    e.preventDefault();
-    setOtpError('');
-
-    if (otpSecondsLeft <= 0) {
-      setOtpError('OTP expired. Please resend OTP.');
+    if (signUpError) {
+      setError(signUpError.message);
+      setIsSubmitting(false);
       return;
     }
 
-    if (!/^\d{6}$/.test(verificationOtp.trim())) {
-      setOtpError('Enter a valid 6-digit OTP.');
-      return;
+    // Create user_profiles row immediately if user ID is available
+    if (data?.user?.id) {
+      await db.userProfiles.upsert({
+        id: data.user.id,
+        email: formData.email.trim().toLowerCase(),
+        full_name: formData.fullName.trim(),
+        role: 'l1_employee',
+        status: 'active',
+        corporate_id: null,
+        vendor_id: null,
+        phone: null,
+        avatar_url: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
     }
 
-    // Demo OTP for corporate email verification.
-    if (verificationOtp !== '123456') {
-      setOtpError('Incorrect OTP. Please try again.');
-      return;
-    }
-
-    navigate('/signup/corporate/company-details');
-  };
-
-  const handleResendVerificationOtp = () => {
-    setVerificationOtp('');
-    setOtpError('');
-    setOtpSecondsLeft(120);
+    setIsSubmitting(false);
+    setSignupStep('verify-email');
   };
 
   const handleGoogleSignup = () => {
@@ -357,49 +325,28 @@ export default function CorporateSignUpForm() {
           )}
 
           {signupStep === 'verify-email' && (
-            <form onSubmit={handleVerifyEmailOtp} className="space-y-3">
-              <div className="space-y-1">
-                <p className="text-[11px] text-[#0e1e3f]">
-                  Enter the 6-digit OTP sent to <span className="font-medium">{formData.email.trim()}</span>
-                </p>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  value={verificationOtp}
-                  onChange={(e) => setVerificationOtp(e.target.value.replace(/\D/g, ''))}
-                  placeholder="123456"
-                  className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-900 shadow-sm transition-colors duration-200 placeholder:text-slate-400 focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20"
-                />
-                <p className="text-[10px] text-[#878e9e]">
-                  {otpSecondsLeft > 0 ? `OTP expires in ${otpSecondsLeft}s` : 'OTP expired'}
-                </p>
-                {otpError && <p className="text-[10px] text-[#0e1e3f]">{otpError}</p>}
+            <div className="space-y-4 text-center">
+              <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mx-auto">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                  <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" fill="#22c55e"/>
+                </svg>
               </div>
-
-              <button
-                type="submit"
-                className="h-10 w-full rounded-lg bg-[#2563eb] text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#1d4ed8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563eb]"
-              >
-                Verify Email
-              </button>
-
-              <button
-                type="button"
-                onClick={handleResendVerificationOtp}
-                className="h-10 w-full rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-800 transition-colors duration-200 hover:bg-slate-50"
-              >
-                Resend OTP
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSignupStep('form')}
-                className="h-10 w-full rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-800 transition-colors duration-200 hover:bg-slate-50"
-              >
-                Back to sign up
-              </button>
-            </form>
+              <h2 className="text-[16px] font-semibold text-black">Check your email</h2>
+              <p className="text-[12px] text-[#878e9e] leading-relaxed">
+                We sent a verification link to <strong className="text-black">{formData.email}</strong>.
+                Click it to activate your account.
+              </p>
+              <p className="text-[11px] text-[#878e9e]">
+                Didn't receive it? Check your spam folder or{' '}
+                <button
+                  type="button"
+                  onClick={() => setSignupStep('form')}
+                  className="text-[#2563eb] underline"
+                >
+                  try again
+                </button>.
+              </p>
+            </div>
           )}
 
           {signupStep === 'form' && (

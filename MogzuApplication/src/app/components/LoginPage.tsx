@@ -3,15 +3,15 @@ import { Link, useLocation, useNavigate } from 'react-router';
 import svgPaths from '@/imports/svg-o29bchayym';
 import imgGoogleIcon from 'figma:asset/623e1bc74569caceb0c89f1e0be048c9a6e5221f.png';
 import { MogzuLogo } from '@/app/components/branding/MogzuLogo';
-import { MOGZU_PREFERRED_PORTAL_KEY } from '@/app/lib/vendorOnboardingStorage';
 import { RoleSwitcher } from '@/app/components/global/RoleSwitcher';
 import { RoleBanner } from '@/app/components/global/RoleBanner';
-import { useDemoRole } from '@/app/lib/demoRole';
+import { useAuth } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { setActiveRole } = useDemoRole();
+  const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -42,7 +42,7 @@ export default function LoginPage() {
 
   const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
     setEmailError('');
@@ -58,29 +58,38 @@ export default function LoginPage() {
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      // Mock auth: any password other than this is treated as wrong-password.
-      if (password !== 'Password@123') {
-        setPasswordError('Wrong password. Please try again.');
-        setIsSubmitting(false);
-        return;
+    const { error } = await signIn(email.trim(), password);
+    setIsSubmitting(false);
+
+    if (error) {
+      if (error.toLowerCase().includes('invalid') || error.toLowerCase().includes('credentials')) {
+        setPasswordError('Wrong email or password.');
+      } else if (error.toLowerCase().includes('email') && error.toLowerCase().includes('confirm')) {
+        setFormError('Please verify your email before signing in.');
+      } else {
+        setFormError(error);
       }
+      return;
+    }
 
-      setIsSubmitting(false);
-      const portal = localStorage.getItem(MOGZU_PREFERRED_PORTAL_KEY);
-      navigate(portal === 'vendor' ? '/vendor/dashboard' : '/dashboard');
-    }, 700);
+    // Auth state change in AuthProvider will load profile + trigger re-render
+    // ProtectedRoute handles redirect based on role
+    navigate('/dashboard');
   };
 
-  const handleGoogleLogin = () => {
-    setFormError('Google login will be available soon.');
+  const handleGoogleLogin = async () => {
+    const appUrl = import.meta.env.VITE_APP_URL ?? window.location.origin;
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${appUrl}/auth/callback` },
+    });
   };
 
-  const handleLinkedInLogin = () => {
-    setFormError('LinkedIn login will be available soon.');
+  const handleLinkedInLogin = async () => {
+    setFormError('LinkedIn login coming soon.');
   };
 
-  const handleForgotPasswordSubmit = (e: React.FormEvent) => {
+  const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
     setEmailError('');
@@ -91,26 +100,19 @@ export default function LoginPage() {
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      const normalizedEmail = email.trim().toLowerCase();
-      const mockKnownAccounts = [
-        'existing@company.com',
-        'hr@acme.com',
-        'admin@mogzu.com',
-        'james@mogzu.com',
-      ];
+    const appUrl = import.meta.env.VITE_APP_URL ?? window.location.origin;
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${appUrl}/auth/callback`,
+    });
+    setIsSubmitting(false);
 
-      if (!mockKnownAccounts.includes(normalizedEmail)) {
-        setIsSubmitting(false);
-        setFormError('No account found for this email. Please check and try again.');
-        return;
-      }
+    if (error) {
+      setFormError(error.message);
+      return;
+    }
 
-      setIsSubmitting(false);
-      setOtpSecondsLeft(120);
-      setOtp('');
-      setView('otp');
-    }, 700);
+    setView('otp');
+    setOtpSecondsLeft(120);
   };
 
   const handleOtpVerify = (e: React.FormEvent) => {
@@ -174,7 +176,7 @@ export default function LoginPage() {
             <RoleSwitcher />
           </div>
         </header>
-        <RoleBanner onSwitchToCorporate={() => setActiveRole('corporate')} />
+        <RoleBanner onSwitchToCorporate={() => {}} />
       </div>
       {/* Left Side - Animated Background */}
       <div className="hidden lg:block absolute left-0 top-0 lg:w-[55%] xl:w-[55%] h-full">
@@ -403,44 +405,13 @@ export default function LoginPage() {
           )}
 
           {view === 'otp' && (
-            <form onSubmit={handleOtpVerify} className="space-y-3 sm:space-y-4">
-              <div className="space-y-1">
-                <label htmlFor="otp-code" className="block text-[11px] text-[#0e1e3f]">
-                  Enter 6-digit OTP
-                </label>
-                <input
-                  id="otp-code"
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                  placeholder="123456"
-                  className="w-full h-[40px] px-3 py-2 bg-white border border-[#dde2e4] rounded-md shadow-sm text-[12px] text-black placeholder:text-[#878e9e] focus:outline-none focus:ring-2 focus:ring-[#2563eb] focus:border-transparent"
-                />
-                <p className="text-[10px] text-[#878e9e]">
-                  {otpSecondsLeft > 0 ? `OTP expires in ${otpSecondsLeft}s` : 'OTP expired'}
-                </p>
-                {otpError && <p className="text-[10px] text-[#0e1e3f]">{otpError}</p>}
-              </div>
-              <button
-                type="submit"
-                className="w-full h-[40px] bg-[#2563eb] text-white text-[13px] font-medium rounded-full shadow-md hover:bg-[#1e40af] transition-colors focus:outline-none focus:ring-2 focus:ring-[#2563eb] focus:ring-offset-2"
-              >
-                Verify OTP
-              </button>
-              <button
-                type="button"
-                onClick={handleResendOtp}
-                className="w-full h-[40px] bg-white border border-[#dde2e4] text-[13px] text-[#0e1e3f] font-medium rounded-full"
-              >
-                Resend OTP
-              </button>
+            <div className="space-y-3 sm:space-y-4">
+              <p className="text-[12px] text-[#0e1e3f]">
+                Check your email — we sent a password reset link to <strong>{email}</strong>. It expires in 10 minutes.
+              </p>
               <button
                 type="button"
                 onClick={() => {
-                  setOtp('');
-                  setOtpError('');
                   setFormError('');
                   setView('login');
                 }}
@@ -448,7 +419,7 @@ export default function LoginPage() {
               >
                 Back to login
               </button>
-            </form>
+            </div>
           )}
 
           {view === 'reset' && (

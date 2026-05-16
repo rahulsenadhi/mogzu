@@ -1,21 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { MogzuLogo } from '@/app/components/branding/MogzuLogo';
-import { getAdminSession, setAdminSession } from '@/app/lib/adminSession';
 import svgPaths from '@/imports/svg-o29bchayym';
 import imgGoogleIcon from 'figma:asset/623e1bc74569caceb0c89f1e0be048c9a6e5221f.png';
 import { RoleSwitcher } from '@/app/components/global/RoleSwitcher';
 import { RoleBanner } from '@/app/components/global/RoleBanner';
-import { useDemoRole } from '@/app/lib/demoRole';
-
-/** Mock admin auth: allowed emails + Password@123 (same as corporate demo). */
-const ALLOWED_ADMIN_EMAILS = ['admin@mogzu.com', 'ops@mogzu.com'];
-const MOCK_ADMIN_PASSWORD = 'Password@123';
+import { useAuth, isAdminRole } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 
 export default function AdminLoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { setActiveRole } = useDemoRole();
+  const { signIn, isAuthenticated, role, isLoading } = useAuth();
   const [view, setView] = useState<'login' | 'forgot'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,10 +24,10 @@ export default function AdminLoginPage() {
   const [showSessionTimeoutBanner, setShowSessionTimeoutBanner] = useState(false);
 
   useEffect(() => {
-    if (getAdminSession()) {
+    if (!isLoading && isAuthenticated && isAdminRole(role)) {
       navigate('/admin', { replace: true });
     }
-  }, [navigate]);
+  }, [isLoading, isAuthenticated, role, navigate]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -40,7 +36,7 @@ export default function AdminLoginPage() {
 
   const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
     setEmailError('');
@@ -56,31 +52,38 @@ export default function AdminLoginPage() {
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      const normalized = email.trim().toLowerCase();
-      if (!ALLOWED_ADMIN_EMAILS.includes(normalized)) {
-        setFormError('This account is not authorized for admin access.');
-        setIsSubmitting(false);
-        return;
-      }
-      if (password !== MOCK_ADMIN_PASSWORD) {
-        setPasswordError('Wrong password. Please try again.');
-        setIsSubmitting(false);
-        return;
-      }
+    const { error } = await signIn(email.trim(), password);
+    setIsSubmitting(false);
 
-      setAdminSession(normalized);
-      setIsSubmitting(false);
-      navigate('/admin', { replace: true });
-    }, 700);
+    if (error) {
+      if (error.toLowerCase().includes('invalid') || error.toLowerCase().includes('credentials')) {
+        setPasswordError('Wrong email or password.');
+      } else {
+        setFormError(error);
+      }
+      return;
+    }
+
+    // AuthProvider will load profile; then the useEffect above redirects
+    // If profile is not admin role, show error
   };
 
-  const handleGoogleLogin = () => {
-    setFormError('Google login will be available soon.');
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && !isAdminRole(role) && role !== null) {
+      setFormError('This account does not have administrator access.');
+    }
+  }, [isLoading, isAuthenticated, role]);
+
+  const handleGoogleLogin = async () => {
+    const appUrl = import.meta.env.VITE_APP_URL ?? window.location.origin;
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${appUrl}/auth/callback` },
+    });
   };
 
-  const handleLinkedInLogin = () => {
-    setFormError('LinkedIn login will be available soon.');
+  const handleLinkedInLogin = async () => {
+    setFormError('LinkedIn login coming soon.');
   };
 
   const handleForgotSubmit = (e: React.FormEvent) => {
@@ -105,7 +108,7 @@ export default function AdminLoginPage() {
             <RoleSwitcher />
           </div>
         </header>
-        <RoleBanner onSwitchToCorporate={() => setActiveRole('corporate')} />
+        <RoleBanner onSwitchToCorporate={() => {}} />
       </div>
       {/* Left — same organic orange panel as corporate LoginPage */}
       <div className="hidden lg:block absolute left-0 top-0 lg:w-[55%] xl:w-[55%] h-full min-h-[520px]">

@@ -8,14 +8,16 @@ import {
   type VendorModuleId,
 } from '@/app/data/vendorServiceCatalog';
 import { MogzuLogo } from '@/app/components/branding/MogzuLogo';
-import { submitVendorOnboarding, type VendorOnboardingSubmitPayload } from '@/app/lib/vendorOnboardingApi';
 import { enqueuePendingVendorForAdmin } from '@/app/lib/adminVendorQueueStorage';
+import type { VendorOnboardingSubmitPayload } from '@/app/lib/vendorOnboardingApi';
 import {
   LISTING_SUBMITTED_KEY,
   ONBOARDING_COMPLETED_KEY,
   ONBOARDING_DRAFT_KEY,
   getVendorSignupRedirectPath,
 } from '@/app/lib/vendorOnboardingStorage';
+import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/db';
 import {
   CorporateOnboardingPageShell,
   CorporateOnboardingHeader,
@@ -201,67 +203,89 @@ export default function VendorOnboardingPage() {
   };
 
   const submitFinal = async () => {
-    const payload: VendorOnboardingSubmitPayload = {
-      fullName,
-      businessName,
-      email,
-      phone,
-      city,
-      stateRegion,
-      gstOptional,
-      pitch,
-      selection: VENDOR_SERVICE_MODULES.map((m) => ({ module: m.id, categories: [...selection[m.id]] }))
-        .filter((x) => x.categories.length > 0),
-    };
+    const selectionItems = VENDOR_SERVICE_MODULES
+      .map((m) => ({ module: m.id, categories: [...selection[m.id]] }))
+      .filter((x) => x.categories.length > 0);
 
-    const servicesSummary = payload.selection
+    const servicesSummary = selectionItems
       .map((s) => {
         const mod = VENDOR_SERVICE_MODULES.find((m) => m.id === s.module);
-        const label = mod?.label ?? s.module;
-        return `${label} (${s.categories.join(', ')})`;
+        return `${mod?.label ?? s.module} (${s.categories.join(', ')})`;
       })
       .join(' · ');
 
-    const persistRegistrationLocal = (onboardingId: string) => {
-      localStorage.setItem(ONBOARDING_DRAFT_KEY, JSON.stringify({ ...payload, step: 4 }));
-      localStorage.setItem(
-        ONBOARDING_COMPLETED_KEY,
-        JSON.stringify({
-          onboardingId,
-          submittedAt: Date.now(),
-          fullName,
-          email,
-          businessName,
-          phone,
-          city,
-          stateRegion,
-          selection: payload.selection,
-          servicesSummary: servicesSummary || undefined,
-        })
-      );
-      localStorage.removeItem(LISTING_SUBMITTED_KEY);
-      enqueuePendingVendorForAdmin({
-        onboardingId,
-        businessName,
-        email,
-        fullName,
-        phone,
-        city,
-        stateRegion,
-        servicesSummary: servicesSummary || undefined,
-      });
-      navigate('/signup/vendor/listing', { replace: true });
-    };
+    const primaryModule = selectionItems[0]?.module ?? 'events';
 
     setIsSubmitting(true);
-    try {
-      const res = await submitVendorOnboarding(payload);
-      persistRegistrationLocal(res.onboardingId);
-    } catch {
-      persistRegistrationLocal(`onb-${Date.now()}`);
-    } finally {
+    setError(null);
+
+    // 1. Create Supabase auth user
+    const { data: authData, error: signUpError } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: { data: { full_name: fullName.trim() } },
+    });
+
+    if (signUpError) {
+      setError(signUpError.message);
       setIsSubmitting(false);
+      return;
     }
+
+    const userId = authData?.user?.id;
+    const onboardingId = userId ?? `onb-${Date.now()}`;
+
+    // 2. Create vendor row
+    if (userId) {
+      const { data: vendorRow } = await db.vendors.create({
+        business_name: businessName.trim(),
+        contact_email: email.trim().toLowerCase(),
+        contact_phone: phone.trim(),
+        city: city.trim(),
+        state: stateRegion.trim(),
+        gst_number: gstOptional.trim() || null,
+        description: pitch.trim() || null,
+        primary_module: primaryModule,
+        status: 'pending',
+        rating: null,
+        total_bookings: 0,
+        logo_url: null,
+      });
+
+      // 3. Create user_profiles row
+      await db.userProfiles.upsert({
+        id: userId,
+        email: email.trim().toLowerCase(),
+        full_name: fullName.trim(),
+        role: 'vendor',
+        status: 'active',
+        corporate_id: null,
+        vendor_id: vendorRow?.id ?? null,
+        phone: phone.trim(),
+        avatar_url: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+    }
+
+    // 4. Keep localStorage for admin queue (admin UI still reads this)
+    localStorage.setItem(ONBOARDING_DRAFT_KEY, JSON.stringify({ fullName, businessName, email, phone, city, stateRegion, step: 4 }));
+    localStorage.setItem(ONBOARDING_COMPLETED_KEY, JSON.stringify({
+      onboardingId,
+      submittedAt: Date.now(),
+      fullName,
+      email,
+      businessName,
+      phone,
+      city,
+      stateRegion,
+      servicesSummary: servicesSummary || undefined,
+    }));
+    localStorage.removeItem(LISTING_SUBMITTED_KEY);
+    enqueuePendingVendorForAdmin({ onboardingId, businessName, email, fullName, phone, city, stateRegion, servicesSummary: servicesSummary || undefined });
+
+    setIsSubmitting(false);
+    navigate('/vendor/verification-pending', { replace: true });
   };
 
   const goNext = async () => {

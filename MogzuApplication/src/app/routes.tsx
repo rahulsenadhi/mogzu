@@ -152,6 +152,9 @@ import HeyGeniePage from "@/app/components/HeyGeniePage";
 import { CorporateModuleRouteGuard } from "@/app/components/CorporateModuleRouteGuard";
 import WhyMogzuPage from "@/app/components/WhyMogzuPage";
 import VendorBenefitsPage from "@/app/components/VendorBenefitsPage";
+import { CorporateRoute, VendorRoute, AdminRoute } from '@/app/components/auth/ProtectedRoute'
+import AuthCallbackPage from '@/app/components/auth/AuthCallbackPage'
+import ResetPasswordPage from '@/app/components/auth/ResetPasswordPage'
 
 function VendorListingsRouteRedirect() {
   const profiles = getVendorListingProfileIds();
@@ -281,6 +284,16 @@ export const router = createBrowserRouter([
     errorElement: <ErrorPage />,
   },
   {
+    path: "/auth/callback",
+    element: <AuthCallbackPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/auth/reset-password",
+    element: <ResetPasswordPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
     path: "/signup",
     element: <SignUpPage />,
     errorElement: <ErrorPage />,
@@ -347,7 +360,7 @@ export const router = createBrowserRouter([
   },
   {
     path: "/dashboard",
-    element: <Dashboard />,
+    element: <CorporateRoute><Dashboard /></CorporateRoute>,
     errorElement: <ErrorPage />,
   },
   {
@@ -357,7 +370,7 @@ export const router = createBrowserRouter([
   },
   {
     path: "/admin",
-    element: <AdminLayout />,
+    element: <AdminRoute><AdminLayout /></AdminRoute>,
     errorElement: <ErrorPage />,
     children: [
       { index: true, element: <AdminDashboardPage /> },
@@ -913,7 +926,7 @@ export const router = createBrowserRouter([
   },
   {
     path: "/vendor/dashboard",
-    element: <VendorDashboardPage />,
+    element: <VendorRoute><VendorDashboardPage /></VendorRoute>,
     errorElement: <ErrorPage />,
   },
   {
