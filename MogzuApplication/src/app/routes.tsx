@@ -87,6 +87,7 @@ import BookingPaymentPage from "@/app/components/BookingPaymentPage";
 import CorporateGiftingProgrammePage from "@/app/components/CorporateGiftingProgrammePage";
 import GiftingSendPage from "@/app/components/GiftingSendPage";
 import SpaceBookingPage from "@/app/components/SpaceBookingPage";
+import VendorPayoutsPage from "@/app/components/VendorPayoutsPage";
 import CelebrationsPage from "@/app/components/CelebrationsPage";
 import CelebrationDetailPage from "@/app/components/CelebrationDetailPage";
 import CelebrationBookingFlow from "@/app/components/CelebrationBookingFlow";
@@ -719,6 +720,11 @@ export const router = createBrowserRouter([
   {
     path: "/book/space/:listingId",
     element: <SpaceBookingPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/vendor/payouts",
+    element: <VendorPayoutsPage />,
     errorElement: <ErrorPage />,
   },
   {

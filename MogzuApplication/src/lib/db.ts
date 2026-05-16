@@ -7,6 +7,7 @@ import type {
   BookingAddOn,
   BudgetRule,
   GiftingRule,
+  Payout,
   Refund,
   RoleSwitchEvent,
   CalendarSlot,
@@ -297,6 +298,58 @@ export const bookings = {
       })
       .eq('id', id),
 
+  // Marks a booking completed and schedules a payout 48h out for the vendor.
+  // Net = total - (total * commission_rate snapshot). Story 6.4.
+  completeWithPayout: async (
+    booking: Booking,
+  ): Promise<{ payoutId: string | null; error: string | null }> => {
+    const completedAt = new Date().toISOString()
+    const { error: bookingErr } = await supabase
+      .from('bookings')
+      .update({
+        status: 'completed',
+        completed_at: completedAt,
+        updated_at: completedAt,
+      })
+      .eq('id', booking.id)
+    if (bookingErr) return { payoutId: null, error: bookingErr.message }
+
+    if (booking.payment_status !== 'paid' || !booking.total_amount) {
+      // No payout if booking was never paid.
+      return { payoutId: null, error: null }
+    }
+
+    const rate = booking.commission_rate ?? 0
+    const gross = booking.total_amount
+    const commission = Math.round(gross * rate)
+    const net = gross - commission
+    const scheduledFor = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
+
+    const { data: payout, error: payoutErr } = await supabase
+      .from('payouts')
+      .insert({
+        booking_id: booking.id,
+        vendor_id: booking.vendor_id,
+        gross_amount: gross,
+        commission_amount: commission,
+        net_amount: net,
+        commission_rate: rate,
+        status: 'scheduled',
+        scheduled_for: scheduledFor,
+        processed_at: null,
+        gateway_reference: null,
+        hold_reason: null,
+        failure_reason: null,
+      })
+      .select()
+      .single()
+
+    if (payoutErr || !payout) {
+      return { payoutId: null, error: payoutErr?.message ?? 'Payout insert failed' }
+    }
+    return { payoutId: payout.id, error: null }
+  },
+
   addAddOns: async (rows: Omit<BookingAddOn, 'id'>[]) =>
     rows.length === 0
       ? { data: [], error: null }
@@ -476,6 +529,59 @@ export const commissions = {
     supabase.from('commissions').update({ is_active: false }).eq('id', id),
 }
 
+// ─── Vendor Payouts (Story 6.4) ───────────────────────────────────────────────
+
+export const payouts = {
+  create: async (data: Omit<Payout, 'id' | 'created_at' | 'updated_at'>) =>
+    supabase.from('payouts').insert(data).select().single(),
+
+  listByVendor: async (vendorId: string) =>
+    supabase
+      .from('payouts')
+      .select('*, bookings(listings(title), corporate_accounts(name))')
+      .eq('vendor_id', vendorId)
+      .order('scheduled_for', { ascending: false }),
+
+  listDue: async () =>
+    supabase
+      .from('payouts')
+      .select('*, vendors(business_name, bank_account_verified)')
+      .eq('status', 'scheduled')
+      .lte('scheduled_for', new Date().toISOString())
+      .order('scheduled_for'),
+
+  markProcessed: async (id: string, gatewayReference: string) =>
+    supabase
+      .from('payouts')
+      .update({
+        status: 'processed',
+        gateway_reference: gatewayReference,
+        processed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id),
+
+  hold: async (id: string, reason: string) =>
+    supabase
+      .from('payouts')
+      .update({
+        status: 'held',
+        hold_reason: reason,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id),
+
+  markFailed: async (id: string, reason: string) =>
+    supabase
+      .from('payouts')
+      .update({
+        status: 'failed',
+        failure_reason: reason,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id),
+}
+
 // ─── Refunds (Story 6.3) ──────────────────────────────────────────────────────
 
 export const refunds = {
@@ -594,6 +700,7 @@ export const db = {
   commissions,
   categories,
   giftingRules,
+  payouts,
   refunds,
   roleSwitchEvents,
 }

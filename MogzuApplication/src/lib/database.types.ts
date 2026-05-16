@@ -219,6 +219,26 @@ export interface BookingAddOn {
   quantity: number
 }
 
+export type PayoutStatus = 'scheduled' | 'processed' | 'held' | 'failed'
+
+export interface Payout {
+  id: string
+  booking_id: string
+  vendor_id: string
+  gross_amount: number
+  commission_amount: number
+  net_amount: number
+  commission_rate: number | null
+  status: PayoutStatus
+  scheduled_for: string
+  processed_at: string | null
+  gateway_reference: string | null
+  hold_reason: string | null
+  failure_reason: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type RefundMethod = 'wallet' | 'card' | 'upi'
 export type RefundStatus = 'pending' | 'processed' | 'failed'
 
@@ -362,6 +382,11 @@ export interface Database {
         Row: GiftingRule
         Insert: Omit<GiftingRule, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<GiftingRule, 'id' | 'created_at'>>
+      }
+      payouts: {
+        Row: Payout
+        Insert: Omit<Payout, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<Payout, 'id' | 'created_at'>>
       }
       refunds: {
         Row: Refund
