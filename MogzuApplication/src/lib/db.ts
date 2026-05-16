@@ -213,6 +213,9 @@ export const calendar = {
       .from('calendar_slots')
       .update({ slot_type: 'booked', booking_id: bookingId })
       .eq('id', slotId),
+
+  deleteByBooking: async (bookingId: string) =>
+    supabase.from('calendar_slots').delete().eq('booking_id', bookingId),
 }
 
 // ─── Bookings ─────────────────────────────────────────────────────────────────

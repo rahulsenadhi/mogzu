@@ -1188,6 +1188,11 @@ export const router = createBrowserRouter([
     errorElement: <ErrorPage />,
   },
   {
+    path: "/bookings/:id/reschedule",
+    element: <RescheduleBookingPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
     path: "/reschedule-booking",
     element: <RescheduleBookingPage />,
     errorElement: <ErrorPage />,
