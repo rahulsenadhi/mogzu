@@ -48,6 +48,12 @@ Use this for significant implementation updates.
 
 Latest entries:
 - Date: 2026-05-16
+- Summary: Sprint 7 — Employee books space (5.2). New `SpaceBookingPage` at `/book/space/:listingId`. 4-step wizard: Slot (month picker + start/end hour selects, hours conflicting with `calendar_slots` shown disabled) → Attendees (enforced against listing min/max capacity) → Add-ons → Review/submit. Hourly pricing multiplies base × hours; daily pricing uses fixed rate; flat falls back to a single charge. Final pre-submit overlap re-check guards against race conditions. Confirmation shows reference, address, slot, status, and a placeholder QR tile noting access instructions arrive once vendor confirms. Confirmation has both "Proceed to payment" (→ `/bookings/:id/pay`) and "View bookings" CTAs. All P0 booking flows now wired end-to-end.
+- Files changed: `MogzuApplication/src/app/components/SpaceBookingPage.tsx`, `MogzuApplication/src/app/routes.tsx`
+- Verification performed: `npm run build` clean
+- Risks / notes: QR rendered as static `QrCode` icon placeholder — real QR requires `qrcode.react` or similar lib; access code generation deferred to confirmation/Resend wiring. Modification window enforcement (24h before check-in → cancellation fee) shown only as policy copy; actual cancel handler in `CancelBookingPage` not yet wired to this rule. Calendar overlap check is client-side; concurrent bookings need server-side exclusion (Postgres exclusion constraint or RPC). All P0 stories shipped — Sprint 7 stabilisation buffer remaining.
+- Owner: Project team
+- Date: 2026-05-16
 - Summary: Sprint 6 — Vendor unified orders dashboard (8.1). Replaced mock-data `VendorOrdersPage` with real Supabase `db.bookings.listByVendor`. Single table across modules with: stat cards (total / awaiting confirmation / confirmed / confirmed revenue), filters (search ID/customer/listing, module, status, from/to date), CSV export of the current filtered view, sort by status priority then created_at desc. Click View → existing `/vendor/booking-requests/:bookingId` detail (reuses confirm/reject UI). Realtime via `realtimeService.watchVendorBookings`.
 - Files changed: `MogzuApplication/src/app/components/VendorOrdersPage.tsx`
 - Verification performed: `npm run build` clean
