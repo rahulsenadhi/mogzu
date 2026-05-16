@@ -4,6 +4,7 @@
 import { supabase } from './supabase'
 import type {
   Booking,
+  BookingAddOn,
   BudgetRule,
   CalendarSlot,
   Commission,
@@ -292,6 +293,11 @@ export const bookings = {
         updated_at: new Date().toISOString(),
       })
       .eq('id', id),
+
+  addAddOns: async (rows: Omit<BookingAddOn, 'id'>[]) =>
+    rows.length === 0
+      ? { data: [], error: null }
+      : supabase.from('booking_add_ons').insert(rows).select(),
 }
 
 // ─── Budgets ──────────────────────────────────────────────────────────────────

@@ -48,6 +48,12 @@ Use this for significant implementation updates.
 
 Latest entries:
 - Date: 2026-05-16
+- Summary: Sprint 4 — Employee event booking flow (3.2). New `EventBookingPage` at `/book/event/:listingId` with 4-step wizard (Date → Group → Add-ons → Review). Calendar shows vendor's booked/blocked days strikethrough from `calendar_slots`. Group size enforces listing min/max capacity. Live price recalc (base × group multiplier for per_person + add-on totals + 5% platform fee). Budget-rule check decides between `pending_approval` (above auto-approve threshold) and `pending_vendor` (24h vendor SLA). Adds `db.bookings.addAddOns` helper.
+- Files changed: `MogzuApplication/src/lib/db.ts`, `MogzuApplication/src/app/components/EventBookingPage.tsx`, `MogzuApplication/src/app/routes.tsx`
+- Verification performed: `npm run build` clean
+- Risks / notes: Event hours hardcoded 10am–6pm at submit — real time-of-day picker deferred. Email confirmation deferred (Resend not wired). Existing mock `BookingFlow` / `ActivityBookingFlow` etc. left untouched; new flow is opt-in via the dedicated route. Approval decision uses first matching budget rule (module-specific first, else company-wide) — multi-rule precedence not yet enforced.
+- Owner: Project team
+- Date: 2026-05-16
 - Summary: Sprint 4 — L2 manager approval queue (2.2). Replaced mock data on `CorporateApprovalsPage` and `CorporateApprovalDetailPage` with real Supabase `db.bookings`. Queue tabs (Pending/Approved/Rejected) map to BookingStatus (`pending_approval`, `pending_vendor|confirmed|completed`, `cancelled`). Approve via `db.bookings.approve` → moves to `pending_vendor`; reject via `db.bookings.cancel(reason)`. Bulk-approve via checkboxes on Pending tab. Role guard: only `l2_manager` / `l3_admin` can access. Realtime via `realtimeService.watchCorporateBookings`.
 - Files changed: `MogzuApplication/src/app/components/CorporateApprovalsPage.tsx`, `CorporateApprovalDetailPage.tsx`
 - Verification performed: `npm run build` clean

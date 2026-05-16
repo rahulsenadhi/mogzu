@@ -80,6 +80,7 @@ import GiftingSpecialTabsPage from "@/app/components/GiftingSpecialTabsPage";
 import ProductBookingPage from "@/app/components/ProductBookingPage";
 import ApparelTestPage from "@/app/components/ApparelTestPage";
 import BookingFlow from "@/app/components/BookingFlow";
+import EventBookingPage from "@/app/components/EventBookingPage";
 import CelebrationsPage from "@/app/components/CelebrationsPage";
 import CelebrationDetailPage from "@/app/components/CelebrationDetailPage";
 import CelebrationBookingFlow from "@/app/components/CelebrationBookingFlow";
@@ -672,6 +673,11 @@ export const router = createBrowserRouter([
   {
     path: "/booking-flow",
     element: <BookingFlow />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/book/event/:listingId",
+    element: <EventBookingPage />,
     errorElement: <ErrorPage />,
   },
   {
