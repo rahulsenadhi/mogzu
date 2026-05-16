@@ -84,6 +84,7 @@ import EventBookingPage from "@/app/components/EventBookingPage";
 import VendorBookingRequestsPage from "@/app/components/VendorBookingRequestsPage";
 import AdminCommissionsPage from "@/app/components/AdminCommissionsPage";
 import BookingPaymentPage from "@/app/components/BookingPaymentPage";
+import CorporateGiftingProgrammePage from "@/app/components/CorporateGiftingProgrammePage";
 import CelebrationsPage from "@/app/components/CelebrationsPage";
 import CelebrationDetailPage from "@/app/components/CelebrationDetailPage";
 import CelebrationBookingFlow from "@/app/components/CelebrationBookingFlow";
@@ -701,6 +702,11 @@ export const router = createBrowserRouter([
   {
     path: "/bookings/:id/pay",
     element: <BookingPaymentPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/corporate/gifting-programme",
+    element: <CorporateGiftingProgrammePage />,
     errorElement: <ErrorPage />,
   },
   {

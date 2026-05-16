@@ -218,6 +218,24 @@ export interface BookingAddOn {
   quantity: number
 }
 
+export type GiftingTriggerKind = 'fixed_date' | 'birthday' | 'work_anniversary' | 'manual'
+
+export interface GiftingRule {
+  id: string
+  corporate_id: string
+  occasion_name: string
+  trigger_kind: GiftingTriggerKind
+  trigger_date: string | null
+  budget_per_recipient: number
+  requires_approval: boolean
+  scope: 'company' | 'department'
+  scope_value: string | null
+  preferred_vendor_ids: string[]
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 export interface Commission {
   id: string
   scope: 'global' | 'vendor' | 'module' | 'category'
@@ -309,6 +327,11 @@ export interface Database {
         Row: Commission
         Insert: Omit<Commission, 'id' | 'created_at'>
         Update: Partial<Omit<Commission, 'id' | 'created_at'>>
+      }
+      gifting_rules: {
+        Row: GiftingRule
+        Insert: Omit<GiftingRule, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<GiftingRule, 'id' | 'created_at'>>
       }
     }
   }

@@ -48,6 +48,12 @@ Use this for significant implementation updates.
 
 Latest entries:
 - Date: 2026-05-16
+- Summary: Sprint 6 — L3 gifting programme (4.1). New `gifting_rules` Supabase table with RLS (corporate members read; only l3_admin / mogzu_admin mutate within own corporate). Columns: occasion_name, trigger_kind (fixed_date / birthday / work_anniversary / manual), trigger_date, budget_per_recipient, requires_approval, scope (company/department), scope_value, preferred_vendor_ids[]. New `GiftingRule` + `GiftingTriggerKind` types, `db.giftingRules` namespace (list/create/update/deactivate). New `CorporateGiftingProgrammePage` at `/corporate/gifting-programme`: lists rules with occasion badge, budget, approval mode, scope, preferred-vendor chips; modal form for create/edit with vendor chip-picker; deactivate keeps row for audit.
+- Files changed: `MogzuApplication/supabase/migrations/20260516000004_gifting_rules.sql`, `MogzuApplication/src/lib/database.types.ts`, `MogzuApplication/src/lib/db.ts`, `MogzuApplication/src/app/components/CorporateGiftingProgrammePage.tsx`, `MogzuApplication/src/app/routes.tsx`
+- Verification performed: `npm run build` clean
+- Risks / notes: Migration must be applied to Supabase via `supabase db push` (or MCP) before the page works in prod — local types added optimistically. HRMS trigger source (birthday/anniversary) requires N8N workflow to evaluate dynamic triggers daily — not built yet. Sprint 6 next: 4.2 employee sends gift, 8.1 vendor orders dashboard.
+- Owner: Project team
+- Date: 2026-05-16
 - Summary: Sprint 6 — Admin gifting product approval (4.5). Rebuilt `AdminGiftingProductsPage` and `AdminGiftingProductDetailPage` from mock `adminGiftingStore` to Supabase `listings` module='gifting'. Queue: tabs (Pending/Approved/Rejected/Paused/All), thumbnails via `storageService.giftImages`. Bulk approve and bulk reject; rejection captures `metadata.rejectionReason`, `metadata.rejectionFields[]`, and audit (`rejectedBy`, `rejectedAt`). Same-vendor selection highlighted to encourage post-trust bulk approval. Detail view renders all stored metadata (MOQ, GST, variants, bulk tiers, branding, delivery cities, packaging, inventory) + rejection panel for rejected products. Approve flips `status='active'` so listing appears in shop (visible via `listings.listByModule('gifting','active')`).
 - Files changed: `MogzuApplication/src/app/components/AdminGiftingProductsPage.tsx`, `AdminGiftingProductDetailPage.tsx`
 - Verification performed: `npm run build` clean

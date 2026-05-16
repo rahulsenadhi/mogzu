@@ -6,6 +6,7 @@ import type {
   Booking,
   BookingAddOn,
   BudgetRule,
+  GiftingRule,
   CalendarSlot,
   Commission,
   CorporateAccount,
@@ -393,6 +394,31 @@ export const commissions = {
     supabase.from('commissions').update({ is_active: false }).eq('id', id),
 }
 
+// ─── Gifting Rules (Story 4.1) ────────────────────────────────────────────────
+
+export const giftingRules = {
+  listByCorporate: async (corporateId: string) =>
+    supabase
+      .from('gifting_rules')
+      .select('*')
+      .eq('corporate_id', corporateId)
+      .order('created_at', { ascending: false }),
+
+  create: async (data: Omit<GiftingRule, 'id' | 'created_at' | 'updated_at'>) =>
+    supabase.from('gifting_rules').insert(data).select().single(),
+
+  update: async (id: string, data: Partial<GiftingRule>) =>
+    supabase
+      .from('gifting_rules')
+      .update({ ...data, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single(),
+
+  deactivate: async (id: string) =>
+    supabase.from('gifting_rules').update({ is_active: false }).eq('id', id),
+}
+
 // ─── Categories ───────────────────────────────────────────────────────────────
 
 export const categories = {
@@ -427,4 +453,5 @@ export const db = {
   wallet,
   commissions,
   categories,
+  giftingRules,
 }
