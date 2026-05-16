@@ -47,6 +47,18 @@ Template:
 Use this for significant implementation updates.
 
 Latest entries:
+- Date: 2026-05-16
+- Summary: Sprint 3 — Vendor calendar (8.2). Refactored `VendorCalendarPage` from mock state to real Supabase. Week-based view, block/unblock slot modals, real-time `calendar_slots` subscription, listing-scoped slots, today highlight.
+- Files changed: `MogzuApplication/src/app/components/VendorCalendarPage.tsx`
+- Verification performed: `npm run build` clean
+- Risks / notes: Recurring blocks + buffer time (acceptance criteria from 5.3) deferred. Drag-to-block UX uses single-cell click instead of drag for simplicity. Multi-listing scoping shown via badge in slot card; per-listing filter view not yet added.
+- Owner: Project team
+- Date: 2026-05-16
+- Summary: Sprint 2 — admin portal + budget foundation (9.1, 9.3, 2.1). Wired real Supabase data across three pages; replaced all mock data and setTimeout patterns.
+- Files changed: `src/lib/auth.ts`, `src/app/components/AdminClientManagementPage.tsx`, `src/app/components/CorporateModuleRouteGuard.tsx`, `src/app/components/CorporateBudgetPage.tsx`
+- Verification performed: `npm run build` clean after each story
+- Risks / notes: Budget enforcement at booking time (block over-budget bookings) deferred to Sprint 3 booking flows. `heyGenie` module has no DB `ModuleId` yet — route guard falls back to global platform setting for it.
+- Owner: Project team
 - Date: 2026-04-22
 - Summary: Refined gifting navigation chrome to blend with `MogzuAmbientBackdrop`: transparent in-page nav strip, cream-aligned breadcrumb and tab chips, and `SharedHeader` `blended` variant on gifting pages
 - Files changed: `MogzuApplication/src/app/components/GiftingPage.tsx`, `GiftingShopPage.tsx`, `CelebrationsPage.tsx`, `GiftingSpecialTabsPage.tsx`, `layouts/SharedHeader.tsx`, `memory.md`
