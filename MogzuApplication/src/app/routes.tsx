@@ -64,8 +64,10 @@ import PartnerClientsPage from "@/app/components/PartnerClientsPage";
 import PartnerListingsPage from "@/app/components/PartnerListingsPage";
 import PartnerListingFormPage from "@/app/components/PartnerListingFormPage";
 import PartnerInvoicePage from "@/app/components/PartnerInvoicePage";
+import PartnerStatementPage from "@/app/components/PartnerStatementPage";
 import AdminPartnerAgreementPage from "@/app/pages/admin/AdminPartnerAgreementPage";
 import AdminPartnerPayoutsPage from "@/app/pages/admin/AdminPartnerPayoutsPage";
+import AdminPendingListingsPage from "@/app/pages/admin/AdminPendingListingsPage";
 import ShortlistCorporatePage from "@/app/pages/ShortlistCorporatePage";
 import AdminLoginPage from "@/app/components/AdminLoginPage";
 import ActivitySuite from "@/app/components/ActivitySuite";
@@ -451,6 +453,7 @@ export const router = createBrowserRouter([
       { path: "heygenie", element: <AdminHeyGenieConfigPage /> },
       { path: "partners/:id/agreement", element: <AdminPartnerAgreementPage /> },
       { path: "partner-payouts", element: <AdminPartnerPayoutsPage /> },
+      { path: "listings/queue", element: <AdminPendingListingsPage /> },
       { path: "mogzu-orders", element: <AdminMogzuOrdersPage /> },
     ],
   },
@@ -507,6 +510,11 @@ export const router = createBrowserRouter([
   {
     path: "/invoice/:token",
     element: <PartnerInvoicePage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/partner/statements/:yyyymm",
+    element: <PartnerStatementPage />,
     errorElement: <ErrorPage />,
   },
   {

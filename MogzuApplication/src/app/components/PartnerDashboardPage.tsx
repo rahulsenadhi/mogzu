@@ -1,12 +1,26 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
-import { Check, Copy, Loader2, ShieldAlert, Sparkles } from 'lucide-react'
+import { Check, Copy, FileText, Loader2, ShieldAlert, Sparkles } from 'lucide-react'
+import {
+  Bar,
+  CartesianGrid,
+  ComposedChart,
+  Legend,
+  Line,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import { MogzuLogo } from '@/app/components/branding/MogzuLogo'
 import { useAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import type {
+  CorporateAccount,
+  Listing,
   Partner,
   PartnerAgreement,
+  PartnerPayoutPeriod,
   PartnerReferral,
   PartnerWallet,
   PartnerWalletTransaction,
@@ -35,6 +49,9 @@ export default function PartnerDashboardPage() {
   const [referrals, setReferrals] = useState<PartnerReferral[]>([])
   const [wallet, setWallet] = useState<PartnerWallet | null>(null)
   const [txns, setTxns] = useState<PartnerWalletTransaction[]>([])
+  const [clients, setClients] = useState<CorporateAccount[]>([])
+  const [listings, setListings] = useState<Listing[]>([])
+  const [periods, setPeriods] = useState<PartnerPayoutPeriod[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
@@ -52,16 +69,22 @@ export default function PartnerDashboardPage() {
     }
     setPartner(p as Partner)
 
-    const [agRes, refRes, walletRes, txRes] = await Promise.all([
+    const [agRes, refRes, walletRes, txRes, clientRes, listingRes, periodRes] = await Promise.all([
       db.partnerAgreements.getCurrent(p.id),
       db.partnerReferrals.listByPartner(p.id),
       db.partnerWallets.getByPartner(p.id),
       db.partnerWallets.listTransactions(p.id, 20),
+      db.partnerClients.listByPartner(p.id),
+      db.partnerListings.listByPartner(p.id),
+      db.partnerPayouts.listLast12Months(p.id),
     ])
     setAgreement((agRes.data as PartnerAgreement | null) ?? null)
     setReferrals(((refRes.data ?? []) as PartnerReferral[]) ?? [])
     setWallet((walletRes.data as PartnerWallet | null) ?? null)
     setTxns(((txRes.data ?? []) as PartnerWalletTransaction[]) ?? [])
+    setClients(((clientRes.data ?? []) as CorporateAccount[]) ?? [])
+    setListings(((listingRes.data ?? []) as Listing[]) ?? [])
+    setPeriods(((periodRes.data ?? []) as PartnerPayoutPeriod[]) ?? [])
     setLoading(false)
   }, [profile])
 
@@ -75,6 +98,55 @@ export default function PartnerDashboardPage() {
     const earned = referrals.reduce((sum, r) => sum + Number(r.commission_amount ?? 0), 0)
     return { signedUp, activated, earned }
   }, [referrals])
+
+  const liveListings = useMemo(
+    () => listings.filter((l) => l.status === 'active').length,
+    [listings],
+  )
+
+  const pendingPayout = useMemo(
+    () =>
+      periods
+        .filter((p) => p.status === 'pending')
+        .reduce((sum, p) => sum + Number(p.total_amount), 0),
+    [periods],
+  )
+
+  // Lifetime earnings split for breakdown card.
+  const lifetimeBreakdown = useMemo(() => {
+    const referralCommission = txns
+      .filter((t) => t.type === 'commission')
+      .reduce((sum, t) => sum + Number(t.amount), 0)
+    const resaleMargin = periods.reduce((sum, p) => sum + Number(p.resale_margin), 0)
+    const productShare = periods.reduce((sum, p) => sum + Number(p.product_share), 0)
+    return { referralCommission, resaleMargin, productShare }
+  }, [txns, periods])
+
+  // Trailing-12-month chart series. Fill empty months with zeros so the
+  // x-axis stays continuous even for new partners.
+  const trendData = useMemo(() => {
+    const now = new Date()
+    const series: {
+      label: string
+      yyyymm: string
+      resale: number
+      product: number
+      total: number
+    }[] = []
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const yyyymm = d.getFullYear().toString() + String(d.getMonth() + 1).padStart(2, '0')
+      const period = periods.find((p) => p.period_yyyymm === yyyymm)
+      series.push({
+        label: d.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' }),
+        yyyymm,
+        resale: Number(period?.resale_margin ?? 0),
+        product: Number(period?.product_share ?? 0),
+        total: Number(period?.total_amount ?? 0),
+      })
+    }
+    return series
+  }, [periods])
 
   const referralLink = partner?.referral_code
     ? `${window.location.origin}/partner-ref/${partner.referral_code}`
@@ -215,15 +287,80 @@ export default function PartnerDashboardPage() {
 
       <MarkupCard partner={partner} onChange={(next) => setPartner({ ...partner, default_markup_pct: next })} />
 
-      <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Referrals signed up" value={stats.signedUp.toString()} />
-        <Stat label="Activated (first booking)" value={stats.activated.toString()} />
-        <Stat label="Commission earned" value={fmtMoney(stats.earned)} />
-        <Stat
-          label="Wallet balance"
-          value={fmtMoney(wallet?.balance ?? 0)}
-          accent
-        />
+      <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <Stat label="Active referrals" value={stats.activated.toString()} />
+        <Stat label="Reseller clients" value={clients.length.toString()} />
+        <Stat label="Live listings" value={liveListings.toString()} />
+        <Stat label="Wallet balance" value={fmtMoney(wallet?.balance ?? 0)} accent />
+        <Stat label="Pending payout" value={fmtMoney(pendingPayout)} />
+      </section>
+
+      <section className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h3 className="text-sm font-semibold text-slate-900">Earnings breakdown (lifetime)</h3>
+          <ul className="mt-3 space-y-2 text-xs">
+            <BreakdownRow label="Referral commission" value={lifetimeBreakdown.referralCommission} />
+            <BreakdownRow label="Reseller margin" value={lifetimeBreakdown.resaleMargin} />
+            <BreakdownRow label="Product revenue share" value={lifetimeBreakdown.productShare} />
+            <li className="flex items-center justify-between border-t border-slate-100 pt-2 font-semibold">
+              <span className="text-slate-900">Total</span>
+              <span className="text-slate-900">
+                {fmtMoney(
+                  lifetimeBreakdown.referralCommission +
+                    lifetimeBreakdown.resaleMargin +
+                    lifetimeBreakdown.productShare,
+                )}
+              </span>
+            </li>
+          </ul>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:col-span-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-900">Monthly earnings (last 12)</h3>
+            <p className="text-[11px] text-slate-500">Resale + product share</p>
+          </div>
+          <div className="mt-3 h-56 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={trendData} margin={{ top: 8, right: 8, bottom: 0, left: -10 }}>
+                <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="label" fontSize={10} stroke="#94a3b8" />
+                <YAxis fontSize={10} stroke="#94a3b8" tickFormatter={(v) => `₹${v / 1000}k`} />
+                <Tooltip
+                  formatter={(v: number) => `₹ ${Number(v).toLocaleString('en-IN')}`}
+                  labelStyle={{ fontSize: 11 }}
+                />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="resale" name="Resale margin" stackId="a" fill="#6366f1" />
+                <Bar dataKey="product" name="Product share" stackId="a" fill="#f59e0b" />
+                <Line dataKey="total" name="Total" stroke="#0f172a" strokeWidth={2} dot={false} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </section>
+
+      <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-slate-900">Monthly statements</h3>
+          <p className="text-[11px] text-slate-500">Click a month to download the statement.</p>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {trendData
+            .filter((m) => m.total > 0)
+            .map((m) => (
+              <Link
+                key={m.yyyymm}
+                to={`/partner/statements/${m.yyyymm}`}
+                className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-indigo-300 hover:bg-indigo-50"
+              >
+                <FileText className="size-3" />
+                {m.label} · {fmtMoney(m.total)}
+              </Link>
+            ))}
+          {trendData.every((m) => m.total === 0) && (
+            <p className="text-xs text-slate-500">No statements yet. Complete a booking to populate.</p>
+          )}
+        </div>
       </section>
 
       {agreement && (
@@ -291,6 +428,17 @@ export default function PartnerDashboardPage() {
         </section>
       )}
     </div>
+  )
+}
+
+function BreakdownRow({ label, value }: { label: string; value: number }) {
+  return (
+    <li className="flex items-center justify-between">
+      <span className="text-slate-600">{label}</span>
+      <span className="font-medium text-slate-900">
+        ₹ {Number(value).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+      </span>
+    </li>
   )
 }
 

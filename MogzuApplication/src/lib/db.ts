@@ -917,6 +917,27 @@ export const partnerPayouts = {
       .eq('partner_id', partnerId)
       .order('period_yyyymm', { ascending: false }),
 
+  listLast12Months: async (partnerId: string) => {
+    const now = new Date()
+    const start = new Date(now.getFullYear(), now.getMonth() - 11, 1)
+    const startYyyymm =
+      start.getFullYear().toString() + String(start.getMonth() + 1).padStart(2, '0')
+    return supabase
+      .from('partner_payout_periods')
+      .select('*')
+      .eq('partner_id', partnerId)
+      .gte('period_yyyymm', startYyyymm)
+      .order('period_yyyymm', { ascending: true })
+  },
+
+  getMonth: async (partnerId: string, yyyymm: string) =>
+    supabase
+      .from('partner_payout_periods')
+      .select('*')
+      .eq('partner_id', partnerId)
+      .eq('period_yyyymm', yyyymm)
+      .maybeSingle(),
+
   markPaid: async (periodId: string, adminId: string, note?: string) =>
     supabase.rpc('mark_partner_payout_paid', {
       p_period_id: periodId,
@@ -926,6 +947,44 @@ export const partnerPayouts = {
 
   accrue: async (bookingId: string) =>
     supabase.rpc('accrue_partner_earnings', { p_booking_id: bookingId }),
+}
+
+export const partnerStatements = {
+  // Resale bookings completed in [start, end) where this partner was the
+  // resale partner (booking.partner_id), used to itemise the margin.
+  resaleBookingsForMonth: async (partnerId: string, startIso: string, endIso: string) =>
+    supabase
+      .from('bookings')
+      .select('id, listing_id, total_amount, partner_margin_amount, completed_at, corporate_id, listings(title), corporate_accounts(name)')
+      .eq('partner_id', partnerId)
+      .eq('status', 'completed')
+      .gte('completed_at', startIso)
+      .lt('completed_at', endIso)
+      .order('completed_at', { ascending: true }),
+
+  // Bookings against partner-owned listings completed in the window, used
+  // for the product revenue-share line items.
+  productBookingsForMonth: async (partnerId: string, startIso: string, endIso: string) =>
+    supabase
+      .from('bookings')
+      .select('id, listing_id, total_amount, completed_at, corporate_id, listings!inner(title, owner_partner_id), corporate_accounts(name)')
+      .eq('status', 'completed')
+      .eq('listings.owner_partner_id', partnerId)
+      .gte('completed_at', startIso)
+      .lt('completed_at', endIso)
+      .order('completed_at', { ascending: true }),
+
+  // Referrals that activated (first booking) inside the window — the
+  // referral commission ledger lives in partner_wallet_transactions.
+  referralCommissionsForMonth: async (partnerId: string, startIso: string, endIso: string) =>
+    supabase
+      .from('partner_wallet_transactions')
+      .select('id, amount, created_at, referral_id, booking_id, partner_referrals(referred_corporate_id, corporate_accounts:referred_corporate_id(name))')
+      .eq('partner_id', partnerId)
+      .eq('type', 'commission')
+      .gte('created_at', startIso)
+      .lt('created_at', endIso)
+      .order('created_at', { ascending: true }),
 }
 
 export const partnerWallets = {
@@ -1699,4 +1758,5 @@ export const db = {
   partnerListings,
   partnerClients,
   partnerPayouts,
+  partnerStatements,
 }
