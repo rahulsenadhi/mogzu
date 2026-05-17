@@ -95,6 +95,9 @@ import EmployeeSpendPage from "@/app/components/EmployeeSpendPage";
 import CorporateSpendReportPage from "@/app/components/CorporateSpendReportPage";
 import SupportPage, { VendorSupportPage } from "@/app/components/SupportPage";
 import AdminSupportPage from "@/app/components/AdminSupportPage";
+import CorporateCelebrationsPage from "@/app/components/CorporateCelebrationsPage";
+import ManagerCelebrationsPage from "@/app/components/ManagerCelebrationsPage";
+import AccountManagerPortfolioPage from "@/app/components/AccountManagerPortfolioPage";
 import CelebrationsPage from "@/app/components/CelebrationsPage";
 import CelebrationDetailPage from "@/app/components/CelebrationDetailPage";
 import CelebrationBookingFlow from "@/app/components/CelebrationBookingFlow";
@@ -787,6 +790,21 @@ export const router = createBrowserRouter([
   {
     path: "/admin/support/:id",
     element: <AdminSupportPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/corporate/celebrations",
+    element: <CorporateCelebrationsPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/celebrations/team",
+    element: <ManagerCelebrationsPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/am/portfolio",
+    element: <AccountManagerPortfolioPage />,
     errorElement: <ErrorPage />,
   },
   {

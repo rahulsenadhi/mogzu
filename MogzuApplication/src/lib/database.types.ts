@@ -307,6 +307,36 @@ export interface NotificationPreference {
   updated_at: string
 }
 
+export type CelebrationStatus =
+  | 'scheduled'
+  | 'personalised'
+  | 'suppressed'
+  | 'fired'
+  | 'failed'
+
+export interface CelebrationEvent {
+  id: string
+  corporate_id: string
+  gifting_rule_id: string
+  employee_id: string
+  manager_id: string | null
+  occasion_name: string
+  trigger_date: string
+  status: CelebrationStatus
+  default_listing_id: string | null
+  listing_id_override: string | null
+  budget_override: number | null
+  manager_message: string | null
+  personalised_at: string | null
+  suppressed_at: string | null
+  suppressed_reason: string | null
+  fired_booking_id: string | null
+  fired_at: string | null
+  failure_reason: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface Employee {
   id: string
   corporate_id: string
@@ -506,6 +536,11 @@ export interface Database {
         Row: NotificationPreference
         Insert: Omit<NotificationPreference, 'created_at' | 'updated_at'>
         Update: Partial<Omit<NotificationPreference, 'created_at'>>
+      }
+      celebration_events: {
+        Row: CelebrationEvent
+        Insert: Omit<CelebrationEvent, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<CelebrationEvent, 'id' | 'created_at'>>
       }
       employees: {
         Row: Employee

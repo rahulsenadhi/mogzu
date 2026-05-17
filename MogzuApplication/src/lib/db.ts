@@ -7,6 +7,7 @@ import type {
   Booking,
   BookingAddOn,
   BudgetRule,
+  CelebrationEvent,
   Employee,
   GiftingRule,
   Notification,
@@ -46,6 +47,13 @@ export const corporateAccounts = {
 
   list: async () =>
     supabase.from('corporate_accounts').select('*').order('created_at', { ascending: false }),
+
+  listByAccountManager: async (amId: string) =>
+    supabase
+      .from('corporate_accounts')
+      .select('*')
+      .eq('account_manager_id', amId)
+      .order('name'),
 
   create: async (data: Omit<CorporateAccount, 'id' | 'created_at' | 'updated_at'>) =>
     supabase.from('corporate_accounts').insert(data).select().single(),
@@ -685,6 +693,53 @@ export const notificationPreferences = {
       .single(),
 }
 
+// ─── Celebration Events (Stories 10.1, 10.2) ─────────────────────────────────
+
+export const celebrations = {
+  listByCorporate: async (corporateId: string) =>
+    supabase
+      .from('celebration_events')
+      .select('*, employees(full_name,email,department,dob,join_date), listings:default_listing_id(title)')
+      .eq('corporate_id', corporateId)
+      .order('trigger_date'),
+
+  listForManager: async (managerId: string) =>
+    supabase
+      .from('celebration_events')
+      .select('*, employees(full_name,email,department), listings:default_listing_id(title,base_price), override:listing_id_override(title,base_price)')
+      .eq('manager_id', managerId)
+      .in('status', ['scheduled', 'personalised'])
+      .order('trigger_date'),
+
+  create: async (data: Omit<CelebrationEvent, 'id' | 'created_at' | 'updated_at'>) =>
+    supabase.from('celebration_events').insert(data).select().single(),
+
+  personalise: async (
+    id: string,
+    data: { manager_message?: string; listing_id_override?: string | null; budget_override?: number | null },
+  ) =>
+    supabase
+      .from('celebration_events')
+      .update({
+        ...data,
+        status: 'personalised',
+        personalised_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id),
+
+  suppress: async (id: string, reason: string) =>
+    supabase
+      .from('celebration_events')
+      .update({
+        status: 'suppressed',
+        suppressed_reason: reason,
+        suppressed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id),
+}
+
 // ─── Employees (Story 10.0) ───────────────────────────────────────────────────
 
 export const employees = {
@@ -877,6 +932,7 @@ export const db = {
   wallet,
   commissions,
   categories,
+  celebrations,
   employees,
   giftingRules,
   notifications,
