@@ -6,8 +6,7 @@ import imgGoogleIcon from 'figma:asset/623e1bc74569caceb0c89f1e0be048c9a6e5221f.
 import { RoleSwitcher } from '@/app/components/global/RoleSwitcher';
 import { RoleBanner } from '@/app/components/global/RoleBanner';
 import { useAuth, isAdminRole } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
-import { getAuthCallbackUrl } from '@/lib/authRedirect';
+import { authActions } from '@/lib/authActions';
 
 export default function AdminLoginPage() {
   const navigate = useNavigate();
@@ -84,10 +83,7 @@ export default function AdminLoginPage() {
   }, [isLoading, isAuthenticated, role, signOut]);
 
   const handleGoogleLogin = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: getAuthCallbackUrl() },
-    });
+    await authActions.signInWithOAuth('google');
   };
 
   const handleLinkedInLogin = async () => {

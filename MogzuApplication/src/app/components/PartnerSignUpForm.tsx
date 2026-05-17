@@ -2,9 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { Loader2 } from 'lucide-react'
 import { MogzuLogo } from '@/app/components/branding/MogzuLogo'
-import { supabase } from '@/lib/supabase'
+import { authActions } from '@/lib/authActions'
 import { db } from '@/lib/db'
-import { getAuthCallbackUrl } from '@/lib/authRedirect'
 import type { PartnerType } from '@/lib/database.types'
 
 const PARTNER_TYPES: { value: PartnerType; label: string; description: string }[] = [
@@ -63,17 +62,14 @@ export default function PartnerSignUpForm() {
 
     setSubmitting(true)
 
-    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-      email: email.trim(),
+    const { data: signUpData, error: signUpError } = await authActions.signUp(
+      email.trim(),
       password,
-      options: {
-        data: { full_name: fullName.trim() },
-        emailRedirectTo: getAuthCallbackUrl(),
-      },
-    })
+      { full_name: fullName.trim() },
+    )
 
     if (signUpError) {
-      setError(signUpError.message)
+      setError(signUpError)
       setSubmitting(false)
       return
     }
@@ -88,14 +84,12 @@ export default function PartnerSignUpForm() {
 
     // Promote the auto-created profile to the partner role. Self-update is
     // allowed by RLS via id = auth.uid().
-    await supabase
-      .from('user_profiles')
-      .upsert({
-        id: userId,
-        role: 'partner',
-        full_name: fullName.trim(),
-        phone: phone.trim() || null,
-      })
+    await db.userProfiles.upsertPartial({
+      id: userId,
+      role: 'partner',
+      full_name: fullName.trim(),
+      phone: phone.trim() || null,
+    })
 
     const { error: partnerError } = await db.partners.signup({
       user_id: userId,

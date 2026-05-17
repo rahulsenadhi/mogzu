@@ -6,8 +6,8 @@ import { MogzuLogo } from '@/app/components/branding/MogzuLogo';
 import { RoleSwitcher } from '@/app/components/global/RoleSwitcher';
 import { RoleBanner } from '@/app/components/global/RoleBanner';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
-import { getAuthCallbackUrl, getPostLoginPath } from '@/lib/authRedirect';
+import { authActions } from '@/lib/authActions';
+import { getPostLoginPath } from '@/lib/authRedirect';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -87,10 +87,7 @@ export default function LoginPage() {
   };
 
   const handleGoogleLogin = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: getAuthCallbackUrl() },
-    });
+    await authActions.signInWithOAuth('google');
   };
 
   const handleLinkedInLogin = async () => {
@@ -108,13 +105,11 @@ export default function LoginPage() {
     }
 
     setIsSubmitting(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: getAuthCallbackUrl(),
-    });
+    const { error } = await authActions.resetPasswordForEmail(email.trim());
     setIsSubmitting(false);
 
     if (error) {
-      setFormError(error.message);
+      setFormError(error);
       return;
     }
 

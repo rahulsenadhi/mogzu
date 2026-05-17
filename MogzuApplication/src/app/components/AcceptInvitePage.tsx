@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { Loader2 } from 'lucide-react'
 import { MogzuLogo } from '@/app/components/branding/MogzuLogo'
-import { supabase } from '@/lib/supabase'
+import { authActions } from '@/lib/authActions'
 import { db } from '@/lib/db'
-import { getAuthCallbackUrl, getPostLoginPath } from '@/lib/authRedirect'
+import { getPostLoginPath } from '@/lib/authRedirect'
 import type { UserRole } from '@/lib/database.types'
 
 type InviteSnapshot = {
@@ -74,23 +74,17 @@ export default function AcceptInvitePage() {
     setSubmitting(true)
     setError('')
 
-    const { data: signUp, error: signUpError } = await supabase.auth.signUp({
-      email: invite.email,
+    const { data: signUp, error: signUpError } = await authActions.signUp(
+      invite.email,
       password,
-      options: {
-        data: { full_name: fullName.trim() || invite.full_name || invite.email.split('@')[0] },
-        emailRedirectTo: getAuthCallbackUrl(),
-      },
-    })
+      { full_name: fullName.trim() || invite.full_name || invite.email.split('@')[0] },
+    )
 
     if (signUpError) {
       // Account may already exist (re-invite of existing email). Try sign in.
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: invite.email,
-        password,
-      })
+      const { error: signInError } = await authActions.signInWithPassword(invite.email, password)
       if (signInError) {
-        setError(signInError.message)
+        setError(signInError)
         setSubmitting(false)
         return
       }
@@ -98,7 +92,7 @@ export default function AcceptInvitePage() {
 
     // Ensure a session exists before calling the RPC (the RPC requires
     // auth.uid()).
-    const { data: { session } } = await supabase.auth.getSession()
+    const { session } = await authActions.getSession()
     if (!session) {
       setError(
         'Sign up succeeded but no session was returned. Check your email for confirmation, then sign in.',

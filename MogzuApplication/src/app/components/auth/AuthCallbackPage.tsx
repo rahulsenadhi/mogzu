@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router'
-import { supabase } from '@/lib/supabase'
+import { authActions } from '@/lib/authActions'
 import { ensureUserProfile } from '@/lib/auth'
 import { getPostLoginPath } from '@/lib/authRedirect'
 import type { UserRole } from '@/lib/database.types'
@@ -32,16 +32,16 @@ export default function AuthCallbackPage() {
         navigate('/auth/reset-password', { replace: true })
         return
       }
-      const { data: { user } } = await supabase.auth.getUser()
+      const { user } = await authActions.getUser()
       const profile = user ? await ensureUserProfile(user) : null
       navigate(getPostLoginPath((profile?.role as UserRole | undefined) ?? null), { replace: true })
     }
 
     const run = async () => {
       if (code) {
-        const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+        const { data, error: exchangeError } = await authActions.exchangeCodeForSession(code)
         if (exchangeError) {
-          setError(exchangeError.message)
+          setError(exchangeError)
           return
         }
         const recoveryType =
@@ -51,12 +51,12 @@ export default function AuthCallbackPage() {
       }
 
       if (hashHasSession) {
-        const { data, error: sessionError } = await supabase.auth.getSession()
+        const { session, error: sessionError } = await authActions.getSession()
         if (sessionError) {
-          setError(sessionError.message)
+          setError(sessionError)
           return
         }
-        if (!data.session) {
+        if (!session) {
           setError('Could not verify your email. Request a new link from the login page.')
           return
         }
@@ -64,10 +64,10 @@ export default function AuthCallbackPage() {
         return
       }
 
-      const { data } = await supabase.auth.getSession()
-      if (data.session) {
-        const profile = data.session.user
-          ? await ensureUserProfile(data.session.user)
+      const { session } = await authActions.getSession()
+      if (session) {
+        const profile = session.user
+          ? await ensureUserProfile(session.user)
           : null
         navigate(getPostLoginPath((profile?.role as UserRole | undefined) ?? null), { replace: true })
         return

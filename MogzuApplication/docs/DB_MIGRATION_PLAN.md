@@ -46,45 +46,24 @@ This plan is the contract that keeps the migration cost bounded at the
 
 ## 4. Known leaks (must close before migrating)
 
-Grep audit on `src/app/components/**`:
+**Status: clean** as of the post-Phase-2 cleanup pass. `bash
+scripts/audit-abstraction-layers.sh` reports zero leaks across db / auth
+/ storage / realtime.
 
-### 4a. `supabase.auth.*` called from components (15 call sites across 8 files)
+The auth call sites that previously leaked (15 calls across 8
+entry-point components — sign-in, sign-up, OAuth callback, password
+reset, invite acceptance) now route through the sibling
+`src/lib/authActions.ts` module, which wraps the methods not exposed by
+`useAuth`: `signInWithOAuth`, `signInWithOtp`, `signInWithPassword`,
+`exchangeCodeForSession`, `getSession`, `getUser`,
+`resetPasswordForEmail`, `updatePassword`, `resendConfirmation`.
 
-| File                                              | Calls |
-|---------------------------------------------------|-------|
-| `auth/AuthCallbackPage.tsx`                       | 4     |
-| `AcceptInvitePage.tsx`                            | 3     |
-| `CorporateSignUpForm.tsx`                         | 2     |
-| `LoginPage.tsx`                                   | 2     |
-| `AdminLoginPage.tsx`                              | 1     |
-| `auth/ResetPasswordPage.tsx`                      | 1     |
-| `PartnerSignUpForm.tsx`                           | 1     |
-| `VendorOnboardingPage.tsx`                        | 1     |
+The two admin team pages that previously called `supabase.from()`
+directly now use `db.userProfiles.getByIdMaybe` (new helper).
+`db.userProfiles.upsertPartial` was added so PartnerSignUpForm can
+upsert a partial profile row through the service layer.
 
-These are the entry-point flows (sign-in, sign-up, OAuth callback,
-password reset, invite acceptance). The `useAuth` hook already wraps
-`signIn`/`signUp`/`signOut`/`refreshProfile`; the leaks call
-`supabase.auth.updateUser`, `signInWithOtp`, `exchangeCodeForSession`,
-`resetPasswordForEmail`, etc. — methods not yet on the hook.
-
-**Action item (P2 cleanup ticket):** extend `useAuth` (or add a sibling
-`authActions.ts` module) with the missing methods, then convert the 8
-files. Estimated effort: 4–6 hours.
-
-### 4b. `supabase.from(...)` outside the service layer (2 files)
-
-| File                                       | Notes |
-|--------------------------------------------|-------|
-| `src/app/pages/admin/AdminTeamActivityPage.tsx`     | Reads `team_activity_log` directly |
-| `src/app/pages/admin/AdminTeamPermissionsPage.tsx`  | Reads/writes `user_permissions` directly |
-
-**Action item:** move both into `db.ts` under a `teams` namespace. Both
-are admin-only pages so the migration is mechanical. Estimated effort:
-2 hours.
-
-### 4c. Storage + realtime leaks
-
-None in components. ✅
+Re-run the audit script before every Phase 3 deploy.
 
 ---
 

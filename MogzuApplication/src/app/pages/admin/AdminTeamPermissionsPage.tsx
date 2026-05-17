@@ -11,7 +11,6 @@ import type {
   UserPermission,
   UserProfile,
 } from '@/lib/database.types'
-import { supabase } from '@/lib/supabase'
 
 const RESOURCES: PermissionResource[] = [
   'bookings',
@@ -44,7 +43,7 @@ export default function AdminTeamPermissionsPage() {
     setLoading(true)
     setError('')
     const [{ data: profileRow, error: pErr }, { data: perms, error: gErr }] = await Promise.all([
-      supabase.from('user_profiles').select('*').eq('id', userId).maybeSingle(),
+      db.userProfiles.getByIdMaybe(userId),
       db.userPermissions.listByUser(userId),
     ])
     if (pErr || !profileRow) {

@@ -107,6 +107,9 @@ export const userProfiles = {
   getById: async (id: string) =>
     supabase.from('user_profiles').select('*').eq('id', id).single(),
 
+  getByIdMaybe: async (id: string) =>
+    supabase.from('user_profiles').select('*').eq('id', id).maybeSingle(),
+
   listByCorporate: async (corporateId: string) =>
     supabase
       .from('user_profiles')
@@ -123,6 +126,9 @@ export const userProfiles = {
 
   upsert: async (data: UserProfile) =>
     supabase.from('user_profiles').upsert(data).select().single(),
+
+  upsertPartial: async (data: Partial<UserProfile> & { id: string }) =>
+    supabase.from('user_profiles').upsert(data as UserProfile).select().single(),
 
   updateRole: async (id: string, role: UserRole) =>
     supabase.from('user_profiles').update({ role, updated_at: new Date().toISOString() }).eq('id', id),

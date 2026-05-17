@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router'
-import { supabase } from '@/lib/supabase'
+import { authActions } from '@/lib/authActions'
 import { MogzuLogo } from '@/app/components/branding/MogzuLogo'
 
 export default function ResetPasswordPage() {
@@ -35,11 +35,11 @@ export default function ResetPasswordPage() {
     }
 
     setIsSubmitting(true)
-    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    const { error } = await authActions.updatePassword(newPassword)
     setIsSubmitting(false)
 
     if (error) {
-      setFormError(error.message)
+      setFormError(error)
       return
     }
 

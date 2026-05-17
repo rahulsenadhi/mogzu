@@ -3,7 +3,6 @@ import { useNavigate, useParams } from 'react-router'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import { AdminPageTitleRow } from '@/app/components/admin/AdminPageChrome'
 import { db } from '@/lib/db'
-import { supabase } from '@/lib/supabase'
 import type { UserActivityEvent, UserProfile } from '@/lib/database.types'
 
 function fmtTime(iso: string): string {
@@ -33,7 +32,7 @@ export default function AdminTeamActivityPage() {
     setLoading(true)
     setError('')
     const [{ data: profileRow, error: pErr }, { data: evs, error: eErr }] = await Promise.all([
-      supabase.from('user_profiles').select('*').eq('id', userId).maybeSingle(),
+      db.userProfiles.getByIdMaybe(userId),
       db.userActivity.listByActor(userId, 100),
     ])
     if (pErr || !profileRow) {

@@ -5,9 +5,8 @@ import { Alert, AlertDescription } from './ui/alert';
 import svgPaths from '@/imports/svg-o29bchayym';
 import imgGoogleIcon from 'figma:asset/623e1bc74569caceb0c89f1e0be048c9a6e5221f.png';
 import { MogzuLogo } from '@/app/components/branding/MogzuLogo';
-import { supabase } from '@/lib/supabase';
+import { authActions } from '@/lib/authActions';
 import { db } from '@/lib/db';
-import { getAuthCallbackUrl } from '@/lib/authRedirect';
 
 export default function CorporateSignUpForm() {
   const navigate = useNavigate();
@@ -89,17 +88,14 @@ export default function CorporateSignUpForm() {
     }
 
     setIsSubmitting(true);
-    const { error: signUpError, data } = await supabase.auth.signUp({
-      email: formData.email.trim(),
-      password: formData.password,
-      options: {
-        data: { full_name: formData.fullName.trim() },
-        emailRedirectTo: getAuthCallbackUrl(),
-      },
-    });
+    const { error: signUpError, data } = await authActions.signUp(
+      formData.email.trim(),
+      formData.password,
+      { full_name: formData.fullName.trim() },
+    );
 
     if (signUpError) {
-      setError(signUpError.message);
+      setError(signUpError);
       setIsSubmitting(false);
       return;
     }
@@ -154,14 +150,10 @@ export default function CorporateSignUpForm() {
     setResendLoading(true);
     setResendNotice(null);
     setError(null);
-    const { error: resendError } = await supabase.auth.resend({
-      type: 'signup',
-      email: formData.email.trim(),
-      options: { emailRedirectTo: getAuthCallbackUrl() },
-    });
+    const { error: resendError } = await authActions.resendConfirmation(formData.email.trim());
     setResendLoading(false);
     if (resendError) {
-      setError(resendError.message);
+      setError(resendError);
       return;
     }
     setResendNotice('Verification email sent. Check inbox and spam (may take 1–2 minutes).');
