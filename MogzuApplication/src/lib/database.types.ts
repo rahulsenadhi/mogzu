@@ -92,9 +92,13 @@ export interface ListingCategory {
   created_at: string
 }
 
+export type ListingOwnerType = 'vendor' | 'partner'
+
 export interface Listing {
   id: string
-  vendor_id: string
+  vendor_id: string | null
+  owner_type: ListingOwnerType
+  owner_partner_id: string | null
   module: ModuleId
   category_id: string | null
   title: string
@@ -213,6 +217,29 @@ export interface Booking {
   carrier: string | null
   carrier_url: string | null
   gifting_campaign_id: string | null
+  partner_id: string | null
+  partner_markup_pct: number | null
+  partner_margin_amount: number | null
+  partner_invoice_token: string | null
+  payout_accrued_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type PartnerPayoutStatus = 'pending' | 'paid' | 'on_hold'
+
+export interface PartnerPayoutPeriod {
+  id: string
+  partner_id: string
+  period_yyyymm: string
+  resale_margin: number
+  product_share: number
+  total_amount: number
+  status: PartnerPayoutStatus
+  paid_at: string | null
+  paid_by: string | null
+  payout_transaction_id: string | null
+  note: string | null
   created_at: string
   updated_at: string
 }
@@ -380,6 +407,7 @@ export interface Partner {
   approved_by: string | null
   approved_at: string | null
   rejection_reason: string | null
+  default_markup_pct: number
   created_at: string
   updated_at: string
 }
@@ -887,6 +915,11 @@ export interface Database {
         Row: PartnerWalletTransaction
         Insert: Omit<PartnerWalletTransaction, 'id' | 'created_at'>
         Update: Partial<Omit<PartnerWalletTransaction, 'id' | 'created_at'>>
+      }
+      partner_payout_periods: {
+        Row: PartnerPayoutPeriod
+        Insert: Omit<PartnerPayoutPeriod, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<PartnerPayoutPeriod, 'id' | 'created_at'>>
       }
       promotions: {
         Row: Promotion

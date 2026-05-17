@@ -22,6 +22,11 @@ import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurfa
 import { useAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { storageService } from '@/lib/storage'
+import {
+  computeResaleMargin,
+  loadResaleContext,
+  type ResaleContext,
+} from '@/lib/partnerCheckout'
 import type {
   BudgetRule,
   CalendarSlot,
@@ -136,6 +141,7 @@ export default function SpaceBookingPage() {
   const [submitError, setSubmitError] = useState('')
   const [confirmedBookingId, setConfirmedBookingId] = useState<string | null>(null)
   const [confirmedStatus, setConfirmedStatus] = useState<'pending_approval' | 'pending_vendor' | null>(null)
+  const [resaleCtx2, setResaleCtx2] = useState<ResaleContext | null>(null)
 
   const loadAll = useCallback(async () => {
     if (!params.listingId || !corporateId) return
@@ -195,6 +201,20 @@ export default function SpaceBookingPage() {
     loadAll()
   }, [loadAll])
 
+  useEffect(() => {
+    if (!corporateId) {
+      setResaleCtx2(null)
+      return
+    }
+    let cancelled = false
+    void loadResaleContext(corporateId).then((ctx) => {
+      if (!cancelled) setResaleCtx2(ctx)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [corporateId])
+
   // Pricing
   const isHourly = listing?.price_unit === 'per_hour'
   const isDaily = listing?.price_unit === 'per_day'
@@ -214,7 +234,9 @@ export default function SpaceBookingPage() {
     }, 0)
   }, [selectedAddOns, listing])
   const platformFee = Math.round(baseAmount * 0.05)
-  const totalAmount = baseAmount + addOnsAmount + platformFee
+  const partnerMarkupPct = resaleCtx2?.markupPct ?? 0
+  const partnerMargin = computeResaleMargin(baseAmount + addOnsAmount, partnerMarkupPct)
+  const totalAmount = baseAmount + addOnsAmount + platformFee + partnerMargin
 
   // Approval
   const approvalDecision = useMemo(() => {
@@ -399,6 +421,10 @@ export default function SpaceBookingPage() {
           ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
           : null,
       completed_at: null,
+      partner_id: resaleCtx2?.partner.id ?? null,
+      partner_markup_pct: partnerMarkupPct || null,
+      partner_margin_amount: partnerMargin || null,
+      partner_invoice_token: resaleCtx2 ? resaleCtx2.invoiceToken : null,
     })
 
     if (error || !data) {

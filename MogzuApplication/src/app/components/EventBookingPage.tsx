@@ -19,6 +19,11 @@ import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurfa
 import { useAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { storageService } from '@/lib/storage'
+import {
+  computeResaleMargin,
+  loadResaleContext,
+  type ResaleContext,
+} from '@/lib/partnerCheckout'
 import type {
   BudgetRule,
   CalendarSlot,
@@ -118,6 +123,7 @@ export default function EventBookingPage() {
   const [submitError, setSubmitError] = useState('')
   const [confirmedBookingId, setConfirmedBookingId] = useState<string | null>(null)
   const [confirmedStatus, setConfirmedStatus] = useState<'pending_approval' | 'pending_vendor' | null>(null)
+  const [resaleCtx, setResaleCtx] = useState<ResaleContext | null>(null)
 
   const canBook = role === 'l1_employee' || role === 'l2_manager' || role === 'l3_admin'
 
@@ -180,6 +186,20 @@ export default function EventBookingPage() {
     loadAll()
   }, [loadAll])
 
+  useEffect(() => {
+    if (!corporateId) {
+      setResaleCtx(null)
+      return
+    }
+    let cancelled = false
+    void loadResaleContext(corporateId).then((ctx) => {
+      if (!cancelled) setResaleCtx(ctx)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [corporateId])
+
   // ─── Pricing ────────────────────────────────────────────────────────────────
   const basePrice = listing?.base_price ?? 0
   const baseAmount = basePrice * priceLineMultiplier(listing?.price_unit ?? null, groupSize)
@@ -191,7 +211,9 @@ export default function EventBookingPage() {
     }, 0)
   }, [selectedAddOns, listing])
   const platformFee = Math.round(baseAmount * 0.05)
-  const totalAmount = baseAmount + addOnsAmount + platformFee
+  const partnerMarkupPct = resaleCtx?.markupPct ?? 0
+  const partnerMargin = computeResaleMargin(baseAmount + addOnsAmount, partnerMarkupPct)
+  const totalAmount = baseAmount + addOnsAmount + platformFee + partnerMargin
 
   // ─── Approval decision ──────────────────────────────────────────────────────
   const approvalDecision = useMemo(() => {
@@ -323,6 +345,10 @@ export default function EventBookingPage() {
         ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         : null,
       completed_at: null,
+      partner_id: resaleCtx?.partner.id ?? null,
+      partner_markup_pct: partnerMarkupPct || null,
+      partner_margin_amount: partnerMargin || null,
+      partner_invoice_token: resaleCtx ? resaleCtx.invoiceToken : null,
     })
 
     if (error || !data) {
@@ -856,11 +882,23 @@ function StepReview({
         <div className="text-right">₹ {addOnsAmount.toLocaleString('en-IN')}</div>
         <div>Platform fee (5%)</div>
         <div className="text-right">₹ {platformFee.toLocaleString('en-IN')}</div>
+        {resaleCtx && partnerMargin > 0 && (
+          <>
+            <div>Partner fee ({resaleCtx.partner.business_name ?? resaleCtx.partner.full_name}, {partnerMarkupPct}%)</div>
+            <div className="text-right">₹ {partnerMargin.toLocaleString('en-IN')}</div>
+          </>
+        )}
         <div className="border-t border-slate-200 pt-2 font-semibold">Total</div>
         <div className="border-t border-slate-200 pt-2 text-right font-semibold text-[#0e1e3f]">
           ₹ {totalAmount.toLocaleString('en-IN')}
         </div>
       </div>
+      {resaleCtx && (
+        <p className="mt-2 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-[11px] text-indigo-900">
+          Managed by <strong>{resaleCtx.partner.business_name ?? resaleCtx.partner.full_name}</strong>.
+          Invoice will be branded by the partner.
+        </p>
+      )}
 
       <div
         className={`mt-4 rounded-xl border p-4 ${

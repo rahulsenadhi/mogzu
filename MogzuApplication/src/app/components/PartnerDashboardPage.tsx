@@ -159,16 +159,30 @@ export default function PartnerDashboardPage() {
             <p className="text-[11px] text-slate-500">Partner Dashboard</p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={async () => {
-            await signOut()
-            navigate('/login')
-          }}
-          className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-        >
-          Sign out
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/partner/clients"
+            className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          >
+            My clients
+          </Link>
+          <Link
+            to="/partner/listings"
+            className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          >
+            My listings
+          </Link>
+          <button
+            type="button"
+            onClick={async () => {
+              await signOut()
+              navigate('/login')
+            }}
+            className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Sign out
+          </button>
+        </div>
       </header>
 
       <section className="mt-8 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-amber-50 p-5 shadow-sm">
@@ -198,6 +212,8 @@ export default function PartnerDashboardPage() {
           </p>
         )}
       </section>
+
+      <MarkupCard partner={partner} onChange={(next) => setPartner({ ...partner, default_markup_pct: next })} />
 
       <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Referrals signed up" value={stats.signedUp.toString()} />
@@ -275,6 +291,71 @@ export default function PartnerDashboardPage() {
         </section>
       )}
     </div>
+  )
+}
+
+function MarkupCard({
+  partner,
+  onChange,
+}: {
+  partner: Partner
+  onChange: (next: number) => void
+}) {
+  const [val, setVal] = useState(String(partner.default_markup_pct ?? 0))
+  const [saving, setSaving] = useState(false)
+  const [notice, setNotice] = useState('')
+
+  const handleSave = async () => {
+    const pct = Number(val)
+    if (Number.isNaN(pct) || pct < 0 || pct > 30) {
+      setNotice('Markup must be 0–30.')
+      return
+    }
+    setSaving(true)
+    setNotice('')
+    const { error } = await db.partners.setDefaultMarkup(partner.id, pct)
+    setSaving(false)
+    if (error) {
+      setNotice(error.message)
+    } else {
+      onChange(pct)
+      setNotice('Saved.')
+      setTimeout(() => setNotice(''), 2000)
+    }
+  }
+
+  return (
+    <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold text-slate-900">Resale markup</p>
+          <p className="text-[11px] text-slate-500">
+            Applied automatically to bookings from corporates you onboarded. Allowed 0–30%.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            min="0"
+            max="30"
+            step="0.5"
+            value={val}
+            onChange={(e) => setVal(e.target.value)}
+            className="h-9 w-20 rounded-md border border-slate-200 px-2 text-sm shadow-sm"
+          />
+          <span className="text-sm text-slate-500">%</span>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </div>
+      {notice && <p className="mt-2 text-xs text-slate-600">{notice}</p>}
+    </section>
   )
 }
 

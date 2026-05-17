@@ -60,7 +60,12 @@ import ShortlistShareView from "@/app/components/ShortlistShareView";
 import PartnerSignUpForm from "@/app/components/PartnerSignUpForm";
 import PartnerDashboardPage from "@/app/components/PartnerDashboardPage";
 import PartnerReferralIntakePage from "@/app/components/PartnerReferralIntakePage";
+import PartnerClientsPage from "@/app/components/PartnerClientsPage";
+import PartnerListingsPage from "@/app/components/PartnerListingsPage";
+import PartnerListingFormPage from "@/app/components/PartnerListingFormPage";
+import PartnerInvoicePage from "@/app/components/PartnerInvoicePage";
 import AdminPartnerAgreementPage from "@/app/pages/admin/AdminPartnerAgreementPage";
+import AdminPartnerPayoutsPage from "@/app/pages/admin/AdminPartnerPayoutsPage";
 import ShortlistCorporatePage from "@/app/pages/ShortlistCorporatePage";
 import AdminLoginPage from "@/app/components/AdminLoginPage";
 import ActivitySuite from "@/app/components/ActivitySuite";
@@ -445,6 +450,7 @@ export const router = createBrowserRouter([
       { path: "shortlists/:id", element: <AdminShortlistEditorPage /> },
       { path: "heygenie", element: <AdminHeyGenieConfigPage /> },
       { path: "partners/:id/agreement", element: <AdminPartnerAgreementPage /> },
+      { path: "partner-payouts", element: <AdminPartnerPayoutsPage /> },
       { path: "mogzu-orders", element: <AdminMogzuOrdersPage /> },
     ],
   },
@@ -476,6 +482,31 @@ export const router = createBrowserRouter([
   {
     path: "/partner/dashboard",
     element: <PartnerDashboardPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/partner/clients",
+    element: <PartnerClientsPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/partner/listings",
+    element: <PartnerListingsPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/partner/listings/new",
+    element: <PartnerListingFormPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/partner/listings/:id/edit",
+    element: <PartnerListingFormPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/invoice/:token",
+    element: <PartnerInvoicePage />,
     errorElement: <ErrorPage />,
   },
   {

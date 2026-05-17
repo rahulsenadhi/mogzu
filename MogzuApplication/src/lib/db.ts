@@ -77,8 +77,17 @@ export const corporateAccounts = {
       .eq('account_manager_id', amId)
       .order('name'),
 
-  create: async (data: Omit<CorporateAccount, 'id' | 'created_at' | 'updated_at'>) =>
-    supabase.from('corporate_accounts').insert(data).select().single(),
+  create: async (
+    data: Omit<CorporateAccount, 'id' | 'referred_by_partner_id' | 'referred_at' | 'created_at' | 'updated_at'> & {
+      referred_by_partner_id?: string | null
+      referred_at?: string | null
+    },
+  ) =>
+    supabase
+      .from('corporate_accounts')
+      .insert({ referred_by_partner_id: null, referred_at: null, ...data })
+      .select()
+      .single(),
 
   update: async (id: string, data: Partial<CorporateAccount>) =>
     supabase.from('corporate_accounts').update(data).eq('id', id).select().single(),
@@ -184,12 +193,21 @@ export const listings = {
   listPendingApproval: async () =>
     supabase
       .from('listings')
-      .select('*, vendors(*)')
+      .select('*, vendors(*), partners:owner_partner_id(id, full_name, business_name)')
       .eq('status', 'pending_approval')
       .order('created_at'),
 
-  create: async (data: Omit<Listing, 'id' | 'created_at' | 'updated_at'>) =>
-    supabase.from('listings').insert(data).select().single(),
+  create: async (
+    data: Omit<Listing, 'id' | 'owner_type' | 'owner_partner_id' | 'created_at' | 'updated_at'> & {
+      owner_type?: Listing['owner_type']
+      owner_partner_id?: string | null
+    },
+  ) =>
+    supabase
+      .from('listings')
+      .insert({ owner_type: 'vendor', owner_partner_id: null, ...data })
+      .select()
+      .single(),
 
   update: async (id: string, data: Partial<Listing>) =>
     supabase
@@ -294,8 +312,36 @@ export const bookings = {
       .eq('status', 'pending_approval')
       .order('created_at'),
 
-  create: async (data: Omit<Booking, 'id' | 'created_at' | 'updated_at'>) =>
-    supabase.from('bookings').insert(data).select().single(),
+  create: async (
+    data: Omit<
+      Booking,
+      | 'id'
+      | 'partner_id'
+      | 'partner_markup_pct'
+      | 'partner_margin_amount'
+      | 'partner_invoice_token'
+      | 'payout_accrued_at'
+      | 'created_at'
+      | 'updated_at'
+    > & {
+      partner_id?: string | null
+      partner_markup_pct?: number | null
+      partner_margin_amount?: number | null
+      partner_invoice_token?: string | null
+    },
+  ) =>
+    supabase
+      .from('bookings')
+      .insert({
+        partner_id: null,
+        partner_markup_pct: null,
+        partner_margin_amount: null,
+        partner_invoice_token: null,
+        payout_accrued_at: null,
+        ...data,
+      })
+      .select()
+      .single(),
 
   updateStatus: async (id: string, status: BookingStatus, extra?: Partial<Booking>) =>
     supabase
@@ -354,8 +400,17 @@ export const bookings = {
       .eq('id', booking.id)
     if (bookingErr) return { payoutId: null, error: bookingErr.message }
 
+    // Accrue partner earnings (resale margin and / or product revenue share)
+    // before deciding on vendor payout. The RPC is idempotent and a no-op
+    // when the booking has no partner attribution.
+    await supabase.rpc('accrue_partner_earnings', { p_booking_id: booking.id })
+
     if (booking.payment_status !== 'paid' || !booking.total_amount) {
-      // No payout if booking was never paid.
+      return { payoutId: null, error: null }
+    }
+    // Partner-owned listings settle via the monthly partner payout cycle,
+    // not the vendor payouts table.
+    if (!booking.vendor_id) {
       return { payoutId: null, error: null }
     }
 
@@ -693,7 +748,20 @@ export const partners = {
       .eq('status', 'active')
       .maybeSingle(),
 
-  signup: async (data: Omit<Partner, 'id' | 'status' | 'referral_code' | 'approved_by' | 'approved_at' | 'rejection_reason' | 'created_at' | 'updated_at'>) =>
+  signup: async (
+    data: Omit<
+      Partner,
+      | 'id'
+      | 'status'
+      | 'referral_code'
+      | 'approved_by'
+      | 'approved_at'
+      | 'rejection_reason'
+      | 'default_markup_pct'
+      | 'created_at'
+      | 'updated_at'
+    >,
+  ) =>
     supabase
       .from('partners')
       .insert({ ...data, status: 'pending' })
@@ -728,6 +796,14 @@ export const partners = {
 
   update: async (id: string, data: Partial<Omit<Partner, 'id' | 'created_at'>>) =>
     supabase.from('partners').update(data).eq('id', id).select().single(),
+
+  setDefaultMarkup: async (id: string, pct: number) =>
+    supabase
+      .from('partners')
+      .update({ default_markup_pct: pct })
+      .eq('id', id)
+      .select()
+      .single(),
 }
 
 export const partnerAgreements = {
@@ -786,6 +862,70 @@ export const partnerReferrals = {
       p_corporate_id: corporateId,
       p_booking_id: bookingId,
     }),
+}
+
+export const partnerListings = {
+  listByPartner: async (partnerId: string) =>
+    supabase
+      .from('listings')
+      .select('*, listing_images(*)')
+      .eq('owner_type', 'partner')
+      .eq('owner_partner_id', partnerId)
+      .order('created_at', { ascending: false }),
+
+  create: async (
+    partnerId: string,
+    data: Omit<
+      Listing,
+      | 'id'
+      | 'owner_type'
+      | 'owner_partner_id'
+      | 'vendor_id'
+      | 'created_at'
+      | 'updated_at'
+    >,
+  ) =>
+    supabase
+      .from('listings')
+      .insert({ ...data, owner_type: 'partner', owner_partner_id: partnerId, vendor_id: null })
+      .select()
+      .single(),
+}
+
+export const partnerClients = {
+  listByPartner: async (partnerId: string) =>
+    supabase
+      .from('corporate_accounts')
+      .select('*')
+      .eq('referred_by_partner_id', partnerId)
+      .order('created_at', { ascending: false }),
+}
+
+export const partnerPayouts = {
+  listPending: async () =>
+    supabase
+      .from('partner_payout_periods')
+      .select('*, partners(full_name, business_name, email)')
+      .eq('status', 'pending')
+      .gt('total_amount', 0)
+      .order('period_yyyymm', { ascending: false }),
+
+  listByPartner: async (partnerId: string) =>
+    supabase
+      .from('partner_payout_periods')
+      .select('*')
+      .eq('partner_id', partnerId)
+      .order('period_yyyymm', { ascending: false }),
+
+  markPaid: async (periodId: string, adminId: string, note?: string) =>
+    supabase.rpc('mark_partner_payout_paid', {
+      p_period_id: periodId,
+      p_admin_id: adminId,
+      p_note: note ?? null,
+    }),
+
+  accrue: async (bookingId: string) =>
+    supabase.rpc('accrue_partner_earnings', { p_booking_id: bookingId }),
 }
 
 export const partnerWallets = {
@@ -1556,4 +1696,7 @@ export const db = {
   partnerAgreements,
   partnerReferrals,
   partnerWallets,
+  partnerListings,
+  partnerClients,
+  partnerPayouts,
 }
