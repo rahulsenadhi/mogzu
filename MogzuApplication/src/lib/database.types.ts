@@ -44,6 +44,48 @@ export interface UserActivityEvent {
   created_at: string
 }
 
+export type QuickShareStatus = 'active' | 'expired' | 'closed'
+export type QuickShareSubmissionStatus = 'pending' | 'sent' | 'paid' | 'cancelled'
+
+export interface QuickShare {
+  id: string
+  created_by: string | null
+  module: ModuleId
+  token: string
+  client_label: string | null
+  custom_note: string | null
+  budget_cap: number | null
+  expires_at: string
+  status: QuickShareStatus
+  payment_link_url: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface QuickShareItem {
+  id: string
+  quick_share_id: string
+  listing_id: string
+  hidden: boolean
+  display_order: number
+  curator_note: string | null
+  created_at: string
+}
+
+export interface QuickShareSubmission {
+  id: string
+  quick_share_id: string
+  client_name: string
+  client_company: string | null
+  client_phone: string | null
+  client_email: string | null
+  selected_items: Array<{ listing_id: string; quantity?: number; note?: string }>
+  client_note: string | null
+  submitted_at: string
+  payment_link_url: string | null
+  payment_status: QuickShareSubmissionStatus
+}
+
 export interface BookingStatusEvent {
   id: string
   booking_id: string
@@ -1050,6 +1092,21 @@ export interface Database {
         Row: BookingPaymentMilestone
         Insert: Omit<BookingPaymentMilestone, 'id' | 'created_at'>
         Update: Partial<Omit<BookingPaymentMilestone, 'id' | 'created_at'>>
+      }
+      quick_shares: {
+        Row: QuickShare
+        Insert: Omit<QuickShare, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<QuickShare, 'id' | 'created_at'>>
+      }
+      quick_share_items: {
+        Row: QuickShareItem
+        Insert: Omit<QuickShareItem, 'id' | 'created_at'>
+        Update: Partial<Omit<QuickShareItem, 'id' | 'created_at'>>
+      }
+      quick_share_submissions: {
+        Row: QuickShareSubmission
+        Insert: Omit<QuickShareSubmission, 'id' | 'submitted_at'>
+        Update: Partial<Omit<QuickShareSubmission, 'id' | 'submitted_at'>>
       }
       promotions: {
         Row: Promotion

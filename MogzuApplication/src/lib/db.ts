@@ -987,6 +987,127 @@ export const partnerStatements = {
       .order('created_at', { ascending: true }),
 }
 
+// ─── Quick Share (Phase 2 Feature 1) ─────────────────────────────────────────
+
+function generateQuickShareToken(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(12)))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+export const quickShares = {
+  list: async () =>
+    supabase
+      .from('quick_shares')
+      .select('*')
+      .order('created_at', { ascending: false }),
+
+  getById: async (id: string) =>
+    supabase.from('quick_shares').select('*').eq('id', id).single(),
+
+  create: async (
+    createdBy: string,
+    module: ModuleId,
+    options: {
+      client_label?: string | null
+      custom_note?: string | null
+      budget_cap?: number | null
+      expires_at?: string
+    },
+  ) =>
+    supabase
+      .from('quick_shares')
+      .insert({
+        created_by: createdBy,
+        module,
+        token: generateQuickShareToken(),
+        client_label: options.client_label ?? null,
+        custom_note: options.custom_note ?? null,
+        budget_cap: options.budget_cap ?? null,
+        ...(options.expires_at ? { expires_at: options.expires_at } : {}),
+      })
+      .select()
+      .single(),
+
+  setItems: async (
+    quickShareId: string,
+    items: { listing_id: string; display_order: number; curator_note?: string | null; hidden?: boolean }[],
+  ) => {
+    await supabase.from('quick_share_items').delete().eq('quick_share_id', quickShareId)
+    if (items.length === 0) return { error: null }
+    return supabase.from('quick_share_items').insert(
+      items.map((it) => ({
+        quick_share_id: quickShareId,
+        listing_id: it.listing_id,
+        display_order: it.display_order,
+        curator_note: it.curator_note ?? null,
+        hidden: it.hidden ?? false,
+      })),
+    )
+  },
+
+  listItems: async (quickShareId: string) =>
+    supabase
+      .from('quick_share_items')
+      .select('*, listings(*)')
+      .eq('quick_share_id', quickShareId)
+      .order('display_order'),
+
+  toggleItemHidden: async (itemId: string, hidden: boolean) =>
+    supabase.from('quick_share_items').update({ hidden }).eq('id', itemId),
+
+  close: async (id: string) =>
+    supabase.from('quick_shares').update({ status: 'closed' }).eq('id', id),
+
+  setPaymentLink: async (id: string, url: string) =>
+    supabase.from('quick_shares').update({ payment_link_url: url }).eq('id', id),
+
+  listSubmissions: async (quickShareId: string) =>
+    supabase
+      .from('quick_share_submissions')
+      .select('*')
+      .eq('quick_share_id', quickShareId)
+      .order('submitted_at', { ascending: false }),
+
+  setSubmissionPayment: async (
+    submissionId: string,
+    paymentLink: string | null,
+    status: 'pending' | 'sent' | 'paid' | 'cancelled',
+  ) =>
+    supabase
+      .from('quick_share_submissions')
+      .update({
+        payment_link_url: paymentLink,
+        payment_status: status,
+      })
+      .eq('id', submissionId),
+
+  // Public (anon-friendly) handle via the SECURITY DEFINER RPC.
+  getByToken: async (token: string) =>
+    supabase.rpc('get_quick_share_by_token', { p_token: token }),
+
+  submit: async (
+    token: string,
+    payload: {
+      client_name: string
+      client_company: string | null
+      client_phone: string | null
+      client_email: string | null
+      selected_items: Array<{ listing_id: string; quantity?: number; note?: string }>
+      client_note: string | null
+    },
+  ) =>
+    supabase.rpc('submit_quick_share', {
+      p_token: token,
+      p_client_name: payload.client_name,
+      p_client_company: payload.client_company,
+      p_client_phone: payload.client_phone,
+      p_client_email: payload.client_email,
+      p_selected_items: payload.selected_items,
+      p_client_note: payload.client_note,
+    }),
+}
+
 // ─── Booking status tracker (Phase 2 Feature 2 & 3) ──────────────────────────
 
 export const bookingTracker = {
@@ -2033,4 +2154,5 @@ export const db = {
   userActivity,
   bookingTracker,
   bookingProof,
+  quickShares,
 }

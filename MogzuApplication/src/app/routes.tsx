@@ -71,6 +71,9 @@ import AdminPendingListingsPage from "@/app/pages/admin/AdminPendingListingsPage
 import AdminTeamPage from "@/app/pages/admin/AdminTeamPage";
 import AdminTeamPermissionsPage from "@/app/pages/admin/AdminTeamPermissionsPage";
 import AdminTeamActivityPage from "@/app/pages/admin/AdminTeamActivityPage";
+import AdminQuickSharePage from "@/app/pages/admin/AdminQuickSharePage";
+import AdminQuickShareDetailPage from "@/app/pages/admin/AdminQuickShareDetailPage";
+import QuickShareViewerPage from "@/app/components/QuickShareViewerPage";
 import AcceptInvitePage from "@/app/components/AcceptInvitePage";
 import FieldAgentDashboardPage from "@/app/components/FieldAgentDashboardPage";
 import BookingTrackerPage from "@/app/components/BookingTrackerPage";
@@ -463,6 +466,8 @@ export const router = createBrowserRouter([
       { path: "team", element: <AdminTeamPage /> },
       { path: "team/:userId/permissions", element: <AdminTeamPermissionsPage /> },
       { path: "team/:userId/activity", element: <AdminTeamActivityPage /> },
+      { path: "quick-share", element: <AdminQuickSharePage /> },
+      { path: "quick-share/:id", element: <AdminQuickShareDetailPage /> },
       { path: "mogzu-orders", element: <AdminMogzuOrdersPage /> },
     ],
   },
@@ -539,6 +544,11 @@ export const router = createBrowserRouter([
   {
     path: "/bookings/:id/track",
     element: <BookingTrackerPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/qs/:token",
+    element: <QuickShareViewerPage />,
     errorElement: <ErrorPage />,
   },
   {
