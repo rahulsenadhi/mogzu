@@ -312,6 +312,50 @@ export interface NotificationPreference {
   updated_at: string
 }
 
+export interface Shortlist {
+  id: string
+  account_manager_id: string
+  corporate_id: string
+  name: string
+  intro_note: string | null
+  share_token: string
+  expires_at: string | null
+  view_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface ShortlistItem {
+  id: string
+  shortlist_id: string
+  listing_id: string
+  am_note: string | null
+  display_order: number
+  created_at: string
+}
+
+export interface HeyGenieConfig {
+  corporate_id: string
+  enabled: boolean
+  enabled_modules: string[]
+  voice_locale: string
+  wake_word_enabled: boolean
+  configured_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface HeyGenieSession {
+  id: string
+  user_id: string
+  corporate_id: string
+  transcript: string
+  intent: Record<string, unknown> | null
+  resulting_booking_id: string | null
+  modality: 'voice' | 'text'
+  created_at: string
+}
+
 export type PromotionKind = 'percent_off' | 'flat_off' | 'free_addon' | 'paid_boost'
 export type PromotionStatus =
   | 'draft'
@@ -722,6 +766,26 @@ export interface Database {
         Row: NotificationPreference
         Insert: Omit<NotificationPreference, 'created_at' | 'updated_at'>
         Update: Partial<Omit<NotificationPreference, 'created_at'>>
+      }
+      shortlists: {
+        Row: Shortlist
+        Insert: Omit<Shortlist, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<Shortlist, 'id' | 'created_at'>>
+      }
+      shortlist_items: {
+        Row: ShortlistItem
+        Insert: Omit<ShortlistItem, 'id' | 'created_at'>
+        Update: Partial<Omit<ShortlistItem, 'id' | 'created_at'>>
+      }
+      heygenie_config: {
+        Row: HeyGenieConfig
+        Insert: Omit<HeyGenieConfig, 'created_at' | 'updated_at'>
+        Update: Partial<HeyGenieConfig>
+      }
+      heygenie_sessions: {
+        Row: HeyGenieSession
+        Insert: Omit<HeyGenieSession, 'id' | 'created_at'>
+        Update: Partial<Omit<HeyGenieSession, 'id' | 'created_at'>>
       }
       promotions: {
         Row: Promotion

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { useNavigate, useParams, useSearchParams } from 'react-router'
 import {
   ArrowLeft,
   ArrowRight,
@@ -107,6 +107,7 @@ function slotsOverlap(
 export default function SpaceBookingPage() {
   const navigate = useNavigate()
   const params = useParams<{ listingId: string }>()
+  const [searchParams] = useSearchParams()
   const { profile, corporateId, role } = useAuth()
   const canBook = role === 'l1_employee' || role === 'l2_manager' || role === 'l3_admin'
 
@@ -154,7 +155,24 @@ export default function SpaceBookingPage() {
     const l = lRes.data as ListingDetail
     setListing(l)
     setBudgets((bRes.data ?? []) as BudgetRule[])
-    setAttendees(l.min_capacity ?? 1)
+
+    // Pre-fill from query params (Hey Genie handoff). Clamp to capacity.
+    const headcountParam = parseInt(searchParams.get('headcount') ?? '', 10)
+    if (Number.isFinite(headcountParam) && headcountParam > 0) {
+      const min = l.min_capacity ?? 1
+      const max = l.max_capacity ?? headcountParam
+      setAttendees(Math.min(Math.max(headcountParam, min), max))
+    } else {
+      setAttendees(l.min_capacity ?? 1)
+    }
+    const dateParam = searchParams.get('date')
+    if (dateParam) {
+      const parsed = new Date(`${dateParam}T00:00:00`)
+      if (!Number.isNaN(parsed.getTime()) && parsed.getTime() >= startOfMonth(new Date()).getTime()) {
+        setSelectedDate(parsed)
+        setCalendarMonth(startOfMonth(parsed))
+      }
+    }
 
     const from = new Date()
     const to = new Date()
@@ -171,7 +189,7 @@ export default function SpaceBookingPage() {
     )
 
     setLoading(false)
-  }, [params.listingId, corporateId])
+  }, [params.listingId, corporateId, searchParams])
 
   useEffect(() => {
     loadAll()

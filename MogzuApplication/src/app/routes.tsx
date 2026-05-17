@@ -54,6 +54,9 @@ import AdminShortlistsPage from "@/app/pages/admin/AdminShortlistsPage";
 import AdminShortlistEditorPage from "@/app/pages/admin/AdminShortlistEditorPage";
 import AdminMogzuOrdersPage from "@/app/pages/admin/AdminMogzuOrdersPage";
 import AdminPlatformModulesPage from "@/app/pages/admin/AdminPlatformModulesPage";
+import AdminHeyGenieConfigPage from "@/app/components/AdminHeyGenieConfigPage";
+import AmShortlistsPage from "@/app/components/AmShortlistsPage";
+import ShortlistShareView from "@/app/components/ShortlistShareView";
 import ShortlistCorporatePage from "@/app/pages/ShortlistCorporatePage";
 import AdminLoginPage from "@/app/components/AdminLoginPage";
 import ActivitySuite from "@/app/components/ActivitySuite";
@@ -157,7 +160,6 @@ import VendorAdCampaignPage from "@/app/components/VendorAdCampaignPage";
 import VendorPromotionOfferPage from "@/app/components/VendorPromotionOfferPage";
 import VendorReviewsPage from "@/app/components/VendorReviewsPage";
 import VendorCalendarPage from "@/app/components/VendorCalendarPage";
-import VendorSupportPage from "@/app/components/VendorSupportPage";
 import VendorEventsServicesPage from "@/app/components/VendorEventsServicesPage";
 import VendorEventActivityPage from "@/app/components/VendorEventActivityPage";
 import VendorSpaceXServicesPage from "@/app/components/VendorSpaceXServicesPage";
@@ -437,8 +439,24 @@ export const router = createBrowserRouter([
       { path: "shortlists", element: <AdminShortlistsPage /> },
       { path: "shortlists/new", element: <AdminShortlistEditorPage /> },
       { path: "shortlists/:id", element: <AdminShortlistEditorPage /> },
+      { path: "heygenie", element: <AdminHeyGenieConfigPage /> },
       { path: "mogzu-orders", element: <AdminMogzuOrdersPage /> },
     ],
+  },
+  {
+    path: "/am/shortlists",
+    element: <AmShortlistsPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/am/shortlists/:id",
+    element: <AmShortlistsPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/shortlist/:token",
+    element: <ShortlistShareView />,
+    errorElement: <ErrorPage />,
   },
   {
     path: "/activitysuite",
@@ -1286,11 +1304,6 @@ export const router = createBrowserRouter([
   {
     path: "/vendor/calendar",
     element: <VendorCalendarPage />,
-    errorElement: <ErrorPage />,
-  },
-  {
-    path: "/vendor/support",
-    element: <VendorSupportPage />,
     errorElement: <ErrorPage />,
   },
   {

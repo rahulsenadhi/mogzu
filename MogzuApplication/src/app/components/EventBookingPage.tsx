@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { useNavigate, useParams, useSearchParams } from 'react-router'
 import {
   ArrowLeft,
   ArrowRight,
@@ -93,6 +93,7 @@ function priceLineMultiplier(unit: Listing['price_unit'], groupSize: number): nu
 export default function EventBookingPage() {
   const navigate = useNavigate()
   const params = useParams<{ listingId: string }>()
+  const [searchParams] = useSearchParams()
   const { profile, corporateId, role } = useAuth()
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -138,7 +139,24 @@ export default function EventBookingPage() {
     const l = listingRes.data as ListingDetail
     setListing(l)
     setBudgets((budgetRes.data ?? []) as BudgetRule[])
-    setGroupSize(l.min_capacity ?? 1)
+
+    // Pre-fill from query params (Hey Genie handoff). Clamp headcount to capacity.
+    const headcountParam = parseInt(searchParams.get('headcount') ?? '', 10)
+    if (Number.isFinite(headcountParam) && headcountParam > 0) {
+      const min = l.min_capacity ?? 1
+      const max = l.max_capacity ?? headcountParam
+      setGroupSize(Math.min(Math.max(headcountParam, min), max))
+    } else {
+      setGroupSize(l.min_capacity ?? 1)
+    }
+    const dateParam = searchParams.get('date')
+    if (dateParam) {
+      const parsed = new Date(`${dateParam}T00:00:00`)
+      if (!Number.isNaN(parsed.getTime()) && parsed.getTime() >= startOfMonth(new Date()).getTime()) {
+        setSelectedDate(parsed)
+        setCalendarMonth(startOfMonth(parsed))
+      }
+    }
 
     // Load booked slots for next 3 months
     const from = new Date()
@@ -156,7 +174,7 @@ export default function EventBookingPage() {
     )
 
     setLoading(false)
-  }, [params.listingId, corporateId])
+  }, [params.listingId, corporateId, searchParams])
 
   useEffect(() => {
     loadAll()

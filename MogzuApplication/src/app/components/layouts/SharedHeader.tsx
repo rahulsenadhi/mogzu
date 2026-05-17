@@ -8,6 +8,7 @@ import { AuthRoleSwitcher } from '@/app/components/global/AuthRoleSwitcher';
 import { NotificationBell } from '@/app/components/global/NotificationBell';
 import { RoleBanner } from '@/app/components/global/RoleBanner';
 import { RoleTopNavItems } from '@/app/components/global/RoleTopNavItems';
+import { HeyGenieLauncher } from '@/app/components/global/HeyGenieLauncher';
 import { useDemoRole } from '@/app/lib/demoRole';
 
 export type SharedHeaderBrandPlacement = 'always' | 'mobileOnly';
@@ -288,6 +289,7 @@ export function SharedHeader({
       </div>
       </header>
       <RoleBanner onSwitchToCorporate={() => setActiveRole('corporate')} />
+      <HeyGenieLauncher />
     </div>
   );
 }

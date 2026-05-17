@@ -30,6 +30,10 @@ import type {
   Promotion,
   PromotionStatus,
   EventTemplate,
+  Shortlist,
+  ShortlistItem,
+  HeyGenieConfig,
+  HeyGenieSession,
   DisputeStatus,
   DisputeResolution,
   CalendarSlot,
@@ -574,6 +578,85 @@ export const commissions = {
 
   deactivate: async (id: string) =>
     supabase.from('commissions').update({ is_active: false }).eq('id', id),
+}
+
+// ─── Shortlists (Story 13.3) ──────────────────────────────────────────────────
+
+export const shortlists = {
+  listByAm: async (amId: string) =>
+    supabase
+      .from('shortlists')
+      .select('*, corporate_accounts(name)')
+      .eq('account_manager_id', amId)
+      .order('created_at', { ascending: false }),
+
+  getByToken: async (token: string) =>
+    supabase
+      .from('shortlists')
+      .select('*, corporate_accounts(name)')
+      .eq('share_token', token)
+      .maybeSingle(),
+
+  getById: async (id: string) =>
+    supabase.from('shortlists').select('*').eq('id', id).single(),
+
+  create: async (data: Omit<Shortlist, 'id' | 'created_at' | 'updated_at'>) =>
+    supabase.from('shortlists').insert(data).select().single(),
+
+  incrementView: async (id: string) => {
+    const { data } = await supabase
+      .from('shortlists')
+      .select('view_count')
+      .eq('id', id)
+      .single()
+    if (!data) return { error: null }
+    return supabase
+      .from('shortlists')
+      .update({ view_count: data.view_count + 1 })
+      .eq('id', id)
+  },
+
+  listItems: async (shortlistId: string) =>
+    supabase
+      .from('shortlist_items')
+      .select('*, listings(*, listing_images(*), vendors(business_name))')
+      .eq('shortlist_id', shortlistId)
+      .order('display_order'),
+
+  addItem: async (data: Omit<ShortlistItem, 'id' | 'created_at'>) =>
+    supabase.from('shortlist_items').insert(data).select().single(),
+
+  removeItem: async (id: string) =>
+    supabase.from('shortlist_items').delete().eq('id', id),
+}
+
+// ─── Hey Genie (Stories 11.1, 11.2) ───────────────────────────────────────────
+
+export const heyGenie = {
+  getConfig: async (corporateId: string) =>
+    supabase
+      .from('heygenie_config')
+      .select('*')
+      .eq('corporate_id', corporateId)
+      .maybeSingle(),
+
+  upsertConfig: async (data: Omit<HeyGenieConfig, 'created_at' | 'updated_at'>) =>
+    supabase
+      .from('heygenie_config')
+      .upsert(data, { onConflict: 'corporate_id' })
+      .select()
+      .single(),
+
+  logSession: async (data: Omit<HeyGenieSession, 'id' | 'created_at'>) =>
+    supabase.from('heygenie_sessions').insert(data).select().single(),
+
+  listSessions: async (userId: string, limit = 20) =>
+    supabase
+      .from('heygenie_sessions')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(limit),
 }
 
 // ─── Promotions (Stories 8.7, 9.6) ────────────────────────────────────────────
@@ -1321,4 +1404,6 @@ export const db = {
   reviewInvites,
   promotions,
   eventTemplates,
+  shortlists,
+  heyGenie,
 }
