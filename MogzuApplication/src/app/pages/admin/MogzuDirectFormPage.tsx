@@ -10,6 +10,7 @@ import type {
 } from '@/app/lib/mogzuDomain';
 import {
   loadMogzuDirectCatalogueForAdmin,
+  refreshMogzuDirectCatalogueAsync,
   saveMogzuDirectCatalogueForAdmin,
 } from '@/utils/mogzuDirectCatalogueAdmin';
 import PricingTypeSelector, { type PricingTypeSelectorValue } from '@/app/components/ui/PricingTypeSelector';
@@ -89,8 +90,18 @@ export default function MogzuDirectFormPage() {
       setLoaded(true);
       return;
     }
-    const list = loadMogzuDirectCatalogueForAdmin();
-    const row = list.find((r) => r.id === id);
+    let cancelled = false;
+    void refreshMogzuDirectCatalogueAsync().then((fresh) => {
+      if (cancelled) return;
+      const row = fresh.find((r) => r.id === id) ?? loadMogzuDirectCatalogueForAdmin().find((r) => r.id === id);
+      hydrate(row);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, isEdit]);
+
+  const hydrate = (row: MogzuDirectListing | undefined) => {
     if (!row) {
       setError('Listing not found.');
       setLoaded(true);
@@ -140,7 +151,7 @@ export default function MogzuDirectFormPage() {
     setPaymentPresetOn(presets);
     setPaymentCustomText(extraMethods.join('\n'));
     setLoaded(true);
-  }, [id, isEdit]);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { Eye, Pencil, Plus, Trash2, GraduationCap } from 'lucide-react';
 import { toast } from 'sonner';
@@ -8,8 +8,11 @@ import { CORP } from '@/app/lib/adminTheme';
 import type { MogzuDirectListing, MogzuListingModule } from '@/app/lib/mogzuDomain';
 import {
   loadMogzuDirectCatalogueForAdmin,
+  refreshMogzuDirectCatalogueAsync,
   saveMogzuDirectCatalogueForAdmin,
 } from '@/utils/mogzuDirectCatalogueAdmin';
+import { MOGZU_DOMAIN_STORAGE_EVENT } from '@/app/lib/mogzuDomain';
+import { MOGZU_DIRECT_CATALOGUE_KEY } from '@/utils/catalogueUtils';
 import { matchesPriceRange, matchesSourceFilter, parsePriceLike, type CatalogueSourceFilter } from '@/utils/filterContracts';
 
 type ModuleTab = 'all' | MogzuListingModule;
@@ -45,6 +48,18 @@ export default function MogzuDirectPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<ModuleTab>('all');
   const [rows, setRows] = useState<MogzuDirectListing[]>(() => loadMogzuDirectCatalogueForAdmin());
+
+  useEffect(() => {
+    void refreshMogzuDirectCatalogueAsync().then((fresh) => setRows(fresh));
+    const onChange = (e: Event) => {
+      const detail = (e as CustomEvent<{ key?: string }>).detail;
+      if (!detail || detail.key === MOGZU_DIRECT_CATALOGUE_KEY) {
+        setRows(loadMogzuDirectCatalogueForAdmin());
+      }
+    };
+    window.addEventListener(MOGZU_DOMAIN_STORAGE_EVENT, onChange);
+    return () => window.removeEventListener(MOGZU_DOMAIN_STORAGE_EVENT, onChange);
+  }, []);
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [sourceFilter, setSourceFilter] = useState<CatalogueSourceFilter>('all');
   const [budgetMin, setBudgetMin] = useState('');

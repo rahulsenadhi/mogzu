@@ -5,6 +5,7 @@ import { SharedSidebar } from '@/app/components/layouts/SharedSidebar';
 import { formatBuyerPaymentSummary } from '@/app/lib/mogzuDomain';
 import type { MogzuDirectListing, MogzuListingModule, MogzuOrder } from '@/app/lib/mogzuDomain';
 import { loadMogzuDirectListings, loadMogzuOrders, saveMogzuOrders } from '@/app/lib/mogzuDomain';
+import { refreshMogzuDirectCatalogueAsync } from '@/utils/mogzuDirectCatalogueAdmin';
 import { getMergedCatalogue } from '@/utils/catalogueUtils';
 import { resolveMogzuDirectDisplayListing } from '@/utils/catalogueDetailHelpers';
 import { useDemoRole } from '@/app/lib/demoRole';
@@ -38,6 +39,10 @@ export default function MogzuDirectCorporateDetailPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedTab, setSelectedTab] = useState<TabId>('overview');
   const [bookingNotice, setBookingNotice] = useState('');
+  // Phase 2 Feature 7 — refreshKey bumps after a Supabase refresh writes
+  // the latest Mogzu Direct rows into the localStorage cache, so memos
+  // that read from the cache re-run and pick them up.
+  const [refreshKey, setRefreshKey] = useState(0);
   const { activeRole } = useDemoRole();
 
   const idDecoded = idParam ? decodeURIComponent(idParam) : '';
@@ -45,17 +50,28 @@ export default function MogzuDirectCorporateDetailPage() {
   const catalogueItem = useMemo(() => {
     if (!idDecoded) return null;
     return getMergedCatalogue().find((i) => i.id === idDecoded) ?? null;
-  }, [idDecoded]);
+  }, [idDecoded, refreshKey]);
 
   useEffect(() => {
     if (!idDecoded || !catalogueItem || catalogueItem.source_type !== 'vendor') return;
     navigate(`/browse/partner-listing/${encodeURIComponent(idDecoded)}`, { replace: true });
   }, [idDecoded, catalogueItem, navigate]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void refreshMogzuDirectCatalogueAsync().then(() => {
+      if (!cancelled) setRefreshKey((k) => k + 1);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const domainListing = useMemo(() => {
     if (!idDecoded) return null;
     return loadMogzuDirectListings().find((r) => r.id === idDecoded) ?? null;
-  }, [idDecoded]);
+    // refreshKey forces a re-read once Supabase refresh completes.
+  }, [idDecoded, refreshKey]);
 
   const listing = useMemo((): MogzuDirectListing | null => {
     if (!catalogueItem || catalogueItem.source_type !== 'mogzu_direct') return null;

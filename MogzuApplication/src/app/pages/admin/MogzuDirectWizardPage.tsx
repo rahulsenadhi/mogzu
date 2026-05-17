@@ -7,6 +7,7 @@ import { CORP } from '@/app/lib/adminTheme';
 import type { ListingAvailabilitySlot, MogzuDirectListing, MogzuListingModule, MogzuPricingMode } from '@/app/lib/mogzuDomain';
 import {
   loadMogzuDirectCatalogueForAdmin,
+  refreshMogzuDirectCatalogueAsync,
   saveMogzuDirectCatalogueForAdmin,
 } from '@/utils/mogzuDirectCatalogueAdmin';
 import PricingTypeSelector, { type PricingTypeSelectorValue } from '@/app/components/ui/PricingTypeSelector';
@@ -112,6 +113,7 @@ export default function MogzuDirectWizardPage() {
       setLoaded(true);
       return;
     }
+    void refreshMogzuDirectCatalogueAsync();
     const list = loadMogzuDirectCatalogueForAdmin();
     const row = list.find((r) => r.id === id);
     if (!row) {

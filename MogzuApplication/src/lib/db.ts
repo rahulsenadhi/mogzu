@@ -2139,6 +2139,78 @@ export const categories = {
     supabase.rpc('count_active_listings_for_category', { p_category_id: categoryId }),
 }
 
+// ─── Mogzu Direct Listings (Phase 2 Feature 7) ───────────────────────────────
+
+export interface MogzuDirectListingRow {
+  id: string
+  module: string
+  category_id: string | null
+  title: string
+  description: string | null
+  status: string
+  pricing_type: string
+  base_price: number | null
+  price_unit: string | null
+  min_capacity: number | null
+  max_capacity: number | null
+  location_city: string | null
+  location_address: string | null
+  cancellation_policy: string | null
+  confirmation_sla_hours: number
+  mogzu_direct_alias: string | null
+  listing_kind: string | null
+  metadata: Record<string, unknown>
+  images: Array<{ id: string; storage_path: string; display_order: number }>
+  created_at: string
+  updated_at: string
+}
+
+export interface MogzuDirectListingInput {
+  module?: string
+  category_id?: string | null
+  title?: string
+  description?: string | null
+  status?: string
+  pricing_type?: string
+  base_price?: number | string | null
+  price_unit?: string | null
+  min_capacity?: number | string | null
+  max_capacity?: number | string | null
+  location_city?: string | null
+  location_address?: string | null
+  cancellation_policy?: string | null
+  confirmation_sla_hours?: number | string | null
+  mogzu_direct_alias?: string | null
+  listing_kind?: string | null
+  metadata?: Record<string, unknown>
+}
+
+export const mogzuDirect = {
+  list: async (admin = false) =>
+    supabase.rpc('list_mogzu_direct_listings', { p_admin: admin }),
+
+  getById: async (id: string) =>
+    supabase.rpc('get_mogzu_direct_listing', { p_id: id }),
+
+  create: async (payload: MogzuDirectListingInput) =>
+    supabase.rpc('create_mogzu_direct_listing', { p_payload: payload }),
+
+  update: async (id: string, payload: MogzuDirectListingInput) =>
+    supabase.rpc('update_mogzu_direct_listing', { p_id: id, p_payload: payload }),
+
+  setStatus: async (id: string, status: string) =>
+    supabase.rpc('set_mogzu_direct_status', { p_id: id, p_status: status }),
+
+  remove: async (id: string) =>
+    supabase.rpc('delete_mogzu_direct_listing', { p_id: id }),
+
+  setImages: async (listingId: string, imagePaths: string[]) =>
+    supabase.rpc('set_mogzu_direct_images', {
+      p_listing_id: listingId,
+      p_image_paths: imagePaths,
+    }),
+}
+
 // ─── Exported db namespace ────────────────────────────────────────────────────
 
 export const db = {
@@ -2188,4 +2260,5 @@ export const db = {
   bookingTracker,
   bookingProof,
   quickShares,
+  mogzuDirect,
 }
