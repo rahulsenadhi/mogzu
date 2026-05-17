@@ -2096,14 +2096,47 @@ export const categories = {
       .eq('is_active', true)
       .order('display_order'),
 
-  create: async (data: Omit<ListingCategory, 'id' | 'created_at'>) =>
-    supabase.from('listing_categories').insert(data).select().single(),
+  listAllForAdmin: async () =>
+    supabase
+      .from('listing_categories')
+      .select('*')
+      .order('module')
+      .order('display_order'),
 
-  update: async (id: string, data: Partial<ListingCategory>) =>
-    supabase.from('listing_categories').update(data).eq('id', id),
+  create: async (
+    data: Omit<ListingCategory, 'id' | 'created_at' | 'updated_at'>,
+  ) => supabase.from('listing_categories').insert(data).select().single(),
+
+  update: async (
+    id: string,
+    data: Partial<Omit<ListingCategory, 'id' | 'created_at'>>,
+  ) =>
+    supabase
+      .from('listing_categories')
+      .update(data)
+      .eq('id', id)
+      .select()
+      .single(),
 
   toggle: async (id: string, isActive: boolean) =>
-    supabase.from('listing_categories').update({ is_active: isActive }).eq('id', id),
+    supabase
+      .from('listing_categories')
+      .update({ is_active: isActive })
+      .eq('id', id),
+
+  reorder: async (rows: { id: string; display_order: number }[]) => {
+    for (const r of rows) {
+      const { error } = await supabase
+        .from('listing_categories')
+        .update({ display_order: r.display_order })
+        .eq('id', r.id)
+      if (error) return { error }
+    }
+    return { error: null }
+  },
+
+  countActiveListings: async (categoryId: string) =>
+    supabase.rpc('count_active_listings_for_category', { p_category_id: categoryId }),
 }
 
 // ─── Exported db namespace ────────────────────────────────────────────────────

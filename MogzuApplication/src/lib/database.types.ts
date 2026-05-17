@@ -231,7 +231,9 @@ export interface ListingCategory {
   display_order: number
   is_active: boolean
   parent_id: string | null
+  description: string | null
   created_at: string
+  updated_at: string
 }
 
 export type ListingOwnerType = 'vendor' | 'partner'
