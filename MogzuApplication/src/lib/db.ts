@@ -15,6 +15,8 @@ import type {
   Payout,
   Refund,
   RoleSwitchEvent,
+  SupportTicket,
+  SupportTicketNote,
   CalendarSlot,
   Commission,
   CorporateAccount,
@@ -537,6 +539,58 @@ export const commissions = {
     supabase.from('commissions').update({ is_active: false }).eq('id', id),
 }
 
+// ─── Support Tickets (Stories 12.1, 12.2, 12.3) ──────────────────────────────
+
+export const supportTickets = {
+  create: async (data: Omit<SupportTicket, 'id' | 'created_at' | 'updated_at'>) =>
+    supabase.from('support_tickets').insert(data).select().single(),
+
+  getById: async (id: string) =>
+    supabase
+      .from('support_tickets')
+      .select('*, bookings(listings(title)), payouts(net_amount,scheduled_for)')
+      .eq('id', id)
+      .single(),
+
+  listMine: async (userId: string) =>
+    supabase
+      .from('support_tickets')
+      .select('*')
+      .eq('submitter_id', userId)
+      .order('created_at', { ascending: false }),
+
+  listQueue: async (audience: 'corporate' | 'vendor' | 'all', status?: 'open' | 'in_progress' | 'waiting_user' | 'resolved' | 'closed') => {
+    let q = supabase
+      .from('support_tickets')
+      .select('*, user_profiles!support_tickets_submitter_id_fkey(full_name,department), vendors(business_name), corporate_accounts(name)')
+      .order('priority', { ascending: false })
+      .order('created_at')
+    if (audience !== 'all') q = q.eq('audience', audience)
+    if (status) q = q.eq('status', status)
+    return q
+  },
+
+  update: async (id: string, data: Partial<SupportTicket>) =>
+    supabase
+      .from('support_tickets')
+      .update({ ...data, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single(),
+}
+
+export const supportTicketNotes = {
+  listByTicket: async (ticketId: string) =>
+    supabase
+      .from('support_ticket_notes')
+      .select('*')
+      .eq('ticket_id', ticketId)
+      .order('created_at'),
+
+  create: async (data: Omit<SupportTicketNote, 'id' | 'created_at'>) =>
+    supabase.from('support_ticket_notes').insert(data).select().single(),
+}
+
 // ─── Notifications (Story 7.2) ────────────────────────────────────────────────
 
 type NotifyInput = {
@@ -830,4 +884,6 @@ export const db = {
   payouts,
   refunds,
   roleSwitchEvents,
+  supportTickets,
+  supportTicketNotes,
 }

@@ -219,6 +219,46 @@ export interface BookingAddOn {
   quantity: number
 }
 
+export type TicketStatus = 'open' | 'in_progress' | 'waiting_user' | 'resolved' | 'closed'
+export type TicketPriority = 'low' | 'normal' | 'high' | 'urgent'
+export type TicketAudience = 'corporate' | 'vendor'
+
+export interface SupportTicket {
+  id: string
+  audience: TicketAudience
+  submitter_id: string
+  corporate_id: string | null
+  vendor_id: string | null
+  category: string
+  subject: string
+  body: string
+  status: TicketStatus
+  priority: TicketPriority
+  sla_hours: number
+  context_url: string | null
+  context_role: string | null
+  context_last_action: string | null
+  context_user_agent: string | null
+  assigned_to: string | null
+  related_booking_id: string | null
+  related_payout_id: string | null
+  csat_score: number | null
+  csat_feedback: string | null
+  resolved_at: string | null
+  closed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface SupportTicketNote {
+  id: string
+  ticket_id: string
+  author_id: string
+  body: string
+  is_internal: boolean
+  created_at: string
+}
+
 export type NotificationType =
   | 'booking_confirmed'
   | 'booking_cancelled'
@@ -446,6 +486,16 @@ export interface Database {
         Row: GiftingRule
         Insert: Omit<GiftingRule, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<GiftingRule, 'id' | 'created_at'>>
+      }
+      support_tickets: {
+        Row: SupportTicket
+        Insert: Omit<SupportTicket, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<SupportTicket, 'id' | 'created_at'>>
+      }
+      support_ticket_notes: {
+        Row: SupportTicketNote
+        Insert: Omit<SupportTicketNote, 'id' | 'created_at'>
+        Update: Partial<Omit<SupportTicketNote, 'id' | 'created_at'>>
       }
       notifications: {
         Row: Notification

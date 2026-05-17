@@ -93,6 +93,8 @@ import NotificationsPage from "@/app/components/NotificationsPage";
 import NotificationPreferencesPage from "@/app/components/NotificationPreferencesPage";
 import EmployeeSpendPage from "@/app/components/EmployeeSpendPage";
 import CorporateSpendReportPage from "@/app/components/CorporateSpendReportPage";
+import SupportPage, { VendorSupportPage } from "@/app/components/SupportPage";
+import AdminSupportPage from "@/app/components/AdminSupportPage";
 import CelebrationsPage from "@/app/components/CelebrationsPage";
 import CelebrationDetailPage from "@/app/components/CelebrationDetailPage";
 import CelebrationBookingFlow from "@/app/components/CelebrationBookingFlow";
@@ -755,6 +757,36 @@ export const router = createBrowserRouter([
   {
     path: "/corporate/spend-report",
     element: <CorporateSpendReportPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/support",
+    element: <SupportPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/support/:id",
+    element: <SupportPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/vendor/support",
+    element: <VendorSupportPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/vendor/support/:id",
+    element: <VendorSupportPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/admin/support",
+    element: <AdminSupportPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/admin/support/:id",
+    element: <AdminSupportPage />,
     errorElement: <ErrorPage />,
   },
   {
