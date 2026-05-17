@@ -131,6 +131,7 @@ import VendorAnalyticsPage from "@/app/components/VendorAnalyticsPage";
 import VendorPromotionsRealPage from "@/app/components/VendorPromotionsRealPage";
 import AdminPromotionsApprovalPage from "@/app/components/AdminPromotionsApprovalPage";
 import AdminBrandingApprovalsPage from "@/app/components/AdminBrandingApprovalsPage";
+import AdminCmsPage from "@/app/components/AdminCmsPage";
 import CorporateEventTemplatesPage from "@/app/components/CorporateEventTemplatesPage";
 import CorporatePicksPage from "@/app/components/CorporatePicksPage";
 import CelebrationsPage from "@/app/components/CelebrationsPage";
@@ -988,6 +989,11 @@ export const router = createBrowserRouter([
   {
     path: "/admin/branding/approvals",
     element: <AdminBrandingApprovalsPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/admin/cms",
+    element: <AdminCmsPage />,
     errorElement: <ErrorPage />,
   },
   {

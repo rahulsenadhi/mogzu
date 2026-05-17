@@ -183,6 +183,47 @@ export interface GiftingBrandingSelection {
   updated_at: string
 }
 
+export type CmsBlockKind =
+  | 'hero'
+  | 'feature_card'
+  | 'promo_banner'
+  | 'blog_post'
+  | 'announcement'
+  | 'footer_link_group'
+
+export type CmsBlockStatus = 'draft' | 'scheduled' | 'published' | 'archived'
+
+export interface CmsBlockRow {
+  id: string
+  slug: string
+  kind: CmsBlockKind
+  title: string | null
+  body: string | null
+  image_path: string | null
+  image_url: string | null
+  cta_label: string | null
+  cta_href: string | null
+  payload: Record<string, unknown>
+  display_order: number
+  status: CmsBlockStatus
+  scheduled_publish_at: string | null
+  published_at: string | null
+  published_by: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CmsFeaturedListingRow {
+  id: string
+  slot: 'homepage_carousel' | 'module_spotlight'
+  module: ModuleId | null
+  listing_id: string
+  display_order: number
+  created_by: string | null
+  created_at: string
+}
+
 export interface UserInvite {
   id: string
   email: string
@@ -1163,6 +1204,34 @@ export interface Database {
         Row: GiftingBrandingSelection
         Insert: Omit<GiftingBrandingSelection, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<GiftingBrandingSelection, 'id' | 'created_at'>>
+      }
+      cms_blocks: {
+        Row: CmsBlockRow
+        Insert: Omit<CmsBlockRow, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<CmsBlockRow, 'id' | 'created_at'>>
+      }
+      cms_featured_listings: {
+        Row: CmsFeaturedListingRow
+        Insert: Omit<CmsFeaturedListingRow, 'id' | 'created_at'>
+        Update: Partial<Omit<CmsFeaturedListingRow, 'id' | 'created_at'>>
+      }
+      cms_blocks_live: {
+        Row: Pick<
+          CmsBlockRow,
+          | 'id'
+          | 'slug'
+          | 'kind'
+          | 'title'
+          | 'body'
+          | 'image_path'
+          | 'image_url'
+          | 'cta_label'
+          | 'cta_href'
+          | 'payload'
+          | 'display_order'
+        > & { effective_at: string }
+        Insert: never
+        Update: never
       }
       promotions: {
         Row: Promotion

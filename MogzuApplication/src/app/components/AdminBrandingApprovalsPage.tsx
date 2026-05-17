@@ -78,7 +78,7 @@ export default function AdminBrandingApprovalsPage() {
       <div className="mx-auto max-w-6xl px-6 py-6">
         <AdminPageTitleRow
           title="Gifting branding approvals"
-          subtitle="Logo placement requests from corporates. Approve to release the spec to the vendor, or request a revision with notes."
+          totalLabel="Logo placement requests from corporates"
         />
 
         {notice && (
