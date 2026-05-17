@@ -45,6 +45,7 @@ interface GiftingBookingCustomizationPayload {
   selectedColors?: string[];
   uploadedLogo?: string | null;
   logoFileName?: string;
+  logoUploadId?: string | null;
   brandingMethod?: string;
   brandingPosition?: string;
   requestSample?: boolean;

@@ -139,6 +139,50 @@ export interface BookingPaymentMilestone {
   created_at: string
 }
 
+export type GiftingBrandingPlacement =
+  | 'front_print'
+  | 'back_print'
+  | 'embossing'
+  | 'label'
+  | 'sleeve_band'
+
+export type GiftingBrandingMethod =
+  | 'screen_print'
+  | 'digital_print'
+  | 'embroidery'
+  | 'dtf'
+  | 'emboss'
+  | 'laser_etch'
+
+export type GiftingBrandingStatus = 'pending' | 'approved' | 'revision_requested'
+
+export interface GiftingBrandingUpload {
+  id: string
+  corporate_id: string
+  uploaded_by: string | null
+  storage_path: string
+  public_url: string
+  original_filename: string
+  mime_type: string
+  file_size_bytes: number | null
+  created_at: string
+}
+
+export interface GiftingBrandingSelection {
+  id: string
+  booking_id: string
+  upload_id: string
+  placement_type: GiftingBrandingPlacement
+  branding_method: GiftingBrandingMethod | null
+  position_notes: string | null
+  approval_status: GiftingBrandingStatus
+  revision_notes: string | null
+  reviewed_by: string | null
+  reviewed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface UserInvite {
   id: string
   email: string
@@ -1109,6 +1153,16 @@ export interface Database {
         Row: QuickShareSubmission
         Insert: Omit<QuickShareSubmission, 'id' | 'submitted_at'>
         Update: Partial<Omit<QuickShareSubmission, 'id' | 'submitted_at'>>
+      }
+      gifting_branding_uploads: {
+        Row: GiftingBrandingUpload
+        Insert: Omit<GiftingBrandingUpload, 'id' | 'created_at'>
+        Update: Partial<Omit<GiftingBrandingUpload, 'id' | 'created_at'>>
+      }
+      gifting_branding_selections: {
+        Row: GiftingBrandingSelection
+        Insert: Omit<GiftingBrandingSelection, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<GiftingBrandingSelection, 'id' | 'created_at'>>
       }
       promotions: {
         Row: Promotion

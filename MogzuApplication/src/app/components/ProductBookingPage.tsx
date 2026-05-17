@@ -27,6 +27,8 @@ import {
 } from '@/app/lib/vendorProductsCatalogStorage';
 import type { ListingBuyerDetailBlock } from '../../../utils/mogzuDataTypes';
 import { formatBuyerPaymentSummary } from '@/app/lib/mogzuDomain';
+import { useAuth } from '@/lib/auth';
+import { uploadBrandingLogo, PLACEMENT_OPTIONS, type PlacementType } from '@/lib/giftingBranding';
 
 const imgAvatar = QA_IMAGES.avatar;
 const imgVendorAvatar = QA_IMAGES.vendorPortrait;
@@ -164,6 +166,7 @@ interface ProductDetails {
 export default function ProductBookingPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { corporateId, user } = useAuth();
 
   // Get category and productId from URL params
   const [searchParams] = useSearchParams();
@@ -238,7 +241,10 @@ export default function ProductBookingPage() {
   const [showCustomization, setShowCustomization] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string>('');
-  const [logoPosition, setLogoPosition] = useState<string>('center-chest');
+  const [logoUploadId, setLogoUploadId] = useState<string | null>(null);
+  const [logoUploadError, setLogoUploadError] = useState<string | null>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoPosition, setLogoPosition] = useState<PlacementType | string>('front_print');
   const [brandingMethod, setBrandingMethod] = useState<string>('screen-print');
   const [logoSize, setLogoSize] = useState<'small' | 'medium' | 'large'>('medium');
   
@@ -583,6 +589,7 @@ export default function ProductBookingPage() {
           selectedColors: [colorName],
           uploadedLogo: logoPreview || null,
           logoFileName: logoFile?.name || '',
+          logoUploadId,
           brandingMethod,
           brandingPosition: logoPosition,
           requestSample: requestSampleBook,
@@ -947,15 +954,35 @@ export default function ProductBookingPage() {
     setDeliveryEstimate({ date: formattedDate, days: businessDays });
   };
 
-  const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      setLogoFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setLogoPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    setLogoFile(file);
+    setLogoUploadError(null);
+
+    // Always show local preview immediately so the UI is responsive even
+    // before the network round-trip resolves.
+    const reader = new FileReader();
+    reader.onloadend = () => setLogoPreview(reader.result as string);
+    reader.readAsDataURL(file);
+
+    // Persist to Supabase Storage + record metadata when the buyer is signed
+    // into a corporate account. Anonymous demo sessions fall back to the
+    // local-only preview (no upload row, no selection row).
+    if (!corporateId || !user?.id) return;
+    setLogoUploading(true);
+    const { data, error } = await uploadBrandingLogo(corporateId, user.id, file);
+    setLogoUploading(false);
+    if (error) {
+      setLogoUploadError(error);
+      setLogoUploadId(null);
+      return;
+    }
+    if (data) {
+      setLogoUploadId(data.id);
+      // Prefer the public URL so the preview survives a page reload.
+      setLogoPreview(data.public_url);
     }
   };
 
@@ -2438,6 +2465,8 @@ export default function ProductBookingPage() {
                                       e.preventDefault();
                                       setLogoPreview('');
                                       setLogoFile(null);
+                                      setLogoUploadId(null);
+                                      setLogoUploadError(null);
                                     }}
                                     className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 text-xs"
                                   >
@@ -2453,7 +2482,16 @@ export default function ProductBookingPage() {
                                 <p className="text-sm font-medium text-[#0e1e3f]">
                                   {logoPreview ? 'Change Logo' : 'Click to upload'}
                                 </p>
-                                <p className="text-xs text-[#878e9e]">PNG, JPG, SVG up to 10MB</p>
+                                <p className="text-xs text-[#878e9e]">PNG, JPG, SVG up to 5MB</p>
+                                {logoUploading && (
+                                  <p className="text-xs text-blue-600 mt-1">Uploading to Mogzu…</p>
+                                )}
+                                {logoUploadId && !logoUploading && (
+                                  <p className="text-xs text-[#16a34a] mt-1">✓ Saved · pending admin approval</p>
+                                )}
+                                {logoUploadError && (
+                                  <p className="text-xs text-red-600 mt-1">{logoUploadError}</p>
+                                )}
                               </div>
                             </div>
                           </label>
