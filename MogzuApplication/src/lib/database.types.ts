@@ -206,6 +206,10 @@ export interface Booking {
   cancellation_fee: number | null
   vendor_response_deadline: string | null
   completed_at: string | null
+  fulfilment_stage: FulfilmentStage | null
+  tracking_number: string | null
+  carrier: string | null
+  carrier_url: string | null
   created_at: string
   updated_at: string
 }
@@ -303,6 +307,28 @@ export interface NotificationPreference {
   user_id: string
   in_app_enabled_types: NotificationType[]
   email_enabled_types: NotificationType[]
+  created_at: string
+  updated_at: string
+}
+
+export type FulfilmentStage =
+  | 'ordered'
+  | 'packed'
+  | 'dispatched'
+  | 'out_for_delivery'
+  | 'delivered'
+  | 'returned'
+
+export interface TravelPolicy {
+  id: string
+  corporate_id: string
+  name: string
+  role_tier: 'l1_employee' | 'l2_manager' | 'l3_admin' | 'all'
+  max_nightly_rate: number
+  approved_cities: string[]
+  min_lead_days: number
+  module: 'spacex_stay' | 'spacex_coworking'
+  is_active: boolean
   created_at: string
   updated_at: string
 }
@@ -536,6 +562,11 @@ export interface Database {
         Row: NotificationPreference
         Insert: Omit<NotificationPreference, 'created_at' | 'updated_at'>
         Update: Partial<Omit<NotificationPreference, 'created_at'>>
+      }
+      travel_policies: {
+        Row: TravelPolicy
+        Insert: Omit<TravelPolicy, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<TravelPolicy, 'id' | 'created_at'>>
       }
       celebration_events: {
         Row: CelebrationEvent

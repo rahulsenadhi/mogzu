@@ -538,6 +538,11 @@ function BookingDetailScreen({
                     </p>
                   </div>
                 )}
+
+                {booking.module === 'gifting' &&
+                  ['confirmed', 'completed'].includes(booking.status) && (
+                    <FulfilmentPanel booking={booking} onChanged={load} />
+                  )}
               </div>
 
               {canRespond && (
@@ -605,6 +610,165 @@ function BookingDetailScreen({
         </section>
       </main>
     </VendorAppShell>
+  )
+}
+
+// ─── Fulfilment Panel (Story 4.6) ─────────────────────────────────────────────
+
+const FULFILMENT_STAGES: { key: 'ordered' | 'packed' | 'dispatched' | 'out_for_delivery' | 'delivered'; label: string }[] = [
+  { key: 'ordered', label: 'Ordered' },
+  { key: 'packed', label: 'Packed' },
+  { key: 'dispatched', label: 'Dispatched' },
+  { key: 'out_for_delivery', label: 'Out for delivery' },
+  { key: 'delivered', label: 'Delivered' },
+]
+
+function FulfilmentPanel({
+  booking,
+  onChanged,
+}: {
+  booking: BookingDetail
+  onChanged: () => void
+}) {
+  const [stage, setStage] = useState<typeof FULFILMENT_STAGES[number]['key']>(
+    (booking.fulfilment_stage as typeof FULFILMENT_STAGES[number]['key']) ?? 'ordered',
+  )
+  const [trackingNumber, setTrackingNumber] = useState(booking.tracking_number ?? '')
+  const [carrier, setCarrier] = useState(booking.carrier ?? '')
+  const [carrierUrl, setCarrierUrl] = useState(booking.carrier_url ?? '')
+  const [saving, setSaving] = useState(false)
+  const [notice, setNotice] = useState('')
+
+  const currentIdx = FULFILMENT_STAGES.findIndex((s) => s.key === stage)
+
+  const handleSave = async () => {
+    setSaving(true)
+    setNotice('')
+    const { error } = await db.bookings.setFulfilment(booking.id, stage, {
+      tracking_number: trackingNumber.trim() || null,
+      carrier: carrier.trim() || null,
+      carrier_url: carrierUrl.trim() || null,
+    })
+    setSaving(false)
+    if (error) {
+      setNotice(`Failed: ${error.message}`)
+      return
+    }
+    // Notify booker on stage transition
+    db.notifications.notify({
+      userId: booking.user_id,
+      type: 'gift_received',
+      title: `Gift update: ${FULFILMENT_STAGES.find((s) => s.key === stage)?.label ?? stage}`,
+      body: trackingNumber
+        ? `Tracking ${trackingNumber}${carrier ? ` via ${carrier}` : ''}`
+        : 'Vendor updated your gift status.',
+      linkUrl: `/bookings/${booking.id}`,
+    })
+    setNotice('Saved + booker notified.')
+    onChanged()
+  }
+
+  return (
+    <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Gift fulfilment
+      </p>
+
+      <div className="mb-4 flex items-center justify-between gap-1 text-[10px]">
+        {FULFILMENT_STAGES.map((s, i) => {
+          const done = i <= currentIdx
+          return (
+            <div key={s.key} className="flex flex-1 items-center">
+              <div
+                className={`flex size-6 items-center justify-center rounded-full text-[10px] font-semibold ${
+                  done ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'
+                }`}
+              >
+                {i + 1}
+              </div>
+              <span
+                className={`ml-1 ${done ? 'font-semibold text-slate-700' : 'text-slate-400'}`}
+              >
+                {s.label}
+              </span>
+              {i < FULFILMENT_STAGES.length - 1 && (
+                <div className={`mx-1 h-px flex-1 ${done ? 'bg-emerald-300' : 'bg-slate-200'}`} />
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+            Stage
+          </label>
+          <select
+            value={stage}
+            onChange={(e) => setStage(e.target.value as typeof stage)}
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
+          >
+            {FULFILMENT_STAGES.map((s) => (
+              <option key={s.key} value={s.key}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+            Carrier
+          </label>
+          <input
+            value={carrier}
+            onChange={(e) => setCarrier(e.target.value)}
+            placeholder="Delhivery / Shiprocket / BlueDart"
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+            Tracking number
+          </label>
+          <input
+            value={trackingNumber}
+            onChange={(e) => setTrackingNumber(e.target.value)}
+            placeholder="AWB / waybill"
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+            Carrier tracking URL
+          </label>
+          <input
+            value={carrierUrl}
+            onChange={(e) => setCarrierUrl(e.target.value)}
+            placeholder="https://…"
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
+          />
+        </div>
+      </div>
+
+      {notice && (
+        <p className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+          {notice}
+        </p>
+      )}
+
+      <div className="mt-3 flex justify-end">
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="inline-flex items-center gap-1.5 rounded-md bg-[#2563eb] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+        >
+          {saving && <Loader2 className="size-4 animate-spin" />}
+          Save & notify booker
+        </button>
+      </div>
+    </div>
   )
 }
 

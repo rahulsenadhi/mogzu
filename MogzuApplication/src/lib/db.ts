@@ -18,6 +18,8 @@ import type {
   RoleSwitchEvent,
   SupportTicket,
   SupportTicketNote,
+  TravelPolicy,
+  FulfilmentStage,
   CalendarSlot,
   Commission,
   CorporateAccount,
@@ -373,6 +375,21 @@ export const bookings = {
       ? { data: [], error: null }
       : supabase.from('booking_add_ons').insert(rows).select(),
 
+  // Story 4.6 — advance gifting order through fulfilment stages.
+  setFulfilment: async (
+    id: string,
+    stage: FulfilmentStage,
+    extra?: { tracking_number?: string | null; carrier?: string | null; carrier_url?: string | null },
+  ) =>
+    supabase
+      .from('bookings')
+      .update({
+        fulfilment_stage: stage,
+        ...(extra ?? {}),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id),
+
   // Cancel booking and initiate refund if payment was captured.
   // Wallet refunds are processed immediately (credit + wallet_transactions);
   // card/UPI refunds are inserted as 'pending' for the Razorpay webhook to
@@ -545,6 +562,38 @@ export const commissions = {
 
   deactivate: async (id: string) =>
     supabase.from('commissions').update({ is_active: false }).eq('id', id),
+}
+
+// ─── Travel Policies (Story 5.5) ──────────────────────────────────────────────
+
+export const travelPolicies = {
+  listByCorporate: async (corporateId: string) =>
+    supabase
+      .from('travel_policies')
+      .select('*')
+      .eq('corporate_id', corporateId)
+      .order('created_at', { ascending: false }),
+
+  listActiveForRole: async (corporateId: string, role: UserRole, module: 'spacex_stay' | 'spacex_coworking') =>
+    supabase
+      .from('travel_policies')
+      .select('*')
+      .eq('corporate_id', corporateId)
+      .eq('is_active', true)
+      .eq('module', module)
+      .in('role_tier', [role, 'all']),
+
+  create: async (data: Omit<TravelPolicy, 'id' | 'created_at' | 'updated_at'>) =>
+    supabase.from('travel_policies').insert(data).select().single(),
+
+  update: async (id: string, data: Partial<TravelPolicy>) =>
+    supabase
+      .from('travel_policies')
+      .update({ ...data, updated_at: new Date().toISOString() })
+      .eq('id', id),
+
+  deactivate: async (id: string) =>
+    supabase.from('travel_policies').update({ is_active: false }).eq('id', id),
 }
 
 // ─── Support Tickets (Stories 12.1, 12.2, 12.3) ──────────────────────────────
@@ -942,4 +991,5 @@ export const db = {
   roleSwitchEvents,
   supportTickets,
   supportTicketNotes,
+  travelPolicies,
 }

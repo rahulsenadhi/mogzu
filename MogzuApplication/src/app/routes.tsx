@@ -98,6 +98,8 @@ import AdminSupportPage from "@/app/components/AdminSupportPage";
 import CorporateCelebrationsPage from "@/app/components/CorporateCelebrationsPage";
 import ManagerCelebrationsPage from "@/app/components/ManagerCelebrationsPage";
 import AccountManagerPortfolioPage from "@/app/components/AccountManagerPortfolioPage";
+import CorporateTravelPolicyPage from "@/app/components/CorporateTravelPolicyPage";
+import StaySearchPage from "@/app/components/StaySearchPage";
 import CelebrationsPage from "@/app/components/CelebrationsPage";
 import CelebrationDetailPage from "@/app/components/CelebrationDetailPage";
 import CelebrationBookingFlow from "@/app/components/CelebrationBookingFlow";
@@ -805,6 +807,16 @@ export const router = createBrowserRouter([
   {
     path: "/am/portfolio",
     element: <AccountManagerPortfolioPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/corporate/travel-policy",
+    element: <CorporateTravelPolicyPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/stay",
+    element: <StaySearchPage />,
     errorElement: <ErrorPage />,
   },
   {
