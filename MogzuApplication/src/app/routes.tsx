@@ -100,6 +100,7 @@ import ManagerCelebrationsPage from "@/app/components/ManagerCelebrationsPage";
 import AccountManagerPortfolioPage from "@/app/components/AccountManagerPortfolioPage";
 import CorporateTravelPolicyPage from "@/app/components/CorporateTravelPolicyPage";
 import StaySearchPage from "@/app/components/StaySearchPage";
+import AdminDisputesPage from "@/app/components/AdminDisputesPage";
 import CelebrationsPage from "@/app/components/CelebrationsPage";
 import CelebrationDetailPage from "@/app/components/CelebrationDetailPage";
 import CelebrationBookingFlow from "@/app/components/CelebrationBookingFlow";
@@ -817,6 +818,16 @@ export const router = createBrowserRouter([
   {
     path: "/stay",
     element: <StaySearchPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/admin/disputes",
+    element: <AdminDisputesPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/admin/disputes/:id",
+    element: <AdminDisputesPage />,
     errorElement: <ErrorPage />,
   },
   {

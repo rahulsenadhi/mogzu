@@ -10,6 +10,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { VendorAppShell } from './layouts/VendorAppShell'
+import { BookingMessagesPanel } from './global/BookingMessagesPanel'
 import { useAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { realtimeService } from '@/lib/realtime'
@@ -544,6 +545,8 @@ function BookingDetailScreen({
                     <FulfilmentPanel booking={booking} onChanged={load} />
                   )}
               </div>
+
+              <BookingMessagesPanel bookingId={booking.id} vendorId={booking.vendor_id} />
 
               {canRespond && (
                 <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">

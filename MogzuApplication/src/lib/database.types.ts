@@ -311,6 +311,52 @@ export interface NotificationPreference {
   updated_at: string
 }
 
+export interface BookingMessageAttachment {
+  url: string
+  name: string
+  size: number
+}
+
+export interface BookingMessage {
+  id: string
+  booking_id: string
+  sender_id: string
+  body: string
+  attachments: BookingMessageAttachment[]
+  read_by: string[]
+  created_at: string
+}
+
+export type DisputeStatus =
+  | 'open'
+  | 'investigating'
+  | 'awaiting_party'
+  | 'resolved'
+  | 'dismissed'
+
+export type DisputeResolution =
+  | 'no_refund'
+  | 'partial_refund'
+  | 'full_refund'
+  | 'vendor_penalty'
+  | 'no_action'
+
+export interface BookingDispute {
+  id: string
+  booking_id: string
+  raised_by: string
+  reason_category: string
+  reason_body: string
+  status: DisputeStatus
+  evidence_urls: string[]
+  resolution: DisputeResolution | null
+  resolution_note: string | null
+  resolved_by: string | null
+  resolved_at: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type FulfilmentStage =
   | 'ordered'
   | 'packed'
@@ -562,6 +608,16 @@ export interface Database {
         Row: NotificationPreference
         Insert: Omit<NotificationPreference, 'created_at' | 'updated_at'>
         Update: Partial<Omit<NotificationPreference, 'created_at'>>
+      }
+      booking_messages: {
+        Row: BookingMessage
+        Insert: Omit<BookingMessage, 'id' | 'created_at'>
+        Update: Partial<Omit<BookingMessage, 'id' | 'created_at'>>
+      }
+      booking_disputes: {
+        Row: BookingDispute
+        Insert: Omit<BookingDispute, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<BookingDispute, 'id' | 'created_at'>>
       }
       travel_policies: {
         Row: TravelPolicy

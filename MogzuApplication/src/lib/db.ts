@@ -20,6 +20,10 @@ import type {
   SupportTicketNote,
   TravelPolicy,
   FulfilmentStage,
+  BookingMessage,
+  BookingDispute,
+  DisputeStatus,
+  DisputeResolution,
   CalendarSlot,
   Commission,
   CorporateAccount,
@@ -564,6 +568,95 @@ export const commissions = {
     supabase.from('commissions').update({ is_active: false }).eq('id', id),
 }
 
+// ─── Booking Messages (Story 7.1) ─────────────────────────────────────────────
+
+export const bookingMessages = {
+  listByBooking: async (bookingId: string) =>
+    supabase
+      .from('booking_messages')
+      .select('*')
+      .eq('booking_id', bookingId)
+      .order('created_at'),
+
+  send: async (data: Omit<BookingMessage, 'id' | 'created_at'>) =>
+    supabase.from('booking_messages').insert(data).select().single(),
+
+  markRead: async (messageId: string, userId: string) => {
+    const { data: msg } = await supabase
+      .from('booking_messages')
+      .select('read_by')
+      .eq('id', messageId)
+      .single()
+    if (!msg) return { error: null }
+    const next = Array.from(new Set([...(msg.read_by ?? []), userId]))
+    return supabase
+      .from('booking_messages')
+      .update({ read_by: next })
+      .eq('id', messageId)
+  },
+
+  unreadCountForUser: async (userId: string) =>
+    supabase
+      .from('booking_messages')
+      .select('id', { count: 'exact', head: true })
+      .neq('sender_id', userId)
+      .not('read_by', 'cs', `{${userId}}`),
+}
+
+// ─── Booking Disputes (Story 9.5) ─────────────────────────────────────────────
+
+export const bookingDisputes = {
+  listQueue: async (status?: DisputeStatus) => {
+    let q = supabase
+      .from('booking_disputes')
+      .select('*, bookings(listings(title),corporate_accounts(name),vendors(business_name),total_amount,payment_status,payment_method,user_id)')
+      .order('created_at', { ascending: false })
+    if (status) q = q.eq('status', status)
+    return q
+  },
+
+  getById: async (id: string) =>
+    supabase
+      .from('booking_disputes')
+      .select('*, bookings(listings(title),corporate_accounts(name),vendors(business_name),total_amount,payment_status,payment_method,user_id,vendor_id,corporate_id)')
+      .eq('id', id)
+      .single(),
+
+  listByBooking: async (bookingId: string) =>
+    supabase
+      .from('booking_disputes')
+      .select('*')
+      .eq('booking_id', bookingId)
+      .order('created_at', { ascending: false }),
+
+  raise: async (data: Omit<BookingDispute, 'id' | 'created_at' | 'updated_at'>) =>
+    supabase.from('booking_disputes').insert(data).select().single(),
+
+  resolve: async (
+    id: string,
+    resolution: DisputeResolution,
+    note: string,
+    resolverId: string,
+  ) =>
+    supabase
+      .from('booking_disputes')
+      .update({
+        status: 'resolved',
+        resolution,
+        resolution_note: note,
+        resolved_by: resolverId,
+        resolved_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id),
+
+  setStatus: async (id: string, status: DisputeStatus) =>
+    supabase
+      .from('booking_disputes')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', id),
+}
+
 // ─── Travel Policies (Story 5.5) ──────────────────────────────────────────────
 
 export const travelPolicies = {
@@ -992,4 +1085,6 @@ export const db = {
   supportTickets,
   supportTicketNotes,
   travelPolicies,
+  bookingMessages,
+  bookingDisputes,
 }
