@@ -214,6 +214,72 @@ export interface CmsBlockRow {
   updated_at: string
 }
 
+export type AiAgentKind = 'support' | 'sales' | 'onboarding' | 'retention'
+export type AiAgentChannel = 'whatsapp' | 'telegram' | 'web_chat' | 'email'
+export type AiAgentConversationStatus =
+  | 'open'
+  | 'escalated'
+  | 'resolved'
+  | 'qualified_lead'
+  | 'closed'
+
+export interface AiAgentRow {
+  id: string
+  slug: string
+  name: string
+  kind: AiAgentKind
+  description: string | null
+  channels: Record<AiAgentChannel, boolean>
+  is_active: boolean
+  escalation_threshold: number
+  escalation_keywords: string[]
+  escalation_score: number
+  followup_schedule_days: number[]
+  created_at: string
+  updated_at: string
+}
+
+export interface AiAgentKbEntryRow {
+  id: string
+  agent_id: string
+  title: string
+  body: string
+  tags: string[]
+  source_url: string | null
+  is_active: boolean
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AiAgentConversationRow {
+  id: string
+  agent_id: string
+  channel: AiAgentChannel
+  external_thread_id: string | null
+  contact_name: string | null
+  contact_phone: string | null
+  contact_email: string | null
+  status: AiAgentConversationStatus
+  conversation_score: number | null
+  escalated_to: string | null
+  escalated_at: string | null
+  qualified_lead_payload: Record<string, unknown> | null
+  started_at: string
+  last_message_at: string
+  closed_at: string | null
+}
+
+export interface AiAgentMessageRow {
+  id: string
+  conversation_id: string
+  sender: 'user' | 'agent' | 'human'
+  body: string
+  intent_tag: string | null
+  failed_response: boolean
+  created_at: string
+}
+
 export interface CmsFeaturedListingRow {
   id: string
   slot: 'homepage_carousel' | 'module_spotlight'
@@ -1214,6 +1280,39 @@ export interface Database {
         Row: CmsFeaturedListingRow
         Insert: Omit<CmsFeaturedListingRow, 'id' | 'created_at'>
         Update: Partial<Omit<CmsFeaturedListingRow, 'id' | 'created_at'>>
+      }
+      ai_agents: {
+        Row: AiAgentRow
+        Insert: Omit<AiAgentRow, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<AiAgentRow, 'id' | 'created_at'>>
+      }
+      ai_agent_kb_entries: {
+        Row: AiAgentKbEntryRow
+        Insert: Omit<AiAgentKbEntryRow, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<AiAgentKbEntryRow, 'id' | 'created_at'>>
+      }
+      ai_agent_conversations: {
+        Row: AiAgentConversationRow
+        Insert: Omit<AiAgentConversationRow, 'id' | 'started_at' | 'last_message_at'>
+        Update: Partial<Omit<AiAgentConversationRow, 'id'>>
+      }
+      ai_agent_messages: {
+        Row: AiAgentMessageRow
+        Insert: Omit<AiAgentMessageRow, 'id' | 'created_at'>
+        Update: Partial<Omit<AiAgentMessageRow, 'id' | 'created_at'>>
+      }
+      ai_agent_metrics_daily: {
+        Row: {
+          agent_id: string
+          day: string
+          total_conversations: number
+          escalations: number
+          resolutions: number
+          leads_qualified: number
+          avg_score: number | null
+        }
+        Insert: never
+        Update: never
       }
       cms_blocks_live: {
         Row: Pick<
