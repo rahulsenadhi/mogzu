@@ -78,6 +78,8 @@ export async function ensureUserProfile(user: User): Promise<UserProfile | null>
     avatar_url: null,
     department: null,
     status: 'active',
+    invited_by: null,
+    invited_at: null,
     created_at: now,
     updated_at: now,
   }
@@ -371,7 +373,10 @@ export const isCorporateRole = (role: UserRole | null) =>
 export const isVendorRole = (role: UserRole | null) => role === 'vendor'
 
 export const isAdminRole = (role: UserRole | null) =>
-  role === 'mogzu_admin' || role === 'account_manager' || role === 'support'
+  role === 'mogzu_admin' ||
+  role === 'account_manager' ||
+  role === 'support' ||
+  role === 'sales_agent'
 
 export const canApproveBookings = (role: UserRole | null) =>
   role === 'l2_manager' || role === 'l3_admin' || role === 'mogzu_admin'

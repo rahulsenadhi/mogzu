@@ -987,6 +987,137 @@ export const partnerStatements = {
       .order('created_at', { ascending: true }),
 }
 
+// ─── Sub-Users / RBAC (Phase 2 Feature 6) ────────────────────────────────────
+
+function generateInviteToken(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+const INTERNAL_ROLES: ReadonlyArray<UserRole> = [
+  'mogzu_admin',
+  'account_manager',
+  'support',
+  'sales_agent',
+  'field_agent',
+]
+
+export const subUsers = {
+  listInternal: async () =>
+    supabase
+      .from('user_profiles')
+      .select('*')
+      .in('role', INTERNAL_ROLES as unknown as string[])
+      .order('created_at', { ascending: false }),
+
+  setStatus: async (userId: string, status: 'active' | 'deactivated') =>
+    supabase
+      .from('user_profiles')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', userId)
+      .select()
+      .single(),
+
+  setRole: async (userId: string, role: UserRole) =>
+    supabase
+      .from('user_profiles')
+      .update({ role, updated_at: new Date().toISOString() })
+      .eq('id', userId)
+      .select()
+      .single(),
+}
+
+export const userInvites = {
+  list: async () =>
+    supabase
+      .from('user_invites')
+      .select('*, inviter:invited_by(full_name)')
+      .order('created_at', { ascending: false }),
+
+  create: async (
+    inviterId: string,
+    email: string,
+    role: UserRole,
+    fullName: string | null,
+  ) =>
+    supabase
+      .from('user_invites')
+      .insert({
+        email: email.trim().toLowerCase(),
+        role,
+        full_name: fullName,
+        token: generateInviteToken(),
+        invited_by: inviterId,
+      })
+      .select()
+      .single(),
+
+  getByToken: async (token: string) =>
+    supabase.rpc('get_user_invite_by_token', { p_token: token }),
+
+  accept: async (token: string) =>
+    supabase.rpc('accept_user_invite', { p_token: token }),
+}
+
+export const userPermissions = {
+  listByUser: async (userId: string) =>
+    supabase
+      .from('user_permissions')
+      .select('*')
+      .eq('user_id', userId),
+
+  grant: async (
+    userId: string,
+    resource: string,
+    action: 'view' | 'create' | 'update' | 'delete' | 'approve',
+    grantedBy: string,
+  ) =>
+    supabase
+      .from('user_permissions')
+      .upsert(
+        { user_id: userId, resource, action, granted_by: grantedBy },
+        { onConflict: 'user_id,resource,action' },
+      ),
+
+  revoke: async (
+    userId: string,
+    resource: string,
+    action: 'view' | 'create' | 'update' | 'delete' | 'approve',
+  ) =>
+    supabase
+      .from('user_permissions')
+      .delete()
+      .eq('user_id', userId)
+      .eq('resource', resource)
+      .eq('action', action),
+}
+
+export const userActivity = {
+  log: async (
+    actorId: string,
+    eventType: string,
+    targetTable?: string,
+    targetId?: string | null,
+    metadata?: Record<string, unknown>,
+  ) =>
+    supabase.from('user_activity_events').insert({
+      actor_id: actorId,
+      event_type: eventType,
+      target_table: targetTable ?? null,
+      target_id: targetId ?? null,
+      metadata: metadata ?? {},
+    }),
+
+  listByActor: async (actorId: string, limit = 50) =>
+    supabase
+      .from('user_activity_events')
+      .select('*')
+      .eq('actor_id', actorId)
+      .order('created_at', { ascending: false })
+      .limit(limit),
+}
+
 export const partnerWallets = {
   getByPartner: async (partnerId: string) =>
     supabase
@@ -1759,4 +1890,8 @@ export const db = {
   partnerClients,
   partnerPayouts,
   partnerStatements,
+  subUsers,
+  userInvites,
+  userPermissions,
+  userActivity,
 }

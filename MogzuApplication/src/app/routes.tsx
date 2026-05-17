@@ -68,6 +68,11 @@ import PartnerStatementPage from "@/app/components/PartnerStatementPage";
 import AdminPartnerAgreementPage from "@/app/pages/admin/AdminPartnerAgreementPage";
 import AdminPartnerPayoutsPage from "@/app/pages/admin/AdminPartnerPayoutsPage";
 import AdminPendingListingsPage from "@/app/pages/admin/AdminPendingListingsPage";
+import AdminTeamPage from "@/app/pages/admin/AdminTeamPage";
+import AdminTeamPermissionsPage from "@/app/pages/admin/AdminTeamPermissionsPage";
+import AdminTeamActivityPage from "@/app/pages/admin/AdminTeamActivityPage";
+import AcceptInvitePage from "@/app/components/AcceptInvitePage";
+import FieldAgentDashboardPage from "@/app/components/FieldAgentDashboardPage";
 import ShortlistCorporatePage from "@/app/pages/ShortlistCorporatePage";
 import AdminLoginPage from "@/app/components/AdminLoginPage";
 import ActivitySuite from "@/app/components/ActivitySuite";
@@ -454,6 +459,9 @@ export const router = createBrowserRouter([
       { path: "partners/:id/agreement", element: <AdminPartnerAgreementPage /> },
       { path: "partner-payouts", element: <AdminPartnerPayoutsPage /> },
       { path: "listings/queue", element: <AdminPendingListingsPage /> },
+      { path: "team", element: <AdminTeamPage /> },
+      { path: "team/:userId/permissions", element: <AdminTeamPermissionsPage /> },
+      { path: "team/:userId/activity", element: <AdminTeamActivityPage /> },
       { path: "mogzu-orders", element: <AdminMogzuOrdersPage /> },
     ],
   },
@@ -515,6 +523,16 @@ export const router = createBrowserRouter([
   {
     path: "/partner/statements/:yyyymm",
     element: <PartnerStatementPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/invite/:token",
+    element: <AcceptInvitePage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/agent/dashboard",
+    element: <FieldAgentDashboardPage />,
     errorElement: <ErrorPage />,
   },
   {

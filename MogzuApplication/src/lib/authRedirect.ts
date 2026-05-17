@@ -2,7 +2,14 @@ import type { UserRole } from './database.types'
 
 /** Where to send the user after a successful login. */
 export function getPostLoginPath(role: UserRole | null): string {
-  if (role === 'mogzu_admin' || role === 'account_manager' || role === 'support') return '/admin'
+  if (
+    role === 'mogzu_admin' ||
+    role === 'account_manager' ||
+    role === 'support' ||
+    role === 'sales_agent'
+  )
+    return '/admin'
+  if (role === 'field_agent') return '/agent/dashboard'
   if (role === 'vendor') return '/vendor/dashboard'
   if (role === 'partner') return '/partner/dashboard'
   // Default for corporate roles and while profile is still loading (null)

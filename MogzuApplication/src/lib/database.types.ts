@@ -10,6 +10,51 @@ export type UserRole =
   | 'account_manager'
   | 'partner'
   | 'support'
+  | 'sales_agent'
+  | 'field_agent'
+
+export type PermissionResource =
+  | 'bookings'
+  | 'listings'
+  | 'partners'
+  | 'vendors'
+  | 'corporate_accounts'
+  | 'gifting'
+  | 'support'
+  | 'reports'
+
+export type PermissionAction = 'view' | 'create' | 'update' | 'delete' | 'approve'
+
+export interface UserPermission {
+  id: string
+  user_id: string
+  resource: PermissionResource
+  action: PermissionAction
+  granted_by: string | null
+  created_at: string
+}
+
+export interface UserActivityEvent {
+  id: string
+  actor_id: string
+  event_type: string
+  target_table: string | null
+  target_id: string | null
+  metadata: Record<string, unknown>
+  created_at: string
+}
+
+export interface UserInvite {
+  id: string
+  email: string
+  role: UserRole
+  full_name: string | null
+  token: string
+  invited_by: string | null
+  expires_at: string
+  accepted_at: string | null
+  created_at: string
+}
 
 export type ModuleId = 'events' | 'gifting' | 'spacex_coworking' | 'spacex_stay'
 
@@ -54,7 +99,9 @@ export interface UserProfile {
   phone: string | null
   avatar_url: string | null
   department: string | null
-  status: 'active' | 'deactivated'
+  status: 'active' | 'deactivated' | 'invited'
+  invited_by: string | null
+  invited_at: string | null
   created_at: string
   updated_at: string
 }
@@ -920,6 +967,21 @@ export interface Database {
         Row: PartnerPayoutPeriod
         Insert: Omit<PartnerPayoutPeriod, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<PartnerPayoutPeriod, 'id' | 'created_at'>>
+      }
+      user_permissions: {
+        Row: UserPermission
+        Insert: Omit<UserPermission, 'id' | 'created_at'>
+        Update: Partial<Omit<UserPermission, 'id' | 'created_at'>>
+      }
+      user_activity_events: {
+        Row: UserActivityEvent
+        Insert: Omit<UserActivityEvent, 'id' | 'created_at'>
+        Update: Partial<Omit<UserActivityEvent, 'id' | 'created_at'>>
+      }
+      user_invites: {
+        Row: UserInvite
+        Insert: Omit<UserInvite, 'id' | 'created_at'>
+        Update: Partial<Omit<UserInvite, 'id' | 'created_at'>>
       }
       promotions: {
         Row: Promotion
