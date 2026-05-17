@@ -312,6 +312,53 @@ export interface NotificationPreference {
   updated_at: string
 }
 
+export type PromotionKind = 'percent_off' | 'flat_off' | 'free_addon' | 'paid_boost'
+export type PromotionStatus =
+  | 'draft'
+  | 'pending_payment'
+  | 'pending_approval'
+  | 'active'
+  | 'rejected'
+  | 'expired'
+
+export interface Promotion {
+  id: string
+  vendor_id: string
+  listing_id: string | null
+  kind: PromotionKind
+  title: string
+  description: string | null
+  value: number | null
+  add_on_name: string | null
+  starts_at: string
+  ends_at: string
+  max_redemptions: number | null
+  redemptions: number
+  paid_boost_amount: number | null
+  paid_boost_payment_reference: string | null
+  status: PromotionStatus
+  rejection_reason: string | null
+  approved_by: string | null
+  approved_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface EventTemplate {
+  id: string
+  corporate_id: string
+  name: string
+  description: string | null
+  default_group_size: number | null
+  default_budget: number | null
+  preferred_vendor_ids: string[]
+  preferred_listing_ids: string[]
+  usage_count: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 export interface Wishlist {
   user_id: string
   listing_id: string
@@ -675,6 +722,16 @@ export interface Database {
         Row: NotificationPreference
         Insert: Omit<NotificationPreference, 'created_at' | 'updated_at'>
         Update: Partial<Omit<NotificationPreference, 'created_at'>>
+      }
+      promotions: {
+        Row: Promotion
+        Insert: Omit<Promotion, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<Promotion, 'id' | 'created_at'>>
+      }
+      event_templates: {
+        Row: EventTemplate
+        Insert: Omit<EventTemplate, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<EventTemplate, 'id' | 'created_at'>>
       }
       wishlists: {
         Row: Wishlist

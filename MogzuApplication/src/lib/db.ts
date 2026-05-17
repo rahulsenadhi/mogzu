@@ -27,6 +27,9 @@ import type {
   ReviewInvite,
   ReviewStatus,
   Wishlist,
+  Promotion,
+  PromotionStatus,
+  EventTemplate,
   DisputeStatus,
   DisputeResolution,
   CalendarSlot,
@@ -571,6 +574,92 @@ export const commissions = {
 
   deactivate: async (id: string) =>
     supabase.from('commissions').update({ is_active: false }).eq('id', id),
+}
+
+// ─── Promotions (Stories 8.7, 9.6) ────────────────────────────────────────────
+
+export const promotions = {
+  listByVendor: async (vendorId: string) =>
+    supabase
+      .from('promotions')
+      .select('*, listings(title)')
+      .eq('vendor_id', vendorId)
+      .order('created_at', { ascending: false }),
+
+  listActive: async () =>
+    supabase
+      .from('promotions')
+      .select('*, listings(title)')
+      .eq('status', 'active')
+      .gt('ends_at', new Date().toISOString())
+      .order('ends_at'),
+
+  listQueue: async () =>
+    supabase
+      .from('promotions')
+      .select('*, vendors(business_name), listings(title)')
+      .eq('status', 'pending_approval')
+      .order('created_at'),
+
+  create: async (data: Omit<Promotion, 'id' | 'created_at' | 'updated_at'>) =>
+    supabase.from('promotions').insert(data).select().single(),
+
+  setStatus: async (
+    id: string,
+    status: PromotionStatus,
+    extra?: { approved_by?: string; rejection_reason?: string },
+  ) =>
+    supabase
+      .from('promotions')
+      .update({
+        status,
+        approved_by: extra?.approved_by ?? null,
+        approved_at: status === 'active' ? new Date().toISOString() : null,
+        rejection_reason: extra?.rejection_reason ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id),
+}
+
+// ─── Event Templates (Story 3.5) ──────────────────────────────────────────────
+
+export const eventTemplates = {
+  listByCorporate: async (corporateId: string) =>
+    supabase
+      .from('event_templates')
+      .select('*')
+      .eq('corporate_id', corporateId)
+      .order('created_at', { ascending: false }),
+
+  listActive: async (corporateId: string) =>
+    supabase
+      .from('event_templates')
+      .select('*')
+      .eq('corporate_id', corporateId)
+      .eq('is_active', true)
+      .order('usage_count', { ascending: false }),
+
+  create: async (data: Omit<EventTemplate, 'id' | 'created_at' | 'updated_at'>) =>
+    supabase.from('event_templates').insert(data).select().single(),
+
+  update: async (id: string, data: Partial<EventTemplate>) =>
+    supabase
+      .from('event_templates')
+      .update({ ...data, updated_at: new Date().toISOString() })
+      .eq('id', id),
+
+  incrementUsage: async (id: string) => {
+    const { data } = await supabase
+      .from('event_templates')
+      .select('usage_count')
+      .eq('id', id)
+      .single()
+    if (!data) return { error: null }
+    return supabase
+      .from('event_templates')
+      .update({ usage_count: data.usage_count + 1 })
+      .eq('id', id)
+  },
 }
 
 // ─── Wishlist (Story 13.1) ────────────────────────────────────────────────────
@@ -1230,4 +1319,6 @@ export const db = {
   wishlists,
   reviews,
   reviewInvites,
+  promotions,
+  eventTemplates,
 }

@@ -104,6 +104,11 @@ import AdminDisputesPage from "@/app/components/AdminDisputesPage";
 import BulkGiftingPage from "@/app/components/BulkGiftingPage";
 import ReviewSubmitPage from "@/app/components/ReviewSubmitPage";
 import AdminReviewsApprovalPage from "@/app/components/AdminReviewsApprovalPage";
+import VendorAnalyticsPage from "@/app/components/VendorAnalyticsPage";
+import VendorPromotionsRealPage from "@/app/components/VendorPromotionsRealPage";
+import AdminPromotionsApprovalPage from "@/app/components/AdminPromotionsApprovalPage";
+import CorporateEventTemplatesPage from "@/app/components/CorporateEventTemplatesPage";
+import CorporatePicksPage from "@/app/components/CorporatePicksPage";
 import CelebrationsPage from "@/app/components/CelebrationsPage";
 import CelebrationDetailPage from "@/app/components/CelebrationDetailPage";
 import CelebrationBookingFlow from "@/app/components/CelebrationBookingFlow";
@@ -851,6 +856,31 @@ export const router = createBrowserRouter([
   {
     path: "/admin/reviews/approval",
     element: <AdminReviewsApprovalPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/vendor/analytics",
+    element: <VendorAnalyticsPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/vendor/promotions-live",
+    element: <VendorPromotionsRealPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/admin/promotions/approval",
+    element: <AdminPromotionsApprovalPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/corporate/event-templates",
+    element: <CorporateEventTemplatesPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/corporate-picks",
+    element: <CorporatePicksPage />,
     errorElement: <ErrorPage />,
   },
   {
