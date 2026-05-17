@@ -34,6 +34,10 @@ import type {
   ShortlistItem,
   HeyGenieConfig,
   HeyGenieSession,
+  Partner,
+  PartnerAgreement,
+  PartnerReferral,
+  PartnerStatus,
   DisputeStatus,
   DisputeResolution,
   CalendarSlot,
@@ -655,6 +659,148 @@ export const heyGenie = {
       .from('heygenie_sessions')
       .select('*')
       .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(limit),
+}
+
+// ─── Partners (Sprint 19 — Stories 14.1, 14.6, 14.2) ─────────────────────────
+
+function generateReferralCode(seed: string): string {
+  // Short URL-safe slug derived from partner UUID + a 4-char random suffix.
+  const random = Array.from(crypto.getRandomValues(new Uint8Array(2)))
+    .map((b) => b.toString(36).padStart(2, '0'))
+    .join('')
+  return `${seed.replace(/[^a-z0-9]/gi, '').slice(0, 6).toUpperCase()}${random.toUpperCase()}`
+}
+
+export const partners = {
+  list: async (status?: PartnerStatus) => {
+    const q = supabase.from('partners').select('*').order('created_at', { ascending: false })
+    return status ? q.eq('status', status) : q
+  },
+
+  getById: async (id: string) =>
+    supabase.from('partners').select('*').eq('id', id).single(),
+
+  getByUserId: async (userId: string) =>
+    supabase.from('partners').select('*').eq('user_id', userId).maybeSingle(),
+
+  getByReferralCode: async (code: string) =>
+    supabase
+      .from('partners')
+      .select('id, status, full_name, business_name, referral_code')
+      .eq('referral_code', code)
+      .eq('status', 'active')
+      .maybeSingle(),
+
+  signup: async (data: Omit<Partner, 'id' | 'status' | 'referral_code' | 'approved_by' | 'approved_at' | 'rejection_reason' | 'created_at' | 'updated_at'>) =>
+    supabase
+      .from('partners')
+      .insert({ ...data, status: 'pending' })
+      .select()
+      .single(),
+
+  approve: async (id: string, approvedBy: string, seed: string) => {
+    const code = generateReferralCode(seed)
+    return supabase
+      .from('partners')
+      .update({
+        status: 'active',
+        approved_by: approvedBy,
+        approved_at: new Date().toISOString(),
+        referral_code: code,
+      })
+      .eq('id', id)
+      .select()
+      .single()
+  },
+
+  setStatus: async (id: string, status: PartnerStatus, reason?: string) =>
+    supabase
+      .from('partners')
+      .update({
+        status,
+        rejection_reason: status === 'rejected' || status === 'terminated' ? (reason ?? null) : null,
+      })
+      .eq('id', id)
+      .select()
+      .single(),
+
+  update: async (id: string, data: Partial<Omit<Partner, 'id' | 'created_at'>>) =>
+    supabase.from('partners').update(data).eq('id', id).select().single(),
+}
+
+export const partnerAgreements = {
+  getCurrent: async (partnerId: string) =>
+    supabase
+      .from('partner_agreements')
+      .select('*')
+      .eq('partner_id', partnerId)
+      .eq('is_current', true)
+      .maybeSingle(),
+
+  listHistory: async (partnerId: string) =>
+    supabase
+      .from('partner_agreements')
+      .select('*')
+      .eq('partner_id', partnerId)
+      .order('valid_from', { ascending: false }),
+
+  create: async (data: Omit<PartnerAgreement, 'id' | 'is_current' | 'created_at'>) =>
+    supabase
+      .from('partner_agreements')
+      .insert({ ...data, is_current: true })
+      .select()
+      .single(),
+}
+
+export const partnerReferrals = {
+  listByPartner: async (partnerId: string) =>
+    supabase
+      .from('partner_referrals')
+      .select('*, corporate_accounts(name)')
+      .eq('partner_id', partnerId)
+      .order('signed_up_at', { ascending: false }),
+
+  getByCorporate: async (corporateId: string) =>
+    supabase
+      .from('partner_referrals')
+      .select('*')
+      .eq('referred_corporate_id', corporateId)
+      .maybeSingle(),
+
+  capture: async (data: Omit<PartnerReferral, 'id' | 'attribution_expires_at' | 'activated_at' | 'first_booking_id' | 'commission_amount' | 'commission_credited_at' | 'created_at'>) =>
+    supabase
+      .from('partner_referrals')
+      .insert({
+        ...data,
+        attribution_expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+      })
+      .select()
+      .single(),
+
+  // Calls the SECURITY DEFINER function that idempotently credits the
+  // partner wallet on a corporate's first confirmed booking.
+  creditCommission: async (corporateId: string, bookingId: string) =>
+    supabase.rpc('credit_partner_commission', {
+      p_corporate_id: corporateId,
+      p_booking_id: bookingId,
+    }),
+}
+
+export const partnerWallets = {
+  getByPartner: async (partnerId: string) =>
+    supabase
+      .from('partner_wallets')
+      .select('*')
+      .eq('partner_id', partnerId)
+      .maybeSingle(),
+
+  listTransactions: async (partnerId: string, limit = 50) =>
+    supabase
+      .from('partner_wallet_transactions')
+      .select('*')
+      .eq('partner_id', partnerId)
       .order('created_at', { ascending: false })
       .limit(limit),
 }
@@ -1406,4 +1552,8 @@ export const db = {
   eventTemplates,
   shortlists,
   heyGenie,
+  partners,
+  partnerAgreements,
+  partnerReferrals,
+  partnerWallets,
 }

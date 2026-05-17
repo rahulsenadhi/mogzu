@@ -351,6 +351,10 @@ function BookingDetailScreen({
       body: `${booking.listings?.title ?? 'Booking'} — slot blocked on calendar.`,
       linkUrl: `/bookings/${booking.id}`,
     })
+    // Credit partner commission on this corporate's first confirmed booking
+    // (idempotent — Postgres function exits without effect if no referral or
+    // commission was already credited).
+    void db.partnerReferrals.creditCommission(booking.corporate_id, booking.id)
     setActionSuccess('Booking confirmed. Calendar slot blocked.')
     setSubmitting(false)
     onChanged()

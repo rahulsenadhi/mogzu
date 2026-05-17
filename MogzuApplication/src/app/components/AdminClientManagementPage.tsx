@@ -13,6 +13,11 @@ import {
 } from 'lucide-react'
 import { AdminPageTitleRow } from '@/app/components/admin/AdminPageChrome'
 import { db } from '@/lib/db'
+import {
+  attachPartnerReferral,
+  clearPartnerReferralCode,
+  readPartnerReferralCode,
+} from '@/lib/partnerReferral'
 import type { CorporateAccount, UserProfile, ModuleId } from '@/lib/database.types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -536,6 +541,14 @@ export default function AdminClientManagementPage() {
     if (error) {
       setCreateError(error.message)
     } else if (data) {
+      // Attach a pending partner referral, if the admin opened this flow from
+      // a /partner-ref/:code link. First-touch: only binds if the new account
+      // has no partner yet (guarded inside attachPartnerReferral).
+      const code = readPartnerReferralCode()
+      if (code) {
+        const outcome = await attachPartnerReferral(data.id, code)
+        if (outcome.ok) clearPartnerReferralCode()
+      }
       setAccounts((prev) => [data, ...prev])
       setCreateOpen(false)
     }

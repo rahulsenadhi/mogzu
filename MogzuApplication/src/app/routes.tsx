@@ -57,6 +57,10 @@ import AdminPlatformModulesPage from "@/app/pages/admin/AdminPlatformModulesPage
 import AdminHeyGenieConfigPage from "@/app/components/AdminHeyGenieConfigPage";
 import AmShortlistsPage from "@/app/components/AmShortlistsPage";
 import ShortlistShareView from "@/app/components/ShortlistShareView";
+import PartnerSignUpForm from "@/app/components/PartnerSignUpForm";
+import PartnerDashboardPage from "@/app/components/PartnerDashboardPage";
+import PartnerReferralIntakePage from "@/app/components/PartnerReferralIntakePage";
+import AdminPartnerAgreementPage from "@/app/pages/admin/AdminPartnerAgreementPage";
 import ShortlistCorporatePage from "@/app/pages/ShortlistCorporatePage";
 import AdminLoginPage from "@/app/components/AdminLoginPage";
 import ActivitySuite from "@/app/components/ActivitySuite";
@@ -440,6 +444,7 @@ export const router = createBrowserRouter([
       { path: "shortlists/new", element: <AdminShortlistEditorPage /> },
       { path: "shortlists/:id", element: <AdminShortlistEditorPage /> },
       { path: "heygenie", element: <AdminHeyGenieConfigPage /> },
+      { path: "partners/:id/agreement", element: <AdminPartnerAgreementPage /> },
       { path: "mogzu-orders", element: <AdminMogzuOrdersPage /> },
     ],
   },
@@ -456,6 +461,21 @@ export const router = createBrowserRouter([
   {
     path: "/shortlist/:token",
     element: <ShortlistShareView />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/signup/partner",
+    element: <PartnerSignUpForm />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/partner-ref/:code",
+    element: <PartnerReferralIntakePage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/partner/dashboard",
+    element: <PartnerDashboardPage />,
     errorElement: <ErrorPage />,
   },
   {

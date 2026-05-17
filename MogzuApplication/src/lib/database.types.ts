@@ -38,6 +38,8 @@ export interface CorporateAccount {
   status: 'active' | 'suspended'
   account_manager_id: string | null
   modules_enabled: Record<ModuleId, boolean>
+  referred_by_partner_id: string | null
+  referred_at: string | null
   created_at: string
   updated_at: string
 }
@@ -353,6 +355,80 @@ export interface HeyGenieSession {
   intent: Record<string, unknown> | null
   resulting_booking_id: string | null
   modality: 'voice' | 'text'
+  created_at: string
+}
+
+// ─── Partners (Sprint 19) ────────────────────────────────────────────────────
+
+export type PartnerType = 'consultant' | 'agency' | 'reseller' | 'freelancer'
+export type PartnerStatus = 'pending' | 'active' | 'paused' | 'terminated' | 'rejected'
+
+export interface Partner {
+  id: string
+  user_id: string | null
+  partner_type: PartnerType
+  status: PartnerStatus
+  full_name: string
+  email: string
+  phone: string | null
+  business_name: string | null
+  expertise: string[]
+  referral_code: string | null
+  bank_account_name: string | null
+  bank_account_number: string | null
+  bank_ifsc: string | null
+  approved_by: string | null
+  approved_at: string | null
+  rejection_reason: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PartnerAgreement {
+  id: string
+  partner_id: string
+  referral_pct: number
+  reseller_wholesale_pct: number
+  product_revenue_share_pct: number
+  valid_from: string
+  expires_at: string | null
+  configured_by: string | null
+  notes: string | null
+  is_current: boolean
+  created_at: string
+}
+
+export interface PartnerReferral {
+  id: string
+  partner_id: string
+  referral_code: string
+  referred_corporate_id: string
+  signed_up_at: string
+  activated_at: string | null
+  first_booking_id: string | null
+  attribution_expires_at: string
+  commission_amount: number | null
+  commission_credited_at: string | null
+  created_at: string
+}
+
+export interface PartnerWallet {
+  id: string
+  partner_id: string
+  balance: number
+  currency: string
+  updated_at: string
+}
+
+export interface PartnerWalletTransaction {
+  id: string
+  partner_wallet_id: string
+  partner_id: string
+  type: 'commission' | 'payout' | 'adjustment'
+  amount: number
+  referral_id: string | null
+  booking_id: string | null
+  description: string | null
   created_at: string
 }
 
@@ -786,6 +862,31 @@ export interface Database {
         Row: HeyGenieSession
         Insert: Omit<HeyGenieSession, 'id' | 'created_at'>
         Update: Partial<Omit<HeyGenieSession, 'id' | 'created_at'>>
+      }
+      partners: {
+        Row: Partner
+        Insert: Omit<Partner, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<Partner, 'id' | 'created_at'>>
+      }
+      partner_agreements: {
+        Row: PartnerAgreement
+        Insert: Omit<PartnerAgreement, 'id' | 'created_at'>
+        Update: Partial<Omit<PartnerAgreement, 'id' | 'created_at'>>
+      }
+      partner_referrals: {
+        Row: PartnerReferral
+        Insert: Omit<PartnerReferral, 'id' | 'created_at'>
+        Update: Partial<Omit<PartnerReferral, 'id' | 'created_at'>>
+      }
+      partner_wallets: {
+        Row: PartnerWallet
+        Insert: Omit<PartnerWallet, 'id' | 'updated_at'>
+        Update: Partial<Omit<PartnerWallet, 'id'>>
+      }
+      partner_wallet_transactions: {
+        Row: PartnerWalletTransaction
+        Insert: Omit<PartnerWalletTransaction, 'id' | 'created_at'>
+        Update: Partial<Omit<PartnerWalletTransaction, 'id' | 'created_at'>>
       }
       promotions: {
         Row: Promotion
