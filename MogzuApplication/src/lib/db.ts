@@ -23,6 +23,10 @@ import type {
   BookingMessage,
   BookingDispute,
   GiftingCampaign,
+  Review,
+  ReviewInvite,
+  ReviewStatus,
+  Wishlist,
   DisputeStatus,
   DisputeResolution,
   CalendarSlot,
@@ -567,6 +571,112 @@ export const commissions = {
 
   deactivate: async (id: string) =>
     supabase.from('commissions').update({ is_active: false }).eq('id', id),
+}
+
+// ─── Wishlist (Story 13.1) ────────────────────────────────────────────────────
+
+export const wishlists = {
+  listByUser: async (userId: string) =>
+    supabase
+      .from('wishlists')
+      .select('*, listings(*, listing_images(*), vendors(business_name))')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false }),
+
+  add: async (userId: string, listingId: string) =>
+    supabase
+      .from('wishlists')
+      .insert({ user_id: userId, listing_id: listingId })
+      .select()
+      .single(),
+
+  remove: async (userId: string, listingId: string) =>
+    supabase
+      .from('wishlists')
+      .delete()
+      .eq('user_id', userId)
+      .eq('listing_id', listingId),
+}
+
+// ─── Reviews (Stories 8.4, 8.5, 8.6) ──────────────────────────────────────────
+
+export const reviews = {
+  listByListing: async (listingId: string) =>
+    supabase
+      .from('reviews')
+      .select('*')
+      .eq('listing_id', listingId)
+      .eq('status', 'approved')
+      .order('created_at', { ascending: false }),
+
+  listByVendor: async (vendorId: string) =>
+    supabase
+      .from('reviews')
+      .select('*, listings(title)')
+      .eq('vendor_id', vendorId)
+      .order('created_at', { ascending: false }),
+
+  listQueue: async () =>
+    supabase
+      .from('reviews')
+      .select('*, listings(title), vendors(business_name)')
+      .eq('status', 'pending_approval')
+      .order('created_at'),
+
+  getByBooking: async (bookingId: string) =>
+    supabase.from('reviews').select('*').eq('booking_id', bookingId).maybeSingle(),
+
+  create: async (data: Omit<Review, 'id' | 'created_at' | 'updated_at'>) =>
+    supabase.from('reviews').insert(data).select().single(),
+
+  setStatus: async (
+    id: string,
+    status: ReviewStatus,
+    extra?: { approved_by?: string; rejection_reason?: string },
+  ) =>
+    supabase
+      .from('reviews')
+      .update({
+        status,
+        approved_by: extra?.approved_by ?? null,
+        approved_at: status === 'approved' ? new Date().toISOString() : null,
+        rejection_reason: extra?.rejection_reason ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id),
+
+  setReply: async (id: string, reply: string) =>
+    supabase
+      .from('reviews')
+      .update({
+        vendor_reply: reply,
+        vendor_replied_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id),
+}
+
+export const reviewInvites = {
+  listByVendor: async (vendorId: string) =>
+    supabase
+      .from('review_invites')
+      .select('*')
+      .eq('vendor_id', vendorId)
+      .order('created_at', { ascending: false }),
+
+  countThisMonth: async (vendorId: string) => {
+    const monthStart = new Date()
+    monthStart.setDate(1)
+    monthStart.setHours(0, 0, 0, 0)
+    return supabase
+      .from('review_invites')
+      .select('id', { count: 'exact', head: true })
+      .eq('vendor_id', vendorId)
+      .gte('created_at', monthStart.toISOString())
+  },
+
+  create: async (data: Omit<ReviewInvite, 'id' | 'created_at'>) =>
+    supabase.from('review_invites').insert(data).select().single(),
 }
 
 // ─── Gifting Campaigns (Story 4.3) ────────────────────────────────────────────
@@ -1117,4 +1227,7 @@ export const db = {
   bookingMessages,
   bookingDisputes,
   giftingCampaigns,
+  wishlists,
+  reviews,
+  reviewInvites,
 }

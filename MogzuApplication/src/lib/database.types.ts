@@ -312,6 +312,46 @@ export interface NotificationPreference {
   updated_at: string
 }
 
+export interface Wishlist {
+  user_id: string
+  listing_id: string
+  created_at: string
+}
+
+export type ReviewStatus = 'pending_approval' | 'approved' | 'rejected' | 'hidden'
+export type ReviewSource = 'booking' | 'invite'
+
+export interface Review {
+  id: string
+  listing_id: string
+  vendor_id: string
+  reviewer_id: string | null
+  reviewer_name: string | null
+  booking_id: string | null
+  source: ReviewSource
+  rating: number
+  body: string
+  status: ReviewStatus
+  vendor_reply: string | null
+  vendor_replied_at: string | null
+  rejection_reason: string | null
+  approved_by: string | null
+  approved_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ReviewInvite {
+  id: string
+  vendor_id: string
+  listing_id: string | null
+  recipient_email: string
+  recipient_name: string | null
+  token: string
+  used_at: string | null
+  created_at: string
+}
+
 export type GiftingCampaignStatus =
   | 'draft'
   | 'pending_vendor'
@@ -635,6 +675,21 @@ export interface Database {
         Row: NotificationPreference
         Insert: Omit<NotificationPreference, 'created_at' | 'updated_at'>
         Update: Partial<Omit<NotificationPreference, 'created_at'>>
+      }
+      wishlists: {
+        Row: Wishlist
+        Insert: Omit<Wishlist, 'created_at'>
+        Update: Partial<Wishlist>
+      }
+      reviews: {
+        Row: Review
+        Insert: Omit<Review, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<Review, 'id' | 'created_at'>>
+      }
+      review_invites: {
+        Row: ReviewInvite
+        Insert: Omit<ReviewInvite, 'id' | 'created_at'>
+        Update: Partial<Omit<ReviewInvite, 'id' | 'created_at'>>
       }
       gifting_campaigns: {
         Row: GiftingCampaign

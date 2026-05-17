@@ -1,417 +1,323 @@
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
-import { Bell, Search, Star } from 'lucide-react';
-import imgAvatar from 'figma:asset/e67667939a12621af070c82a05583b9248a7c28e.png';
-import imgProductThumb from 'figma:asset/f6108faddc403caf1eea34c754f31b43ab0fb55b.png';
-import { VendorAppShell } from './layouts/VendorAppShell';
-import { VendorTopRightMenu } from './layouts/VendorTopRightMenu';
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  Loader2,
+  MessageCircle,
+  Send,
+  ShieldAlert,
+  Star,
+  UserPlus,
+} from 'lucide-react'
+import { VendorAppShell } from './layouts/VendorAppShell'
+import { useAuth } from '@/lib/auth'
+import { db } from '@/lib/db'
+import type { Listing, Review, ReviewInvite } from '@/lib/database.types'
 
-type SubTab = 'profile' | 'products';
+type ReviewRow = Review & { listings: { title: string | null } | null }
 
-type Review = {
-  id: string;
-  reviewerName: string;
-  time: string;
-  text: string;
-  overall: number; // 1..5
-  categories: { professionalism: number; quality: number; pricing: number };
-};
+const MAX_INVITES_PER_MONTH = 10
 
-function Stars({ value }: { value: number }) {
-  return (
-    <div className="flex items-center gap-1">
-      {Array.from({ length: 5 }).map((_, idx) => {
-        const filled = idx + 1 <= Math.round(value);
-        return (
-          <Star
-            key={idx}
-            className={`h-3.5 w-3.5 ${filled ? 'fill-[#F59E0B] text-[#F59E0B]' : 'fill-transparent text-[#E5E7EB]'}`}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
-function RatingBars({ value }: { value: number }) {
-  // Static distribution, roughly matching screenshot (5:4, 4:3, 3:2, 2:1, 1:0)
-  const buckets = [
-    { label: '5', percent: value >= 4.5 ? 100 : value >= 4 ? 85 : 60 },
-    { label: '4', percent: value >= 4 ? 85 : 70 },
-    { label: '3', percent: value >= 3.5 ? 70 : 45 },
-    { label: '2', percent: value >= 3 ? 35 : 25 },
-    { label: '1', percent: value >= 2 ? 10 : 5 },
-  ];
-
-  return (
-    <div className="space-y-1">
-      {buckets.map((b) => (
-        <div key={b.label} className="flex items-center gap-2">
-          <span className="w-2 text-[10px] text-slate-500">{b.label}</span>
-          <div className="h-1.5 w-24 rounded bg-slate-100">
-            <div className="h-1.5 rounded bg-[#F59E0B]" style={{ width: `${b.percent}%` }} />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+function randomToken(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
 }
 
 export default function VendorReviewsPage() {
-  const navigate = useNavigate();
-  const [subTab, setSubTab] = useState<SubTab>('profile');
-  const [search, setSearch] = useState('');
-  const [showAll, setShowAll] = useState(false);
-  const [uiNotice, setUiNotice] = useState<string | null>(null);
+  const { vendorId } = useAuth()
 
-  const profileReviews: Review[] = [
-    {
-      id: 'r1',
-      reviewerName: 'Micheli',
-      time: '16 Jul, 2024 18:10',
-      text:
-        'Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry\'s standard dummy text ever since the 1500s.',
-      overall: 4,
-      categories: { professionalism: 4, quality: 4, pricing: 3 },
-    },
-    {
-      id: 'r2',
-      reviewerName: 'Micheli',
-      time: '16 Jul, 2024 18:10',
-      text:
-        'Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry\'s standard dummy text ever since the 1500s.',
-      overall: 4,
-      categories: { professionalism: 4, quality: 4, pricing: 3 },
-    },
-  ];
+  const [reviews, setReviews] = useState<ReviewRow[]>([])
+  const [invites, setInvites] = useState<ReviewInvite[]>([])
+  const [listings, setListings] = useState<Listing[]>([])
+  const [loading, setLoading] = useState(true)
+  const [notice, setNotice] = useState('')
 
-  const productReviews = [
-    {
-      id: 'pr1',
-      productId: '9132476921',
-      productName: "Women's Cotton Stretch Half Sleeve Round Neck Regular Fit",
-      author: 'Micheli',
-      time: 'Today 18:10',
-      excerpt:
-        'Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry\'s standard dummy text ever since the 1500s.',
-      rating: 3.7,
-    },
-    {
-      id: 'pr2',
-      productId: '9132476921',
-      productName: "Women's Cotton Stretch Half Sleeve Round Neck Regular Fit",
-      author: 'Micheli',
-      time: '16 Jul, 2024 18:10',
-      excerpt:
-        'Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry\'s standard dummy text ever since the 1500s.',
-      rating: 3.7,
-    },
-    {
-      id: 'pr3',
-      productId: '9132476921',
-      productName: "Women's Cotton Stretch Half Sleeve Round Neck Regular Fit",
-      author: 'Micheli',
-      time: '16 Jul, 2024 18:10',
-      excerpt:
-        'Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry\'s standard dummy text ever since the 1500s.',
-      rating: 3.7,
-    },
-    {
-      id: 'pr4',
-      productId: '9132476921',
-      productName: "Women's Cotton Stretch Half Sleeve Round Neck Regular Fit",
-      author: 'Micheli',
-      time: '16 Jul, 2024 18:10',
-      excerpt:
-        'Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry\'s standard dummy text ever since the 1500s.',
-      rating: 3.7,
-    },
-  ];
+  const [composeOpen, setComposeOpen] = useState(false)
+  const [composeListingId, setComposeListingId] = useState('')
+  const [composeEmail, setComposeEmail] = useState('')
+  const [composeName, setComposeName] = useState('')
+  const [composing, setComposing] = useState(false)
 
-  const filteredProductReviews = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return productReviews;
-    return productReviews.filter((p) => p.productName.toLowerCase().includes(q) || p.productId.includes(q));
-  }, [search]);
+  const [replyDraft, setReplyDraft] = useState<Record<string, string>>({})
+  const [replying, setReplying] = useState<string | null>(null)
 
-  const shownProductReviews = showAll ? filteredProductReviews : filteredProductReviews.slice(0, 2);
+  const load = useCallback(async () => {
+    if (!vendorId) return
+    setLoading(true)
+    const [rRes, iRes, lRes] = await Promise.all([
+      db.reviews.listByVendor(vendorId),
+      db.reviewInvites.listByVendor(vendorId),
+      db.listings.listByVendor(vendorId),
+    ])
+    setReviews((rRes.data ?? []) as ReviewRow[])
+    setInvites((iRes.data ?? []) as ReviewInvite[])
+    setListings((lRes.data ?? []) as Listing[])
+    setLoading(false)
+  }, [vendorId])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const monthInvites = useMemo(() => {
+    const start = new Date()
+    start.setDate(1)
+    start.setHours(0, 0, 0, 0)
+    return invites.filter((i) => new Date(i.created_at) >= start).length
+  }, [invites])
+
+  const handleInvite = async () => {
+    if (!vendorId) return
+    if (monthInvites >= MAX_INVITES_PER_MONTH) {
+      setNotice(`Limit reached (${MAX_INVITES_PER_MONTH}/month).`)
+      return
+    }
+    if (!composeEmail.trim() || !composeEmail.includes('@')) {
+      setNotice('Valid email required.')
+      return
+    }
+    setComposing(true)
+    const { error } = await db.reviewInvites.create({
+      vendor_id: vendorId,
+      listing_id: composeListingId || null,
+      recipient_email: composeEmail.trim().toLowerCase(),
+      recipient_name: composeName.trim() || null,
+      token: randomToken(),
+      used_at: null,
+    })
+    setComposing(false)
+    if (error) {
+      setNotice(`Failed: ${error.message}`)
+      return
+    }
+    setNotice(
+      `Invite queued. Email will go out via Resend when the worker drains. ${monthInvites + 1}/${MAX_INVITES_PER_MONTH} used this month.`,
+    )
+    setComposeEmail('')
+    setComposeName('')
+    setComposeOpen(false)
+    load()
+  }
+
+  const handleReply = async (review: ReviewRow) => {
+    const draft = (replyDraft[review.id] ?? '').trim()
+    if (!draft) return
+    setReplying(review.id)
+    await db.reviews.setReply(review.id, draft)
+    setReplying(null)
+    setReplyDraft((p) => ({ ...p, [review.id]: '' }))
+    load()
+  }
+
+  if (!vendorId) {
+    return (
+      <VendorAppShell activeNav="orders" routeSource="vendor-reviews">
+        <main className="flex min-h-full items-center justify-center bg-transparent p-6">
+          <div className="max-w-md rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center">
+            <ShieldAlert className="mx-auto mb-2 size-8 text-amber-600" />
+            <p className="text-sm text-amber-800">Vendor account required.</p>
+          </div>
+        </main>
+      </VendorAppShell>
+    )
+  }
 
   return (
-    <VendorAppShell
-      activeNav="reviews"
-      routeSource="vendor-reviews"
-      onNavNotice={(msg) => setUiNotice(msg)}
-      headerSearch={
-        <>
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search products…"
-            className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50/80 py-2 pl-9 pr-4 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-          />
-        </>
-      }
-      headerEnd={
-        <>
-          <button
-            type="button"
-            aria-label="Open communication and notifications"
-            onClick={() =>
-              navigate('/vendor/communication', {
-                state: { source: 'vendor-reviews-header', channel: 'notifications' },
-              })
-            }
-            className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-gray-100"
-          >
-            <Bell className="h-5 w-5" />
-          </button>
-          <VendorTopRightMenu />
-        </>
-      }
-    >
+    <VendorAppShell activeNav="orders" routeSource="vendor-reviews">
       <main className="min-h-full w-full bg-transparent">
-        <div className="px-4 py-4 sm:px-6">
-            {uiNotice ? (
-              <p className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-700">
-                {uiNotice}
+        <section className="p-4 sm:p-6">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-semibold text-slate-900">Reviews</h1>
+              <p className="text-sm text-slate-500">
+                Reviews from completed bookings post directly. Invite past clients to seed
+                pre-platform reviews (admin-approved before going live).
               </p>
-            ) : null}
-            <div className="flex items-center gap-3 mb-5">
+            </div>
+            <button
+              type="button"
+              onClick={() => setComposeOpen(true)}
+              className="inline-flex items-center gap-2 rounded-md bg-[#2563EB] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1D4ED8]"
+            >
+              <UserPlus className="size-4" />
+              Invite past client ({monthInvites}/{MAX_INVITES_PER_MONTH})
+            </button>
+          </div>
+
+          {notice && (
+            <p className="mb-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-700">
+              {notice}
+            </p>
+          )}
+
+          {loading ? (
+            <div className="flex items-center justify-center py-14">
+              <Loader2 className="size-6 animate-spin text-slate-400" />
+            </div>
+          ) : reviews.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center">
+              <MessageCircle className="mx-auto mb-2 size-10 text-slate-300" />
+              <p className="text-sm text-slate-500">No reviews yet.</p>
+            </div>
+          ) : (
+            <ul className="space-y-3">
+              {reviews.map((r) => (
+                <li
+                  key={r.id}
+                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="font-semibold text-slate-900">
+                        {r.reviewer_name ?? 'Anonymous'}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {r.listings?.title ?? '—'} ·{' '}
+                        {new Date(r.created_at).toLocaleDateString('en-IN')}
+                        {r.source === 'invite' && (
+                          <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+                            Pre-platform review
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <Star
+                          key={n}
+                          className={`size-4 ${n <= r.rating ? 'text-amber-500' : 'text-slate-200'}`}
+                          fill={n <= r.rating ? 'currentColor' : 'none'}
+                        />
+                      ))}
+                      <span
+                        className={`ml-2 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                          r.status === 'approved'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : r.status === 'pending_approval'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-rose-100 text-rose-700'
+                        }`}
+                      >
+                        {r.status}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="mt-2 whitespace-pre-wrap text-sm text-slate-800">{r.body}</p>
+
+                  {r.vendor_reply ? (
+                    <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 p-3">
+                      <p className="text-[11px] font-semibold text-blue-700">Your reply</p>
+                      <p className="mt-1 text-sm text-blue-900">{r.vendor_reply}</p>
+                    </div>
+                  ) : r.status === 'approved' ? (
+                    <div className="mt-3">
+                      <textarea
+                        value={replyDraft[r.id] ?? ''}
+                        onChange={(e) =>
+                          setReplyDraft((p) => ({ ...p, [r.id]: e.target.value }))
+                        }
+                        rows={2}
+                        placeholder="Reply publicly (one reply per review)"
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
+                      />
+                      <div className="mt-2 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handleReply(r)}
+                          disabled={replying === r.id || !(replyDraft[r.id] ?? '').trim()}
+                          className="inline-flex items-center gap-1.5 rounded-md bg-[#2563EB] px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                        >
+                          {replying === r.id && <Loader2 className="size-3 animate-spin" />}
+                          <Send className="size-3" />
+                          Post reply
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </main>
+
+      {composeOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+              <h2 className="text-base font-bold text-slate-900">Invite past client</h2>
               <button
                 type="button"
-                onClick={() => setSubTab('profile')}
-                className={`rounded-full border px-6 py-2 text-sm font-medium transition ${
-                  subTab === 'profile'
-                    ? 'border-[#2563eb] bg-white text-[#2563eb] shadow-sm'
-                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                }`}
+                onClick={() => setComposeOpen(false)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"
               >
-                Profile
-              </button>
-              <button
-                type="button"
-                onClick={() => setSubTab('products')}
-                className={`rounded-full border px-6 py-2 text-sm font-medium transition ${
-                  subTab === 'products'
-                    ? 'border-[#2563eb] bg-white text-[#2563eb] shadow-sm'
-                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                Products
+                ✕
               </button>
             </div>
-
-            {subTab === 'profile' && (
-              <div className="max-w-4xl mx-auto">
-                <h2 className="text-lg font-semibold text-slate-900 mb-4">Reviews</h2>
-                <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <div className="flex items-center gap-4 mb-4">
-                    <img src={imgAvatar} alt="" className="h-12 w-12 rounded-full object-cover" />
-                    <div>
-                      <p className="font-semibold text-slate-900 leading-tight">James Brown</p>
-                      <p className="text-sm text-slate-500">Manufacturer</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-8">
-                    <div>
-                      <p className="text-xs text-slate-500">Total Reviews</p>
-                      <p className="text-2xl font-bold text-slate-900 mt-1">10.0k</p>
-                      <p className="text-xs text-slate-500 mt-1">+3.25% from last month</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-500">Average rating</p>
-                      <div className="flex items-center gap-4 mt-1">
-                        <p className="text-2xl font-bold text-slate-900">3.7</p>
-                        <Stars value={3.7} />
-                      </div>
-                      <p className="text-xs text-slate-500 mt-1">Outstanding feedback</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-500">Overall rating</p>
-                      <div className="mt-2 space-y-1">
-                        {['5', '4', '3', '2', '1'].map((n, idx) => (
-                          <div key={n} className="flex items-center gap-2">
-                            <span className="w-2 text-xs text-slate-600">{n}</span>
-                            <div className="h-2.5 w-24 rounded bg-slate-100">
-                              <div className="h-2.5 rounded bg-[#F59E0B]" style={{ width: `${[100, 85, 60, 35, 15][idx]}%` }} />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      <p className="text-xs text-slate-500 mt-2">Rating distribution</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 grid grid-cols-3 gap-4">
-                    <div className="text-center">
-                      <p className="text-xs font-medium text-slate-500">Professionalism</p>
-                      <div className="mt-1">
-                        <Stars value={4} />
-                      </div>
-                      <p className="text-xs text-slate-500 mt-1">4.0</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs font-medium text-slate-500">Quality</p>
-                      <div className="mt-1">
-                        <Stars value={4} />
-                      </div>
-                      <p className="text-xs text-slate-500 mt-1">4.0</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs font-medium text-slate-500">Pricing</p>
-                      <div className="mt-1">
-                        <Stars value={3} />
-                      </div>
-                      <p className="text-xs text-slate-500 mt-1">3.0</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-6 space-y-4">
-                  {profileReviews.map((r) => (
-                    <div key={r.id} className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex items-start gap-4">
-                          <img src={imgAvatar} alt="" className="h-12 w-12 rounded-full object-cover" />
-                          <div>
-                            <p className="font-semibold text-slate-900">{r.reviewerName}</p>
-                            <p className="text-xs text-slate-500 mt-1">{r.time}</p>
-                          </div>
-                        </div>
-
-                        <div className="min-w-[180px]">
-                          <p className="text-xs text-slate-500">Overall</p>
-                          <div className="mt-2 flex items-center gap-3">
-                            <p className="text-sm font-semibold text-slate-900">{r.overall}.0</p>
-                            <Stars value={r.overall} />
-                          </div>
-
-                          <div className="mt-3 space-y-2">
-                            <div className="flex items-center justify-between text-xs text-slate-600">
-                              <span>Professionalism</span>
-                              <Stars value={r.categories.professionalism} />
-                            </div>
-                            <div className="flex items-center justify-between text-xs text-slate-600">
-                              <span>Quality</span>
-                              <Stars value={r.categories.quality} />
-                            </div>
-                            <div className="flex items-center justify-between text-xs text-slate-600">
-                              <span>Pricing</span>
-                              <Stars value={r.categories.pricing} />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <p className="mt-4 text-sm text-slate-600 leading-relaxed">{r.text}</p>
-
-                      <div className="mt-4 flex flex-wrap gap-3 items-center">
-                        <button
-                          type="button"
-                          onClick={() => setUiNotice(`Public comment opened for ${r.reviewerName}'s review.`)}
-                          className="rounded-full border border-slate-300 bg-white px-5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                        >
-                          Public comment
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setUiNotice(`Private message opened for ${r.reviewerName}.`)}
-                          className="rounded-full border border-slate-300 bg-white px-5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                        >
-                          Private message
-                        </button>
-                      </div>
-                    </div>
+            <div className="space-y-4 px-6 py-5">
+              <div>
+                <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Listing (optional)
+                </label>
+                <select
+                  value={composeListingId}
+                  onChange={(e) => setComposeListingId(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
+                >
+                  <option value="">Generic invite (no specific listing)</option>
+                  {listings.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.title}
+                    </option>
                   ))}
-                </div>
+                </select>
               </div>
-            )}
-
-            {subTab === 'products' && (
-              <div className="max-w-5xl mx-auto">
-                <h2 className="text-lg font-semibold text-slate-900 mb-4">Reviews</h2>
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                  <div className="relative w-full max-w-md">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <input
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Search"
-                      className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setUiNotice('Product review filters will be available once advanced filters are enabled.')}
-                      className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                    >
-                      Filter
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setUiNotice('Sorting options will be available once advanced sorting is enabled.')}
-                      className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                    >
-                      Sort by
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  {shownProductReviews.map((p) => (
-                    <div key={p.id} className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-                      <div className="grid grid-cols-12">
-                        <div className="col-span-4 p-4 bg-gradient-to-r from-[#F5FAFF] to-white border-r border-slate-100">
-                          <div className="flex items-center gap-3">
-                            <img src={imgProductThumb} alt="" className="h-14 w-14 rounded-lg object-cover bg-white border border-slate-100" />
-                            <div className="min-w-0">
-                              <p className="text-xs font-medium text-slate-400">Product ID: {p.productId}</p>
-                              <p className="mt-1 text-sm font-semibold text-slate-900 truncate">{p.productName}</p>
-                            </div>
-                          </div>
-                          <div className="mt-4 flex items-center gap-2">
-                            <img src={imgAvatar} alt="" className="h-10 w-10 rounded-full object-cover" />
-                            <div>
-                              <p className="text-sm font-semibold text-slate-900">{p.author}</p>
-                              <p className="text-xs text-slate-500 mt-1">{p.time}</p>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="col-span-5 p-4">
-                          <p className="text-sm text-slate-600 leading-relaxed">{p.excerpt}</p>
-                        </div>
-
-                        <div className="col-span-3 p-4 border-l border-slate-100 bg-slate-50">
-                          <p className="text-xs text-slate-500">Average rating</p>
-                          <p className="mt-1 text-sm font-semibold text-slate-900">{p.rating}</p>
-                          <div className="mt-2">
-                            <RatingBars value={p.rating} />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-6 flex justify-center">
-                  <button
-                    type="button"
-                    onClick={() => setShowAll((v) => !v)}
-                    className="rounded-full border border-[#2563EB] bg-white px-8 py-2 text-sm font-medium text-[#2563EB] hover:bg-[#ebf1ff]"
-                  >
-                    {showAll ? 'View less' : 'View all'}
-                  </button>
-                </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Recipient email <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  value={composeEmail}
+                  onChange={(e) => setComposeEmail(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
+                />
               </div>
-            )}
+              <div>
+                <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Recipient name (optional)
+                </label>
+                <input
+                  value={composeName}
+                  onChange={(e) => setComposeName(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
+                />
+              </div>
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                Pre-platform reviews enter the admin approval queue before going live and are
+                badged "Pre-platform review".
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setComposeOpen(false)}
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleInvite}
+                  disabled={composing}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#2563EB] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#1D4ED8] disabled:opacity-60"
+                >
+                  {composing && <Loader2 className="size-4 animate-spin" />}
+                  Send invite
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
-      </main>
+      )}
     </VendorAppShell>
-  );
+  )
 }
-

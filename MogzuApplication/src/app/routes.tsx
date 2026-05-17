@@ -102,6 +102,8 @@ import CorporateTravelPolicyPage from "@/app/components/CorporateTravelPolicyPag
 import StaySearchPage from "@/app/components/StaySearchPage";
 import AdminDisputesPage from "@/app/components/AdminDisputesPage";
 import BulkGiftingPage from "@/app/components/BulkGiftingPage";
+import ReviewSubmitPage from "@/app/components/ReviewSubmitPage";
+import AdminReviewsApprovalPage from "@/app/components/AdminReviewsApprovalPage";
 import CelebrationsPage from "@/app/components/CelebrationsPage";
 import CelebrationDetailPage from "@/app/components/CelebrationDetailPage";
 import CelebrationBookingFlow from "@/app/components/CelebrationBookingFlow";
@@ -839,6 +841,16 @@ export const router = createBrowserRouter([
   {
     path: "/corporate/bulk-gifting/:id",
     element: <BulkGiftingPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/bookings/:id/review",
+    element: <ReviewSubmitPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/admin/reviews/approval",
+    element: <AdminReviewsApprovalPage />,
     errorElement: <ErrorPage />,
   },
   {
