@@ -210,6 +210,7 @@ export interface Booking {
   tracking_number: string | null
   carrier: string | null
   carrier_url: string | null
+  gifting_campaign_id: string | null
   created_at: string
   updated_at: string
 }
@@ -307,6 +308,32 @@ export interface NotificationPreference {
   user_id: string
   in_app_enabled_types: NotificationType[]
   email_enabled_types: NotificationType[]
+  created_at: string
+  updated_at: string
+}
+
+export type GiftingCampaignStatus =
+  | 'draft'
+  | 'pending_vendor'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled'
+
+export type GiftingCampaignScope = 'all' | 'department' | 'custom'
+
+export interface GiftingCampaign {
+  id: string
+  corporate_id: string
+  occasion_name: string
+  listing_id: string
+  scope: GiftingCampaignScope
+  scope_value: string | null
+  message: string | null
+  budget_per_recipient: number
+  recipient_count: number
+  total_budget: number
+  status: GiftingCampaignStatus
+  created_by: string
   created_at: string
   updated_at: string
 }
@@ -608,6 +635,11 @@ export interface Database {
         Row: NotificationPreference
         Insert: Omit<NotificationPreference, 'created_at' | 'updated_at'>
         Update: Partial<Omit<NotificationPreference, 'created_at'>>
+      }
+      gifting_campaigns: {
+        Row: GiftingCampaign
+        Insert: Omit<GiftingCampaign, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<GiftingCampaign, 'id' | 'created_at'>>
       }
       booking_messages: {
         Row: BookingMessage

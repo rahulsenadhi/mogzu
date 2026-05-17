@@ -22,6 +22,7 @@ import type {
   FulfilmentStage,
   BookingMessage,
   BookingDispute,
+  GiftingCampaign,
   DisputeStatus,
   DisputeResolution,
   CalendarSlot,
@@ -568,6 +569,34 @@ export const commissions = {
     supabase.from('commissions').update({ is_active: false }).eq('id', id),
 }
 
+// ─── Gifting Campaigns (Story 4.3) ────────────────────────────────────────────
+
+export const giftingCampaigns = {
+  listByCorporate: async (corporateId: string) =>
+    supabase
+      .from('gifting_campaigns')
+      .select('*, listings(title)')
+      .eq('corporate_id', corporateId)
+      .order('created_at', { ascending: false }),
+
+  getById: async (id: string) =>
+    supabase
+      .from('gifting_campaigns')
+      .select('*, listings(title,base_price)')
+      .eq('id', id)
+      .single(),
+
+  create: async (data: Omit<GiftingCampaign, 'id' | 'created_at' | 'updated_at'>) =>
+    supabase.from('gifting_campaigns').insert(data).select().single(),
+
+  listBookings: async (campaignId: string) =>
+    supabase
+      .from('bookings')
+      .select('*, user_profiles(full_name,department,email)')
+      .eq('gifting_campaign_id', campaignId)
+      .order('created_at'),
+}
+
 // ─── Booking Messages (Story 7.1) ─────────────────────────────────────────────
 
 export const bookingMessages = {
@@ -1087,4 +1116,5 @@ export const db = {
   travelPolicies,
   bookingMessages,
   bookingDisputes,
+  giftingCampaigns,
 }

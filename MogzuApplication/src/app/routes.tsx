@@ -101,6 +101,7 @@ import AccountManagerPortfolioPage from "@/app/components/AccountManagerPortfoli
 import CorporateTravelPolicyPage from "@/app/components/CorporateTravelPolicyPage";
 import StaySearchPage from "@/app/components/StaySearchPage";
 import AdminDisputesPage from "@/app/components/AdminDisputesPage";
+import BulkGiftingPage from "@/app/components/BulkGiftingPage";
 import CelebrationsPage from "@/app/components/CelebrationsPage";
 import CelebrationDetailPage from "@/app/components/CelebrationDetailPage";
 import CelebrationBookingFlow from "@/app/components/CelebrationBookingFlow";
@@ -828,6 +829,16 @@ export const router = createBrowserRouter([
   {
     path: "/admin/disputes/:id",
     element: <AdminDisputesPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/corporate/bulk-gifting",
+    element: <BulkGiftingPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/corporate/bulk-gifting/:id",
+    element: <BulkGiftingPage />,
     errorElement: <ErrorPage />,
   },
   {
