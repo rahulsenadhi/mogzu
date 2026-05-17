@@ -987,6 +987,143 @@ export const partnerStatements = {
       .order('created_at', { ascending: true }),
 }
 
+// ─── Booking status tracker (Phase 2 Feature 2 & 3) ──────────────────────────
+
+export const bookingTracker = {
+  listEvents: async (bookingId: string) =>
+    supabase
+      .from('booking_status_events')
+      .select('*')
+      .eq('booking_id', bookingId)
+      .order('created_at', { ascending: true }),
+
+  createOtp: async (
+    bookingId: string,
+    stage: string,
+    otpCode: string,
+    sentTo: string,
+  ) =>
+    supabase
+      .from('booking_status_events')
+      .insert({
+        booking_id: bookingId,
+        stage,
+        otp_code: otpCode,
+        otp_sent_to: sentTo,
+      })
+      .select()
+      .single(),
+
+  submitProof: async (
+    eventId: string,
+    data: {
+      photo_path: string | null
+      gps_lat: number | null
+      gps_lng: number | null
+      submitted_by: string
+      notes?: string | null
+    },
+  ) =>
+    supabase
+      .from('booking_status_events')
+      .update({
+        ...data,
+        submitted_at: new Date().toISOString(),
+        otp_verified_at: new Date().toISOString(),
+      })
+      .eq('id', eventId)
+      .select()
+      .single(),
+
+  adminOverride: async (eventId: string, reason: string) =>
+    supabase
+      .from('booking_status_events')
+      .update({ admin_override_reason: reason })
+      .eq('id', eventId)
+      .select()
+      .single(),
+
+  listFieldAgentQueue: async () =>
+    supabase
+      .from('bookings')
+      .select('id, module, status, group_size, start_time, end_time, listings(title, location_city), corporate_accounts(name)')
+      .in('status', ['confirmed', 'pending_vendor'])
+      .order('start_time', { ascending: true, nullsFirst: false })
+      .limit(50),
+}
+
+export const bookingProof = {
+  getRecord: async (bookingId: string) =>
+    supabase
+      .from('booking_proof_records')
+      .select('*')
+      .eq('booking_id', bookingId)
+      .maybeSingle(),
+
+  upsertRecord: async (
+    bookingId: string,
+    patch: Partial<{
+      agreed_scope: string | null
+      quoted_price: number | null
+      final_price: number | null
+      negotiation_history: unknown
+      po_document_path: string | null
+      admin_notes: string | null
+    }>,
+  ) =>
+    supabase
+      .from('booking_proof_records')
+      .upsert({ booking_id: bookingId, ...patch }, { onConflict: 'booking_id' })
+      .select()
+      .single(),
+
+  accept: async (
+    bookingId: string,
+    acceptedBy: string,
+    ip: string,
+    userAgent: string,
+  ) =>
+    supabase
+      .from('booking_proof_records')
+      .upsert(
+        {
+          booking_id: bookingId,
+          accepted_by: acceptedBy,
+          accepted_at: new Date().toISOString(),
+          accepted_ip: ip,
+          accepted_user_agent: userAgent,
+        },
+        { onConflict: 'booking_id' },
+      )
+      .select()
+      .single(),
+
+  listMilestones: async (bookingId: string) =>
+    supabase
+      .from('booking_payment_milestones')
+      .select('*')
+      .eq('booking_id', bookingId)
+      .order('due_at', { ascending: true }),
+
+  upsertMilestone: async (
+    data: {
+      id?: string
+      booking_id: string
+      kind: 'advance' | 'milestone' | 'balance' | 'final_settlement'
+      percentage: number | null
+      amount: number | null
+      due_at: string | null
+      paid_at?: string | null
+      paid_reference?: string | null
+    },
+  ) =>
+    supabase
+      .from('booking_payment_milestones')
+      .upsert(data)
+      .select()
+      .single(),
+}
+
 // ─── Sub-Users / RBAC (Phase 2 Feature 6) ────────────────────────────────────
 
 function generateInviteToken(): string {
@@ -1894,4 +2031,6 @@ export const db = {
   userInvites,
   userPermissions,
   userActivity,
+  bookingTracker,
+  bookingProof,
 }

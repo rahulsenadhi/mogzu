@@ -73,6 +73,7 @@ import AdminTeamPermissionsPage from "@/app/pages/admin/AdminTeamPermissionsPage
 import AdminTeamActivityPage from "@/app/pages/admin/AdminTeamActivityPage";
 import AcceptInvitePage from "@/app/components/AcceptInvitePage";
 import FieldAgentDashboardPage from "@/app/components/FieldAgentDashboardPage";
+import BookingTrackerPage from "@/app/components/BookingTrackerPage";
 import ShortlistCorporatePage from "@/app/pages/ShortlistCorporatePage";
 import AdminLoginPage from "@/app/components/AdminLoginPage";
 import ActivitySuite from "@/app/components/ActivitySuite";
@@ -533,6 +534,11 @@ export const router = createBrowserRouter([
   {
     path: "/agent/dashboard",
     element: <FieldAgentDashboardPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/bookings/:id/track",
+    element: <BookingTrackerPage />,
     errorElement: <ErrorPage />,
   },
   {

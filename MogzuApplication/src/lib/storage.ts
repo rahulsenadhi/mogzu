@@ -92,4 +92,19 @@ export const storageService = {
     getUrl: (path: string) => getPublicUrl(BUCKETS.DOCUMENTS, path),
     delete: (paths: string[]) => remove(BUCKETS.DOCUMENTS, paths),
   },
+
+  // Phase 2 Feature 2 — booking proof photos. Reuses the space-images
+  // bucket; path namespace booking-proof/<booking>/<stage>/<id>.<ext>
+  // keeps proof content separate from listing imagery.
+  bookingProof: {
+    upload: (bookingId: string, stage: string, file: File) => {
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+      const id = Array.from(crypto.getRandomValues(new Uint8Array(8)))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('')
+      const path = `booking-proof/${bookingId}/${stage}/${id}.${ext}`
+      return upload(BUCKETS.SPACE_IMAGES, path, file)
+    },
+    getUrl: (path: string) => getPublicUrl(BUCKETS.SPACE_IMAGES, path),
+  },
 }

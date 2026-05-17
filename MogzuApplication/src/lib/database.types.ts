@@ -44,6 +44,59 @@ export interface UserActivityEvent {
   created_at: string
 }
 
+export interface BookingStatusEvent {
+  id: string
+  booking_id: string
+  stage: string
+  otp_code: string | null
+  otp_sent_to: string | null
+  otp_verified_at: string | null
+  photo_path: string | null
+  gps_lat: number | null
+  gps_lng: number | null
+  submitted_by: string | null
+  submitted_at: string | null
+  notes: string | null
+  admin_override_reason: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface BookingProofRecord {
+  booking_id: string
+  agreed_scope: string | null
+  quoted_price: number | null
+  final_price: number | null
+  negotiation_history: Array<{
+    at: string
+    party: 'corporate' | 'vendor' | 'admin'
+    note: string
+    price?: number
+  }>
+  accepted_by: string | null
+  accepted_at: string | null
+  accepted_ip: string | null
+  accepted_user_agent: string | null
+  po_document_path: string | null
+  admin_notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type PaymentMilestoneKind = 'advance' | 'milestone' | 'balance' | 'final_settlement'
+
+export interface BookingPaymentMilestone {
+  id: string
+  booking_id: string
+  kind: PaymentMilestoneKind
+  percentage: number | null
+  amount: number | null
+  due_at: string | null
+  paid_at: string | null
+  paid_reference: string | null
+  created_at: string
+}
+
 export interface UserInvite {
   id: string
   email: string
@@ -982,6 +1035,21 @@ export interface Database {
         Row: UserInvite
         Insert: Omit<UserInvite, 'id' | 'created_at'>
         Update: Partial<Omit<UserInvite, 'id' | 'created_at'>>
+      }
+      booking_status_events: {
+        Row: BookingStatusEvent
+        Insert: Omit<BookingStatusEvent, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<BookingStatusEvent, 'id' | 'created_at'>>
+      }
+      booking_proof_records: {
+        Row: BookingProofRecord
+        Insert: Omit<BookingProofRecord, 'created_at' | 'updated_at'>
+        Update: Partial<Omit<BookingProofRecord, 'booking_id' | 'created_at'>>
+      }
+      booking_payment_milestones: {
+        Row: BookingPaymentMilestone
+        Insert: Omit<BookingPaymentMilestone, 'id' | 'created_at'>
+        Update: Partial<Omit<BookingPaymentMilestone, 'id' | 'created_at'>>
       }
       promotions: {
         Row: Promotion
