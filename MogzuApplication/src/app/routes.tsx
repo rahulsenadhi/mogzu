@@ -91,6 +91,8 @@ import VendorPayoutsPage from "@/app/components/VendorPayoutsPage";
 import EmployeeImportPage from "@/app/components/EmployeeImportPage";
 import NotificationsPage from "@/app/components/NotificationsPage";
 import NotificationPreferencesPage from "@/app/components/NotificationPreferencesPage";
+import EmployeeSpendPage from "@/app/components/EmployeeSpendPage";
+import CorporateSpendReportPage from "@/app/components/CorporateSpendReportPage";
 import CelebrationsPage from "@/app/components/CelebrationsPage";
 import CelebrationDetailPage from "@/app/components/CelebrationDetailPage";
 import CelebrationBookingFlow from "@/app/components/CelebrationBookingFlow";
@@ -743,6 +745,16 @@ export const router = createBrowserRouter([
   {
     path: "/settings/notifications",
     element: <NotificationPreferencesPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/spend",
+    element: <EmployeeSpendPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/corporate/spend-report",
+    element: <CorporateSpendReportPage />,
     errorElement: <ErrorPage />,
   },
   {

@@ -1,0 +1,126 @@
+{
+  "name": "Mogzu — Scheduled Spend Report",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "cronExpression", "expression": "0 7 * * 1" }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Every Monday 7am IST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/corporate_accounts?status=eq.active&select=id,name,account_manager_id",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "list-corporates",
+      "name": "List Active Corporates",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Last 7 days window for weekly report\nconst now = new Date();\nconst from = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);\nreturn items.map(i => ({\n  json: {\n    ...i.json,\n    from_iso: from.toISOString(),\n    to_iso: now.toISOString(),\n  }\n}));"
+      },
+      "id": "compute-window",
+      "name": "Compute Window",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/bookings?corporate_id=eq.{{ $json.id }}&status=in.(pending_approval,pending_vendor,confirmed,completed)&created_at=gte.{{ $json.from_iso }}&created_at=lte.{{ $json.to_iso }}&select=id,created_at,module,status,total_amount,user_id,listings(title),vendors(business_name),user_profiles(full_name,department)",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "fetch-bookings",
+      "name": "Fetch Corporate Bookings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Build CSV and aggregate totals\nconst rows = $json;\nconst header = ['booking_id','created_at','module','status','employee','department','listing','vendor','total_amount'];\nconst cells = (v) => `\"${String(v ?? '').replace(/\"/g,'\"\"')}\"`;\nconst lines = rows.map(r => [\n  r.id,\n  r.created_at,\n  r.module,\n  r.status,\n  r.user_profiles?.full_name ?? '',\n  r.user_profiles?.department ?? '',\n  r.listings?.title ?? '',\n  r.vendors?.business_name ?? '',\n  r.total_amount ?? 0,\n].map(cells).join(','));\nconst csv = [header.join(','), ...lines].join('\\n');\nconst total = rows.reduce((s,r) => s + (Number(r.total_amount)||0), 0);\nreturn [{ json: { csv, total, count: rows.length, corporate_id: $node['Compute Window'].json.id, corporate_name: $node['Compute Window'].json.name, from_iso: $node['Compute Window'].json.from_iso, to_iso: $node['Compute Window'].json.to_iso, account_manager_id: $node['Compute Window'].json.account_manager_id } }];"
+      },
+      "id": "build-csv",
+      "name": "Build CSV + Totals",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/user_profiles?corporate_id=eq.{{ $json.corporate_id }}&role=eq.l3_admin&select=id,email,full_name",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "fetch-recipients",
+      "name": "Fetch L3 Admins",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.resend.com/emails",
+        "method": "POST",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "from", "value": "reports@mogzu.com" },
+            { "name": "to", "value": "={{ $json.email }}" },
+            { "name": "subject", "value": "Mogzu weekly spend report — {{ $node['Build CSV + Totals'].json.corporate_name }}" },
+            { "name": "html", "value": "<h2>Weekly Spend Report</h2><p>{{ $node['Build CSV + Totals'].json.count }} bookings · Total ₹{{ $node['Build CSV + Totals'].json.total }}</p><p>Window: {{ $node['Build CSV + Totals'].json.from_iso }} → {{ $node['Build CSV + Totals'].json.to_iso }}</p><p>CSV attached.</p>" },
+            { "name": "attachments", "value": "=[{\"filename\":\"spend.csv\",\"content\":\"{{ Buffer.from($node['Build CSV + Totals'].json.csv).toString('base64') }}\"}]" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "Send Resend Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1560, 300]
+    }
+  ],
+  "connections": {
+    "Every Monday 7am IST": {
+      "main": [[{ "node": "List Active Corporates", "type": "main", "index": 0 }]]
+    },
+    "List Active Corporates": {
+      "main": [[{ "node": "Compute Window", "type": "main", "index": 0 }]]
+    },
+    "Compute Window": {
+      "main": [[{ "node": "Fetch Corporate Bookings", "type": "main", "index": 0 }]]
+    },
+    "Fetch Corporate Bookings": {
+      "main": [[{ "node": "Build CSV + Totals", "type": "main", "index": 0 }]]
+    },
+    "Build CSV + Totals": {
+      "main": [[{ "node": "Fetch L3 Admins", "type": "main", "index": 0 }]]
+    },
+    "Fetch L3 Admins": {
+      "main": [[{ "node": "Send Resend Email", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "tags": ["mogzu", "reports", "scheduled"],
+  "_comment": "Weekly L3 distribution. Story 2.4 + 7.3 workflow 6. Replace base64 attach pattern once N8N Resend node ships native attachment support."
+}
