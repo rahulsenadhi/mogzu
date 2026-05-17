@@ -15,7 +15,7 @@ interface GuardProps {
 }
 
 export function CorporateRoute({ children }: GuardProps) {
-  const { isLoading, isAuthenticated, role } = useAuth()
+  const { isLoading, isAuthenticated, role, profile, refreshProfile } = useAuth()
   const location = useLocation()
 
   if (isLoading) return <FullScreenSpinner />
@@ -24,10 +24,15 @@ export function CorporateRoute({ children }: GuardProps) {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 
+  // Session exists but profile still bootstrapping — wait, don't bounce to onboarding
+  if (!profile && !role) {
+    void refreshProfile()
+    return <FullScreenSpinner />
+  }
+
   if (!isCorporateRole(role)) {
     if (isVendorRole(role)) return <Navigate to="/vendor/dashboard" replace />
     if (isAdminRole(role)) return <Navigate to="/admin" replace />
-    // unknown role — send to login
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 

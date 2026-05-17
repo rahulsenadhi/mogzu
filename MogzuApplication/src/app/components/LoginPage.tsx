@@ -7,11 +7,12 @@ import { RoleSwitcher } from '@/app/components/global/RoleSwitcher';
 import { RoleBanner } from '@/app/components/global/RoleBanner';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
+import { getAuthCallbackUrl, getPostLoginPath } from '@/lib/authRedirect';
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { signIn } = useAuth();
+  const { signIn, isAuthenticated, role, isLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -33,6 +34,14 @@ export default function LoginPage() {
     const params = new URLSearchParams(location.search);
     setShowSessionTimeoutBanner(params.get('reason') === 'session-timeout');
   }, [location.search]);
+
+  useEffect(() => {
+    if (isLoading || !isAuthenticated) return;
+    // Wait until auth/profile resolved before redirecting away from login
+    if (!role) return;
+    const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
+    navigate(from ?? getPostLoginPath(role), { replace: true });
+  }, [isLoading, isAuthenticated, role, navigate, location.state]);
 
   useEffect(() => {
     if (view !== 'otp' || otpSecondsLeft <= 0) return;
@@ -72,16 +81,15 @@ export default function LoginPage() {
       return;
     }
 
-    // Auth state change in AuthProvider will load profile + trigger re-render
-    // ProtectedRoute handles redirect based on role
-    navigate('/dashboard');
+    // Redirect is handled by the auth-state effect above once role + session
+    // propagate through the context — avoid navigating here to prevent a
+    // double-replace race against that effect.
   };
 
   const handleGoogleLogin = async () => {
-    const appUrl = import.meta.env.VITE_APP_URL ?? window.location.origin;
     await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${appUrl}/auth/callback` },
+      options: { redirectTo: getAuthCallbackUrl() },
     });
   };
 
@@ -100,9 +108,8 @@ export default function LoginPage() {
     }
 
     setIsSubmitting(true);
-    const appUrl = import.meta.env.VITE_APP_URL ?? window.location.origin;
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${appUrl}/auth/callback`,
+      redirectTo: getAuthCallbackUrl(),
     });
     setIsSubmitting(false);
 

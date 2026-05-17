@@ -17,6 +17,7 @@ import {
   getVendorSignupRedirectPath,
 } from '@/app/lib/vendorOnboardingStorage';
 import { supabase } from '@/lib/supabase';
+import { getAuthCallbackUrl } from '@/lib/authRedirect';
 import { db } from '@/lib/db';
 import {
   CorporateOnboardingPageShell,
@@ -223,7 +224,10 @@ export default function VendorOnboardingPage() {
     const { data: authData, error: signUpError } = await supabase.auth.signUp({
       email: email.trim(),
       password,
-      options: { data: { full_name: fullName.trim() } },
+      options: {
+        data: { full_name: fullName.trim() },
+        emailRedirectTo: getAuthCallbackUrl(),
+      },
     });
 
     if (signUpError) {

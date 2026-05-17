@@ -7,11 +7,12 @@ import { RoleSwitcher } from '@/app/components/global/RoleSwitcher';
 import { RoleBanner } from '@/app/components/global/RoleBanner';
 import { useAuth, isAdminRole } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
+import { getAuthCallbackUrl } from '@/lib/authRedirect';
 
 export default function AdminLoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { signIn, isAuthenticated, role, isLoading } = useAuth();
+  const { signIn, signOut, isAuthenticated, role, isLoading } = useAuth();
   const [view, setView] = useState<'login' | 'forgot'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -52,7 +53,7 @@ export default function AdminLoginPage() {
     }
 
     setIsSubmitting(true);
-    const { error } = await signIn(email.trim(), password);
+    const { error, redirectTo } = await signIn(email.trim(), password);
     setIsSubmitting(false);
 
     if (error) {
@@ -64,21 +65,28 @@ export default function AdminLoginPage() {
       return;
     }
 
-    // AuthProvider will load profile; then the useEffect above redirects
-    // If profile is not admin role, show error
+    if (redirectTo && redirectTo !== '/admin') {
+      // Non-admin account: drop the session we just created so the user is not
+      // left signed in as a corporate user on the admin login page.
+      await signOut();
+      setFormError('This account does not have administrator access.');
+      return;
+    }
   };
 
   useEffect(() => {
     if (!isLoading && isAuthenticated && !isAdminRole(role) && role !== null) {
+      // Same guard for OAuth / restored sessions that land here without the
+      // admin role. Sign out and surface the error.
       setFormError('This account does not have administrator access.');
+      void signOut();
     }
-  }, [isLoading, isAuthenticated, role]);
+  }, [isLoading, isAuthenticated, role, signOut]);
 
   const handleGoogleLogin = async () => {
-    const appUrl = import.meta.env.VITE_APP_URL ?? window.location.origin;
     await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${appUrl}/auth/callback` },
+      options: { redirectTo: getAuthCallbackUrl() },
     });
   };
 

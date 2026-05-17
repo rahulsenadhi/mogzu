@@ -9,6 +9,7 @@ import {
 } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from './supabase'
+import { getAuthCallbackUrl, getPostLoginPath } from './authRedirect'
 import type { CorporateAccount, UserProfile, UserRole } from './database.types'
 
 // Never call supabase.auth.* directly in components — use this hook.
@@ -27,7 +28,10 @@ interface AuthState {
 }
 
 interface AuthActions {
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>
+  signIn: (
+    email: string,
+    password: string,
+  ) => Promise<{ error: string | null; redirectTo: string | null }>
   signUp: (email: string, password: string, metadata?: Record<string, unknown>) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
@@ -49,6 +53,38 @@ async function fetchProfile(userId: string): Promise<UserProfile | null> {
 
   if (error) {
     console.error('Failed to fetch user profile:', error.message)
+    return null
+  }
+  return data
+}
+
+export async function ensureUserProfile(user: User): Promise<UserProfile | null> {
+  const existing = await fetchProfile(user.id)
+  if (existing) return existing
+
+  const meta = user.user_metadata ?? {}
+  const now = new Date().toISOString()
+  const profile: UserProfile = {
+    id: user.id,
+    corporate_id: null,
+    vendor_id: null,
+    role: 'l1_employee',
+    available_roles: [],
+    full_name:
+      (typeof meta.full_name === 'string' && meta.full_name.trim()) ||
+      user.email?.split('@')[0] ||
+      'User',
+    phone: null,
+    avatar_url: null,
+    department: null,
+    status: 'active',
+    created_at: now,
+    updated_at: now,
+  }
+
+  const { data, error } = await supabase.from('user_profiles').upsert(profile).select().single()
+  if (error) {
+    console.error('Failed to create user profile:', error.message)
     return null
   }
   return data
@@ -92,15 +128,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     readStoredRole(),
   )
 
-  const loadProfile = async (userId: string) => {
-    const p = await fetchProfile(userId)
-    setProfile(p)
-    if (p?.corporate_id) {
-      const ca = await fetchCorporateAccount(p.corporate_id)
-      setCorporateAccount(ca)
-    } else {
-      setCorporateAccount(null)
+  const loadProfile = async (userId: string, authUser?: User) => {
+    let p = await fetchProfile(userId)
+    if (!p && authUser) {
+      p = await ensureUserProfile(authUser)
     }
+    if (!p) {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) p = await ensureUserProfile(user)
+    }
+
+    if (p) {
+      setProfile(p)
+      if (p.corporate_id) {
+        const ca = await fetchCorporateAccount(p.corporate_id)
+        setCorporateAccount(ca)
+      } else {
+        setCorporateAccount(null)
+      }
+      return
+    }
+
+    setProfile((current) => {
+      if (current?.id === userId) return current
+      setCorporateAccount(null)
+      return null
+    })
   }
 
   useEffect(() => {
@@ -108,7 +161,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data: { session: s } }) => {
       setSession(s)
       if (s?.user) {
-        loadProfile(s.user.id).finally(() => setIsLoading(false))
+        loadProfile(s.user.id, s.user).finally(() => setIsLoading(false))
       } else {
         setIsLoading(false)
       }
@@ -118,7 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s)
       if (s?.user) {
-        loadProfile(s.user.id)
+        loadProfile(s.user.id, s.user ?? undefined)
       } else {
         setProfile(null)
         setCorporateAccount(null)
@@ -150,18 +203,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => { supabase.removeChannel(channel) }
   }, [profile?.corporate_id])
 
+  const formatAuthError = (message: string | undefined): string | null => {
+    if (!message) return null
+    const lower = message.toLowerCase()
+    if (lower.includes('failed to fetch') || lower.includes('network')) {
+      return 'Cannot reach Mogzu servers. Check your internet connection, then restart the dev server (npm run dev).'
+    }
+    return message
+  }
+
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    return { error: error?.message ?? null }
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) {
+        return { error: formatAuthError(error.message), redirectTo: null }
+      }
+
+      if (data.session) setSession(data.session)
+
+      const user = data.user
+      if (!user) {
+        return { error: 'Sign in succeeded but no user was returned.', redirectTo: null }
+      }
+
+      const profileRow = await ensureUserProfile(user)
+      setProfile(profileRow)
+      if (profileRow?.corporate_id) {
+        const ca = await fetchCorporateAccount(profileRow.corporate_id)
+        setCorporateAccount(ca)
+      } else {
+        setCorporateAccount(null)
+      }
+
+      const role = profileRow?.role ?? null
+      return { error: null, redirectTo: getPostLoginPath(role) }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Sign in failed.'
+      return { error: formatAuthError(msg) ?? 'Sign in failed.', redirectTo: null }
+    }
   }
 
   const signUp = async (email: string, password: string, metadata?: Record<string, unknown>) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: metadata },
-    })
-    return { error: error?.message ?? null }
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: metadata,
+          emailRedirectTo: getAuthCallbackUrl(),
+        },
+      })
+      return { error: formatAuthError(error?.message) }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Sign up failed.'
+      return { error: formatAuthError(msg) ?? 'Sign up failed.' }
+    }
   }
 
   const signOut = async () => {
@@ -174,7 +270,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshProfile = async () => {
     if (session?.user) {
-      await loadProfile(session.user.id)
+      await loadProfile(session.user.id, session.user)
     }
   }
 
@@ -188,12 +284,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Active role = sessionStorage override (if still permitted) else primary role.
   const activeRole = useMemo<UserRole | null>(() => {
-    if (!profile) return null
-    if (activeRoleOverride && availableRoles.includes(activeRoleOverride)) {
-      return activeRoleOverride
+    if (profile) {
+      if (activeRoleOverride && availableRoles.includes(activeRoleOverride)) {
+        return activeRoleOverride
+      }
+      return profile.role
     }
-    return profile.role
-  }, [profile, activeRoleOverride, availableRoles])
+    // Signed in but profile row missing — default corporate employee so dashboard is reachable
+    if (session?.user) return 'l1_employee'
+    return null
+  }, [profile, activeRoleOverride, availableRoles, session?.user])
 
   // Clear stale override if it's no longer permitted (e.g. role grant revoked).
   useEffect(() => {
@@ -263,7 +363,10 @@ export function useAuth(): AuthContextValue {
 
 // Role guard helpers
 export const isCorporateRole = (role: UserRole | null) =>
-  role === 'l1_employee' || role === 'l2_manager' || role === 'l3_admin'
+  role === 'l1_employee' ||
+  role === 'l2_manager' ||
+  role === 'l3_admin' ||
+  role === 'partner'
 
 export const isVendorRole = (role: UserRole | null) => role === 'vendor'
 

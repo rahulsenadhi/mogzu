@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { AlertCircle, X } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import svgPaths from '@/imports/svg-o29bchayym';
@@ -7,8 +7,10 @@ import imgGoogleIcon from 'figma:asset/623e1bc74569caceb0c89f1e0be048c9a6e5221f.
 import { MogzuLogo } from '@/app/components/branding/MogzuLogo';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/db';
+import { getAuthCallbackUrl } from '@/lib/authRedirect';
 
 export default function CorporateSignUpForm() {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -21,6 +23,8 @@ export default function CorporateSignUpForm() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [signupStep, setSignupStep] = useState<'form' | 'verify-email'>('form');
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendNotice, setResendNotice] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState({
     fullName: '',
     email: '',
@@ -90,12 +94,36 @@ export default function CorporateSignUpForm() {
       password: formData.password,
       options: {
         data: { full_name: formData.fullName.trim() },
+        emailRedirectTo: getAuthCallbackUrl(),
       },
     });
 
     if (signUpError) {
       setError(signUpError.message);
       setIsSubmitting(false);
+      return;
+    }
+
+    // Email confirmations off — user is signed in immediately (no email sent).
+    if (data?.session) {
+      setIsSubmitting(false);
+      navigate('/dashboard', { replace: true });
+      return;
+    }
+
+    // Existing unconfirmed account — Supabase returns user but no identities and sends no email.
+    const isExistingEmail =
+      data?.user &&
+      Array.isArray(data.user.identities) &&
+      data.user.identities.length === 0;
+
+    if (isExistingEmail) {
+      setIsSubmitting(false);
+      setResendNotice(null);
+      setSignupStep('verify-email');
+      setError(
+        'This email is already registered. Use “Resend verification email” below, or log in if you already verified.',
+      );
       return;
     }
 
@@ -117,7 +145,26 @@ export default function CorporateSignUpForm() {
     }
 
     setIsSubmitting(false);
+    setResendNotice(null);
+    setError(null);
     setSignupStep('verify-email');
+  };
+
+  const handleResendVerification = async () => {
+    setResendLoading(true);
+    setResendNotice(null);
+    setError(null);
+    const { error: resendError } = await supabase.auth.resend({
+      type: 'signup',
+      email: formData.email.trim(),
+      options: { emailRedirectTo: getAuthCallbackUrl() },
+    });
+    setResendLoading(false);
+    if (resendError) {
+      setError(resendError.message);
+      return;
+    }
+    setResendNotice('Verification email sent. Check inbox and spam (may take 1–2 minutes).');
   };
 
   const handleGoogleSignup = () => {
@@ -336,15 +383,37 @@ export default function CorporateSignUpForm() {
                 We sent a verification link to <strong className="text-black">{formData.email}</strong>.
                 Click it to activate your account.
               </p>
+              {resendNotice && (
+                <p className="text-[11px] text-green-700">{resendNotice}</p>
+              )}
               <p className="text-[11px] text-[#878e9e]">
-                Didn't receive it? Check your spam folder or{' '}
+                Didn&apos;t receive it? Check spam, wait a few minutes (free tier ~4 emails/hour), then:
+              </p>
+              <button
+                type="button"
+                onClick={handleResendVerification}
+                disabled={resendLoading}
+                className="w-full rounded-lg border border-[#2563eb] px-4 py-2 text-[12px] font-medium text-[#2563eb] hover:bg-blue-50 disabled:opacity-60"
+              >
+                {resendLoading ? 'Sending…' : 'Resend verification email'}
+              </button>
+              <p className="text-[11px] text-[#878e9e]">
+                Wrong email?{' '}
                 <button
                   type="button"
-                  onClick={() => setSignupStep('form')}
+                  onClick={() => {
+                    setSignupStep('form');
+                    setResendNotice(null);
+                    setError(null);
+                  }}
                   className="text-[#2563eb] underline"
                 >
-                  try again
-                </button>.
+                  Go back
+                </button>
+                {' · '}
+                <Link to="/login" className="text-[#2563eb] underline">
+                  Log in
+                </Link>
               </p>
             </div>
           )}
