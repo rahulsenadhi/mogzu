@@ -3,13 +3,31 @@ import { Link, useParams } from 'react-router'
 import { Loader2, Printer } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { db } from '@/lib/db'
-import type { Booking, Listing, Partner } from '@/lib/database.types'
+import type { Partner } from '@/lib/database.types'
+
+type InvoiceRow = {
+  id: string
+  corporate_id: string
+  listing_id: string
+  module: string
+  status: string
+  group_size: number | null
+  total_amount: number | null
+  base_amount: number | null
+  add_ons_amount: number
+  platform_fee: number
+  partner_id: string | null
+  partner_markup_pct: number | null
+  partner_margin_amount: number | null
+  partner_invoice_token: string
+  created_at: string
+  listing_title: string | null
+  listing_city: string | null
+  corporate_name: string | null
+}
 
 type InvoiceBundle = {
-  booking: Booking & {
-    listings?: Pick<Listing, 'title' | 'location_city'> | null
-    corporate_accounts?: { name: string } | null
-  }
+  booking: InvoiceRow
   partner: Partner
 }
 
@@ -27,30 +45,38 @@ export default function PartnerInvoicePage() {
         setLoading(false)
         return
       }
-      const { data: booking, error: bErr } = await supabase
-        .from('bookings')
-        .select('*, listings(title, location_city), corporate_accounts(name)')
-        .eq('partner_invoice_token', token)
-        .maybeSingle()
+      // Public access flows through a SECURITY DEFINER RPC that returns at
+      // most one row matching the exact token. The bookings table itself is
+      // not readable without auth.
+      const { data: rows, error: bErr } = await supabase.rpc(
+        'get_booking_by_invoice_token',
+        { p_token: token },
+      )
       if (cancelled) return
-      if (bErr || !booking) {
-        setError(bErr?.message ?? 'Invoice not found.')
+      if (bErr) {
+        setError(bErr.message)
         setLoading(false)
         return
       }
-      if (!booking.partner_id) {
+      const row = (rows as InvoiceRow[] | null)?.[0]
+      if (!row) {
+        setError('Invoice not found.')
+        setLoading(false)
+        return
+      }
+      if (!row.partner_id) {
         setError('Booking is not partner-managed.')
         setLoading(false)
         return
       }
-      const { data: partner, error: pErr } = await db.partners.getById(booking.partner_id)
+      const { data: partner, error: pErr } = await db.partners.getById(row.partner_id)
       if (cancelled) return
       if (pErr || !partner) {
         setError(pErr?.message ?? 'Partner not found.')
         setLoading(false)
         return
       }
-      setBundle({ booking: booking as InvoiceBundle['booking'], partner: partner as Partner })
+      setBundle({ booking: row, partner: partner as Partner })
       setLoading(false)
     }
     void load()
@@ -105,7 +131,7 @@ export default function PartnerInvoicePage() {
           <div>
             <p className="text-[10px] uppercase tracking-wide text-slate-500">Bill to</p>
             <p className="mt-1 font-medium text-slate-900">
-              {booking.corporate_accounts?.name ?? '—'}
+              {booking.corporate_name ?? '—'}
             </p>
           </div>
           <div>
@@ -125,9 +151,9 @@ export default function PartnerInvoicePage() {
             <tbody>
               <tr className="border-t border-slate-100">
                 <td className="py-3 pl-4 pr-3">
-                  <p className="font-medium text-slate-900">{booking.listings?.title ?? 'Booking'}</p>
+                  <p className="font-medium text-slate-900">{booking.listing_title ?? 'Booking'}</p>
                   <p className="text-xs text-slate-500">
-                    {booking.module} · {booking.listings?.location_city ?? ''} ·{' '}
+                    {booking.module} · {booking.listing_city ?? ''} ·{' '}
                     {booking.group_size ?? '—'} guests
                   </p>
                 </td>

@@ -85,19 +85,30 @@ export default function PartnerClientsPage() {
       return
     }
     // Capture the partner_referrals row so commission + dashboard work the
-    // same as a self-service referral.
-    await db.partnerReferrals.capture({
+    // same as a self-service referral. If this fails the corporate is left
+    // with referred_by_partner_id set but no lifecycle row — flag it loudly
+    // so the partner / admin can repair, rather than silently dropping the
+    // attribution that drives commission credit.
+    const { error: refError } = await db.partnerReferrals.capture({
       partner_id: partner.id,
       referral_code: partner.referral_code,
       referred_corporate_id: data.id,
       signed_up_at: nowIso,
     })
+    setSaving(false)
+    if (refError) {
+      setFormNotice(
+        `Client created (${data.name}) but referral tracking failed: ${refError.message}. ` +
+          'Contact admin to repair attribution before the first booking.',
+      )
+      setClients((prev) => [data, ...prev])
+      return
+    }
     setClients((prev) => [data, ...prev])
     setShowForm(false)
     setFormName('')
     setFormDomain('')
     setFormPlan('starter')
-    setSaving(false)
   }
 
   if (role !== 'partner' && role !== 'mogzu_admin') {
