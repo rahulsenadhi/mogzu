@@ -58,12 +58,82 @@ export async function listContracts(): Promise<{ data: Contract[]; error: string
   return { data: (data ?? []) as Contract[], error: null }
 }
 
+export async function getContract(
+  id: string,
+): Promise<{ data: Contract | null; error: string | null }> {
+  const { data, error } = await supabase.from('contracts').select('*').eq('id', id).single()
+  if (error) return { data: null, error: error.message }
+  return { data: data as Contract, error: null }
+}
+
 export async function createContract(
   payload: Omit<Contract, 'id' | 'created_at' | 'updated_at' | 'signed_at' | 'signed_by'>,
 ): Promise<{ data: Contract | null; error: string | null }> {
   const { data, error } = await supabase.from('contracts').insert(payload).select('*').single()
   if (error) return { data: null, error: error.message }
   return { data: data as Contract, error: null }
+}
+
+export async function updateContract(
+  id: string,
+  patch: Partial<Contract>,
+): Promise<{ data: Contract | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from('contracts')
+    .update(patch)
+    .eq('id', id)
+    .select('*')
+    .single()
+  if (error) return { data: null, error: error.message }
+  return { data: data as Contract, error: null }
+}
+
+export async function listLineItems(
+  contractId: string,
+): Promise<{ data: ContractLineItem[]; error: string | null }> {
+  const { data, error } = await supabase
+    .from('contract_line_items')
+    .select('*')
+    .eq('contract_id', contractId)
+    .order('display_order')
+  if (error) return { data: [], error: error.message }
+  return { data: (data ?? []) as ContractLineItem[], error: null }
+}
+
+export async function upsertLineItem(
+  item: Omit<ContractLineItem, 'created_at'> & { id?: string },
+): Promise<{ data: ContractLineItem | null; error: string | null }> {
+  if (item.id) {
+    const { data, error } = await supabase
+      .from('contract_line_items')
+      .update(item)
+      .eq('id', item.id)
+      .select('*')
+      .single()
+    if (error) return { data: null, error: error.message }
+    return { data: data as ContractLineItem, error: null }
+  }
+  const { id: _ignored, ...insert } = item
+  const { data, error } = await supabase
+    .from('contract_line_items')
+    .insert(insert)
+    .select('*')
+    .single()
+  if (error) return { data: null, error: error.message }
+  return { data: data as ContractLineItem, error: null }
+}
+
+export async function deleteLineItem(id: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('contract_line_items').delete().eq('id', id)
+  return { error: error?.message ?? null }
+}
+
+export async function getInvoiceRun(
+  id: string,
+): Promise<{ data: InvoiceRun | null; error: string | null }> {
+  const { data, error } = await supabase.from('invoice_runs').select('*').eq('id', id).single()
+  if (error) return { data: null, error: error.message }
+  return { data: data as InvoiceRun, error: null }
 }
 
 export async function listInvoiceRuns(

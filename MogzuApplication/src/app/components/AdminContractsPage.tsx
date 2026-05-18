@@ -1,11 +1,30 @@
-// Phase 3 Feature 8 — contracts list (read-only stub). Full CRUD +
-// PDF generation lands in a follow-up sprint.
+// Phase 3 Feature 8 — contracts + invoice runs admin index.
 
 import { useCallback, useEffect, useState } from 'react'
-import { Loader2, ShieldAlert } from 'lucide-react'
+import { Link } from 'react-router'
+import { FileText, Loader2, Plus, Receipt, ShieldAlert } from 'lucide-react'
 import { AdminPageTitleRow } from '@/app/components/admin/AdminPageChrome'
 import { useAuth } from '@/lib/auth'
-import { listContracts, listInvoiceRuns, type Contract, type InvoiceRun } from '@/lib/contracts'
+import {
+  createInvoiceRun,
+  listContracts,
+  listInvoiceRuns,
+  type Contract,
+  type InvoiceRun,
+} from '@/lib/contracts'
+
+function firstOfPrevMonth(): string {
+  const d = new Date()
+  d.setDate(1)
+  d.setMonth(d.getMonth() - 1)
+  return d.toISOString().slice(0, 10)
+}
+
+function lastOfPrevMonth(): string {
+  const d = new Date()
+  d.setDate(0)
+  return d.toISOString().slice(0, 10)
+}
 
 export default function AdminContractsPage() {
   const { role } = useAuth()
@@ -14,6 +33,7 @@ export default function AdminContractsPage() {
   const [contracts, setContracts] = useState<Contract[]>([])
   const [runs, setRuns] = useState<InvoiceRun[]>([])
   const [loading, setLoading] = useState(true)
+  const [running, setRunning] = useState<string | null>(null)
   const [error, setError] = useState('')
 
   const load = useCallback(async () => {
@@ -32,6 +52,18 @@ export default function AdminContractsPage() {
     if (isAdmin) load()
   }, [isAdmin, load])
 
+  const runInvoice = async (contractId: string) => {
+    setRunning(contractId)
+    setError('')
+    const { error: err } = await createInvoiceRun(contractId, firstOfPrevMonth(), lastOfPrevMonth())
+    setRunning(null)
+    if (err) {
+      setError(err)
+      return
+    }
+    load()
+  }
+
   if (!isAdmin) {
     return (
       <div className="p-12 text-center">
@@ -44,10 +76,20 @@ export default function AdminContractsPage() {
   return (
     <div className="min-h-screen bg-[#FFFDF9]">
       <div className="mx-auto max-w-6xl px-6 py-6">
-        <AdminPageTitleRow
-          title="Contracts + invoicing"
-          totalLabel={`${contracts.length} contracts · ${runs.length} invoice runs`}
-        />
+        <div className="flex items-start justify-between">
+          <AdminPageTitleRow
+            title="Contracts + invoicing"
+            totalLabel={`${contracts.length} contracts · ${runs.length} invoice runs`}
+          />
+          {role === 'mogzu_admin' && (
+            <Link
+              to="/admin/contracts/new"
+              className="inline-flex items-center gap-1 rounded-md bg-[#2563eb] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#1d4ed8]"
+            >
+              <Plus className="size-3.5" /> New contract
+            </Link>
+          )}
+        </div>
         {error && (
           <p className="mt-3 mb-3 rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-sm text-rose-700">
             {error}
@@ -72,7 +114,8 @@ export default function AdminContractsPage() {
                         <th className="py-2 pl-4 pr-2">Name</th>
                         <th className="py-2 pr-2">Status</th>
                         <th className="py-2 pr-2">Term</th>
-                        <th className="py-2 pr-4">Currency</th>
+                        <th className="py-2 pr-2">Currency</th>
+                        <th className="py-2 pr-4 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -87,7 +130,32 @@ export default function AdminContractsPage() {
                           <td className="py-2 pr-2 text-xs text-slate-500">
                             {c.term_starts_on} → {c.term_ends_on ?? 'open'}
                           </td>
-                          <td className="py-2 pr-4 text-xs text-slate-500">{c.currency}</td>
+                          <td className="py-2 pr-2 text-xs text-slate-500">{c.currency}</td>
+                          <td className="py-2 pr-4">
+                            <div className="flex items-center justify-end gap-2">
+                              <Link
+                                to={`/admin/contracts/${c.id}/edit`}
+                                className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                              >
+                                <FileText className="size-3" /> Edit
+                              </Link>
+                              {role === 'mogzu_admin' && c.status === 'active' && (
+                                <button
+                                  type="button"
+                                  onClick={() => runInvoice(c.id)}
+                                  disabled={running === c.id}
+                                  className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2 py-1 text-[11px] font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                                >
+                                  {running === c.id ? (
+                                    <Loader2 className="size-3 animate-spin" />
+                                  ) : (
+                                    <Receipt className="size-3" />
+                                  )}
+                                  Run last month
+                                </button>
+                              )}
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -113,9 +181,14 @@ export default function AdminContractsPage() {
                     </thead>
                     <tbody>
                       {runs.map((r) => (
-                        <tr key={r.id} className="border-b border-slate-100">
+                        <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50/80">
                           <td className="py-2 pl-4 pr-2 text-xs text-slate-500">
-                            {r.period_starts_on} → {r.period_ends_on}
+                            <Link
+                              to={`/admin/invoice-runs/${r.id}`}
+                              className="text-[#2563eb] hover:underline"
+                            >
+                              {r.period_starts_on} → {r.period_ends_on}
+                            </Link>
                           </td>
                           <td className="py-2 pr-2">
                             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
@@ -137,8 +210,9 @@ export default function AdminContractsPage() {
             </section>
 
             <p className="mt-6 text-xs text-slate-500">
-              Stub view. Full CRUD form + PDF generation lands in a Phase 3 follow-up.
-              Use the create_invoice_run() RPC directly for now.
+              "Run last month" calls <code className="rounded bg-slate-100 px-1">create_invoice_run()</code>{' '}
+              for the previous calendar month. Click a period link to open the printable invoice
+              (browser Save-as-PDF) and mark sent / paid from there.
             </p>
           </>
         )}
