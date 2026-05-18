@@ -1,0 +1,98 @@
+{
+  "name": "Stripe + Razorpay reconciliation",
+  "_notes": [
+    "Phase 4 C.2 — daily reconciliation between Mogzu's invoice_runs/subscriptions tables and the upstream Stripe + Razorpay ledgers.",
+    "Strategy: pull yesterday's settled charges from each PSP, match by stripe_customer_id / razorpay_subscription_id, surface mismatches into the access_reviews-style queue (status=admin_review).",
+    "Cron: 04:15 UTC daily, well after both PSPs finish nightly settlement.",
+    "Required env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, STRIPE_API_KEY, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RECON_REPORT_URL"
+  ],
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "cronExpression", "expression": "15 4 * * *" }] }
+      },
+      "name": "Daily 04:15 UTC",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [120, 220]
+    },
+    {
+      "parameters": {
+        "url": "https://api.stripe.com/v1/charges?created[gte]={{Math.floor((Date.now() - 86400000) / 1000)}}&limit=100",
+        "method": "GET",
+        "options": {
+          "headers": { "Authorization": "Bearer {{$env.STRIPE_API_KEY}}" }
+        }
+      },
+      "name": "Stripe yesterday's charges",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [320, 140]
+    },
+    {
+      "parameters": {
+        "url": "https://api.razorpay.com/v1/payments?from={{Math.floor((Date.now() - 86400000) / 1000)}}&count=100",
+        "method": "GET",
+        "options": {
+          "headers": {
+            "Authorization": "Basic {{Buffer.from($env.RAZORPAY_KEY_ID + ':' + $env.RAZORPAY_KEY_SECRET).toString('base64')}}"
+          }
+        }
+      },
+      "name": "Razorpay yesterday's payments",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [320, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/invoice_runs?status=eq.paid&paid_at=gte.{{new Date(Date.now() - 86400000).toISOString()}}&select=id,total,currency,payment_reference",
+        "method": "GET",
+        "options": {
+          "headers": {
+            "apikey": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}",
+            "Authorization": "Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+          }
+        }
+      },
+      "name": "Mogzu paid invoices",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [320, 460]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.RECON_REPORT_URL}}",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={ \"stripe\": {{$('Stripe yesterday\\'s charges').item.json}}, \"razorpay\": {{$('Razorpay yesterday\\'s payments').item.json}}, \"mogzu\": {{$('Mogzu paid invoices').item.json}} }"
+      },
+      "name": "Post reconciliation report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [620, 300]
+    }
+  ],
+  "connections": {
+    "Daily 04:15 UTC": {
+      "main": [
+        [
+          { "node": "Stripe yesterday's charges", "type": "main", "index": 0 },
+          { "node": "Razorpay yesterday's payments", "type": "main", "index": 0 },
+          { "node": "Mogzu paid invoices", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Stripe yesterday's charges": {
+      "main": [[{ "node": "Post reconciliation report", "type": "main", "index": 0 }]]
+    },
+    "Razorpay yesterday's payments": {
+      "main": [[{ "node": "Post reconciliation report", "type": "main", "index": 0 }]]
+    },
+    "Mogzu paid invoices": {
+      "main": [[{ "node": "Post reconciliation report", "type": "main", "index": 0 }]]
+    }
+  }
+}

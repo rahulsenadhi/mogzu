@@ -145,6 +145,12 @@ import AdminContractFormPage from "@/app/components/AdminContractFormPage";
 import AdminSubscriptionsPage from "@/app/components/AdminSubscriptionsPage";
 import AdminApiKeysPage from "@/app/components/AdminApiKeysPage";
 import AdminWebhooksPage from "@/app/components/AdminWebhooksPage";
+import AdminVendorPayoutsPage from "@/app/components/AdminVendorPayoutsPage";
+import PublicVendorApplyPage from "@/app/components/PublicVendorApplyPage";
+import AdminVendorApplicationsPage from "@/app/components/AdminVendorApplicationsPage";
+import AdminWhiteLabelPage from "@/app/components/AdminWhiteLabelPage";
+import CorporateAiAutonomyPage from "@/app/components/CorporateAiAutonomyPage";
+import AdminAccessReviewsPage from "@/app/components/AdminAccessReviewsPage";
 import AdminInvoiceRunPage from "@/app/components/AdminInvoiceRunPage";
 import CorporateEventTemplatesPage from "@/app/components/CorporateEventTemplatesPage";
 import CorporatePicksPage from "@/app/components/CorporatePicksPage";
@@ -1093,6 +1099,36 @@ export const router = createBrowserRouter([
   {
     path: "/admin/webhooks",
     element: <AdminWebhooksPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/admin/vendor-payouts",
+    element: <AdminVendorPayoutsPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/vendor-apply",
+    element: <PublicVendorApplyPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/admin/vendor-applications",
+    element: <AdminVendorApplicationsPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/admin/white-label",
+    element: <AdminWhiteLabelPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/corporate/ai-autonomy",
+    element: <CorporateAiAutonomyPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/admin/access-reviews",
+    element: <AdminAccessReviewsPage />,
     errorElement: <ErrorPage />,
   },
   {

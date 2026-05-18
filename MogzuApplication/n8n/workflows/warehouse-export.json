@@ -1,0 +1,85 @@
+{
+  "name": "Warehouse export nightly",
+  "_notes": [
+    "Phase 4 Feature 5 — pulls warehouse_bookings_v1 + warehouse_invoices_v1 each night and ships them to the BigQuery / Snowflake / Redshift sink configured via WAREHOUSE_SINK_URL.",
+    "Cron: 02:30 UTC daily.",
+    "Sink is responsible for upserting on (id, updated_at) — we always export the full incremental window since last run via the SINCE env var (set by sink and echoed back through WAREHOUSE_SINCE).",
+    "Required env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, WAREHOUSE_SINK_URL, WAREHOUSE_SINCE"
+  ],
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "cronExpression", "expression": "30 2 * * *" }] }
+      },
+      "name": "Daily 02:30 UTC",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [200, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/warehouse_bookings_v1?updated_at=gte.{{$env.WAREHOUSE_SINCE}}&select=*",
+        "method": "GET",
+        "options": {
+          "headers": {
+            "apikey": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}",
+            "Authorization": "Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+          }
+        }
+      },
+      "name": "Fetch bookings delta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [400, 120]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/warehouse_invoices_v1?updated_at=gte.{{$env.WAREHOUSE_SINCE}}&select=*",
+        "method": "GET",
+        "options": {
+          "headers": {
+            "apikey": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}",
+            "Authorization": "Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+          }
+        }
+      },
+      "name": "Fetch invoices delta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [400, 280]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.WAREHOUSE_SINK_URL}}",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={ \"bookings\": {{$('Fetch bookings delta').item.json}}, \"invoices\": {{$('Fetch invoices delta').item.json}} }",
+        "options": {
+          "headers": { "Content-Type": "application/json" }
+        }
+      },
+      "name": "Ship to sink",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [620, 200]
+    }
+  ],
+  "connections": {
+    "Daily 02:30 UTC": {
+      "main": [
+        [
+          { "node": "Fetch bookings delta", "type": "main", "index": 0 },
+          { "node": "Fetch invoices delta", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Fetch bookings delta": {
+      "main": [[{ "node": "Ship to sink", "type": "main", "index": 0 }]]
+    },
+    "Fetch invoices delta": {
+      "main": [[{ "node": "Ship to sink", "type": "main", "index": 0 }]]
+    }
+  }
+}
