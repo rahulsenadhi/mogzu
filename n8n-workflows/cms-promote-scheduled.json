@@ -1,0 +1,132 @@
+{
+  "name": "Mogzu — Promote Scheduled CMS Blocks",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/5 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Every 5 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/promote_scheduled_cms_blocks",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "{}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "call-promote-rpc",
+      "name": "Call promote_scheduled_cms_blocks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [460, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "supabase-service-role",
+          "name": "Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// $json holds the integer count returned by the RPC. Skip the\n// notify branch when nothing was promoted so we don't spam the log.\nconst promoted = Number($json) || 0;\nif (promoted === 0) return [];\nreturn [{ json: { promoted, at: new Date().toISOString() } }];"
+      },
+      "id": "filter-zero",
+      "name": "Filter zero-count runs",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Log line for N8N execution history. Replace with Slack / email\n// later if marketing wants a notification per publish.\nconsole.log(`cms-promote: ${$json.promoted} block(s) auto-published at ${$json.at}`);\nreturn [{ json: $json }];"
+      },
+      "id": "log-result",
+      "name": "Log result",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Every 5 minutes": {
+      "main": [
+        [
+          {
+            "node": "Call promote_scheduled_cms_blocks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call promote_scheduled_cms_blocks": {
+      "main": [
+        [
+          {
+            "node": "Filter zero-count runs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter zero-count runs": {
+      "main": [
+        [
+          {
+            "node": "Log result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "cms"
+    },
+    {
+      "name": "phase-2-feature-8"
+    }
+  ]
+}

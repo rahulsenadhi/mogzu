@@ -17,6 +17,7 @@ All automation workflows for Mogzu. Hosted on N8N Cloud.
 | `vendor-registration-tasks.json` | Webhook (Supabase vendor INSERT) | Create onboarding checklist tasks when new vendor registers |
 | `festival-gifting-reminder.json` | Schedule (cron) | Remind corporates of upcoming gifting occasions |
 | `booking-completion-payout.json` | Webhook (Supabase booking UPDATE status=completed) | Trigger Razorpay payout to vendor after booking marked complete |
+| `cms-promote-scheduled.json` | Schedule (cron `*/5 * * * *`) | Backfill `published_at` on `cms_blocks` whose `scheduled_publish_at` has passed (Phase 2 Feature 8) |
 
 ## Environment Variables (N8N Credentials)
 
