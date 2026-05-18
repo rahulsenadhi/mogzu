@@ -188,9 +188,13 @@ export default function AdminAuditPage() {
 
         <p className="mt-4 text-xs text-slate-500">
           Unified view of <code className="rounded bg-slate-100 px-1">user_activity_events</code> +
-          <code className="rounded bg-slate-100 px-1">role_switch_events</code>. Future sources
-          (admin RPCs, support audit) UNION here. CSV export goes through{' '}
-          <code className="rounded bg-slate-100 px-1">export_audit_events()</code> RPC.
+          <code className="rounded bg-slate-100 px-1">role_switch_events</code> +
+          <code className="rounded bg-slate-100 px-1">audit_events_archive</code> (events older
+          than 90 days). CSV export goes through{' '}
+          <code className="rounded bg-slate-100 px-1">export_audit_events()</code> RPC. Retention:
+          7 years, enforced daily by{' '}
+          <code className="rounded bg-slate-100 px-1">archive_old_audit_events</code> +{' '}
+          <code className="rounded bg-slate-100 px-1">purge_archive_beyond_retention</code>.
         </p>
       </div>
     </div>

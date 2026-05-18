@@ -1,0 +1,66 @@
+{
+  "name": "Archive audit events",
+  "_notes": [
+    "Phase 3 Feature 6 retention job.",
+    "Runs daily 03:30 UTC.",
+    "Step 1: move user_activity_events + role_switch_events older than 90d into audit_events_archive.",
+    "Step 2: delete archive rows older than 7y to honour the retention ceiling.",
+    "Required env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY"
+  ],
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "cronExpression", "expression": "30 3 * * *" }] }
+      },
+      "name": "Daily 03:30 UTC",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/rpc/archive_old_audit_events",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={ \"p_cutoff_days\": 90 }",
+        "options": {
+          "headers": {
+            "apikey": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}",
+            "Authorization": "Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}",
+            "Content-Type": "application/json"
+          }
+        }
+      },
+      "name": "Archive 90d+",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/rpc/purge_archive_beyond_retention",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={ \"p_retention_years\": 7 }",
+        "options": {
+          "headers": {
+            "apikey": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}",
+            "Authorization": "Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}",
+            "Content-Type": "application/json"
+          }
+        }
+      },
+      "name": "Purge 7y+",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [600, 300]
+    }
+  ],
+  "connections": {
+    "Daily 03:30 UTC": { "main": [[{ "node": "Archive 90d+", "type": "main", "index": 0 }]] },
+    "Archive 90d+": { "main": [[{ "node": "Purge 7y+", "type": "main", "index": 0 }]] }
+  }
+}
