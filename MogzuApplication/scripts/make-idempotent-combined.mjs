@@ -60,6 +60,16 @@ sql = sql.replace(
 //    form; this catches the few that don't (e.g. migration 19).
 sql = sql.replace(/\bADD COLUMN (?!IF NOT EXISTS)/g, 'ADD COLUMN IF NOT EXISTS ')
 
+// 7b. CREATE TYPE has no IF NOT EXISTS in Postgres. Wrap each enum
+//     declaration in a DO block that swallows 42710 (duplicate_object).
+sql = sql.replace(
+  /^CREATE TYPE\s+(public\.\w+)\s+AS ENUM\s*\(([\s\S]*?)\);/gm,
+  (_, typeName, body) => {
+    const escaped = `CREATE TYPE ${typeName} AS ENUM (${body});`.replace(/'/g, "''")
+    return `DO $idem$ BEGIN\n  EXECUTE '${escaped}';\nEXCEPTION WHEN duplicate_object THEN NULL;\nEND $idem$;`
+  },
+)
+
 // 8. INSERT INTO seed rows that lack ON CONFLICT — leave alone. The two
 //    known seeds (Mogzu Direct vendor in migration 25, AI agents in
 //    migration 28) already include ON CONFLICT DO NOTHING.
