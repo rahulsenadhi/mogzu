@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { Loader2 } from 'lucide-react'
 import { getLiveBlockBySlug, type CmsBlockLive } from '@/lib/cms'
+import PublicLeadForm from './PublicLeadForm'
 
 function setMeta(title: string | null, description: string | null) {
   if (title) document.title = `${title} · Mogzu`
@@ -154,6 +155,10 @@ export default function PublicLandingPage() {
             </Link>
           </div>
         )}
+
+        <section className="mt-12 max-w-2xl">
+          <PublicLeadForm sourceSlug={block.slug} />
+        </section>
       </main>
 
       <footer className="border-t border-slate-200 bg-white">

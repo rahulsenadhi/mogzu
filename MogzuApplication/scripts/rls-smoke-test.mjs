@@ -79,10 +79,31 @@ const DENY_ANON = [
   'ai_agent_messages',
   'gifting_branding_uploads',
   'gifting_branding_selections',
+  'sso_config',
+  'public_leads',
+  'contracts',
+  'contract_line_items',
+  'invoice_runs',
+  'subscriptions',
+  'api_keys',
+  'webhook_endpoints',
+  'webhook_deliveries',
+  'vendor_payout_methods',
+  'vendor_onboarding_applications',
+  'ai_autonomy_settings',
+  'access_reviews',
+  'security_questionnaires',
 ]
 
 // Tables / views that SHOULD be readable by anon (catalogue + public CMS).
-const ALLOW_ANON = ['listing_categories', 'cms_featured_listings', 'cms_blocks_live']
+const ALLOW_ANON = [
+  'listing_categories',
+  'cms_featured_listings',
+  'cms_blocks_live',
+  'currencies',
+  'plans',
+  'white_label_partners',
+]
 
 let failures = 0
 let passes = 0

@@ -1,0 +1,38 @@
+{
+  "common": {
+    "ok": "OK",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "loading": "Loading…",
+    "search": "Search",
+    "next": "Next",
+    "back": "Back",
+    "submit": "Submit"
+  },
+  "auth": {
+    "sign_in": "Sign in",
+    "sign_up": "Sign up",
+    "sign_out": "Sign out",
+    "email": "Email",
+    "password": "Password"
+  },
+  "catalogue": {
+    "request_quote": "Request quote",
+    "sign_up_to_book": "Sign up to book",
+    "view_details": "View details",
+    "no_results": "No listings match"
+  },
+  "billing": {
+    "subtotal": "Subtotal",
+    "tax": "Tax",
+    "total": "Total",
+    "due_now": "Due now",
+    "balance": "Balance"
+  },
+  "errors": {
+    "required": "This field is required",
+    "invalid_email": "Enter a valid email",
+    "generic": "Something went wrong. Please try again."
+  }
+}

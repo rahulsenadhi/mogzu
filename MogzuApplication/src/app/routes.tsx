@@ -137,6 +137,9 @@ import ExplorePage from "@/app/components/ExplorePage";
 import AdminSsoPage from "@/app/components/AdminSsoPage";
 import AdminPublicListingsPage from "@/app/components/AdminPublicListingsPage";
 import PublicLandingPage from "@/app/components/PublicLandingPage";
+import AdminLeadsPage from "@/app/components/AdminLeadsPage";
+import AdminAuditPage from "@/app/components/AdminAuditPage";
+import AdminContractsPage from "@/app/components/AdminContractsPage";
 import CorporateEventTemplatesPage from "@/app/components/CorporateEventTemplatesPage";
 import CorporatePicksPage from "@/app/components/CorporatePicksPage";
 import CelebrationsPage from "@/app/components/CelebrationsPage";
@@ -1029,6 +1032,21 @@ export const router = createBrowserRouter([
   {
     path: "/p/:slug",
     element: <PublicLandingPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/admin/leads",
+    element: <AdminLeadsPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/admin/compliance/audit",
+    element: <AdminAuditPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/admin/contracts",
+    element: <AdminContractsPage />,
     errorElement: <ErrorPage />,
   },
   {
