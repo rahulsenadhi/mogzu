@@ -6,10 +6,25 @@ into a single paste-ready script. Use it when:
 - bootstrapping a fresh Supabase project that has no schema yet, OR
 - you don't have the Supabase CLI installed / linked.
 
+## Two flavours
+
+- `all_migrations.sql` — strict; errors on any pre-existing object.
+  Use only on a truly empty schema.
+- `all_migrations_idempotent.sql` — `CREATE TABLE IF NOT EXISTS`,
+  `DROP POLICY IF EXISTS` before each CREATE, `DROP TRIGGER IF EXISTS`
+  before each CREATE, `CREATE OR REPLACE VIEW`. Safe to re-run against
+  a partially-applied project. **Recommended for the dev project.**
+
+  Regenerate after editing migrations:
+
+  ```
+  node scripts/make-idempotent-combined.mjs
+  ```
+
 ## Apply to dev project `edbryqkqysptxwivdyle`
 
 1. Open <https://supabase.com/dashboard/project/edbryqkqysptxwivdyle/sql/new>
-2. Paste the contents of `all_migrations.sql`
+2. Paste the contents of `all_migrations_idempotent.sql`
 3. Click **Run** (top-right). Expected runtime: 10–30 seconds.
 4. Verify in **Database → Tables** that ~50 tables exist under the
    `public` schema.
@@ -39,8 +54,8 @@ cd MogzuApplication/supabase/migrations
 
 ## Warning
 
-The combined script is **not** idempotent across full re-runs. Every
-`CREATE TABLE`, `CREATE POLICY`, and `CREATE INDEX` will error on a
-project that already has the schema. Use it for a clean apply only;
-for incremental updates use `supabase db push` or apply individual
-migration files via the Dashboard.
+`all_migrations.sql` (strict variant) is **not** idempotent. Use
+`all_migrations_idempotent.sql` for any project that may already have
+partial schema state. For day-to-day incremental updates keep using
+`supabase db push` or apply individual migration files via the
+Dashboard — neither combined script is part of the normal flow.
