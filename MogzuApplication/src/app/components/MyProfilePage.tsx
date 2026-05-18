@@ -4,6 +4,7 @@ import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
 import { Download } from 'lucide-react';
+import LocalePickerCard from './LocalePickerCard';
 
 export default function MyProfilePage() {
   const navigate = useNavigate();
@@ -292,6 +293,9 @@ export default function MyProfilePage() {
                             >
                               {isSubmitting ? 'Saving...' : 'Save Personal Info'}
                             </button>
+                          </div>
+                          <div className="md:col-span-2">
+                            <LocalePickerCard />
                           </div>
                         </div>
                       )}

@@ -80,6 +80,8 @@ export async function ensureUserProfile(user: User): Promise<UserProfile | null>
     status: 'active',
     invited_by: null,
     invited_at: null,
+    locale: 'en-IN',
+    preferred_currency: null,
     created_at: now,
     updated_at: now,
   }

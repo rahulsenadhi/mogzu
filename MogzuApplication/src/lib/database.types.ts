@@ -348,6 +348,8 @@ export interface UserProfile {
   status: 'active' | 'deactivated' | 'invited'
   invited_by: string | null
   invited_at: string | null
+  locale: string
+  preferred_currency: string | null
   created_at: string
   updated_at: string
 }

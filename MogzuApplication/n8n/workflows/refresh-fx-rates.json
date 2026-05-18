@@ -1,0 +1,66 @@
+{
+  "name": "Refresh FX rates",
+  "_notes": [
+    "Phase 3 Feature 7 — daily FX refresh.",
+    "Fetches latest rates from open.er-api.com (free tier, no key), inverts them to 'INR per 1 unit of code' to match public.currencies.fx_rate semantics, then calls update_currency_fx_rates.",
+    "If you swap providers (e.g. Open Exchange Rates, exchangerate.host), only the 'Fetch rates' node + the 'Build payload' Function need updates.",
+    "Required env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY"
+  ],
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "cronExpression", "expression": "0 2 * * *" }] }
+      },
+      "name": "Daily 02:00 UTC",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://open.er-api.com/v6/latest/INR",
+        "method": "GET",
+        "options": {}
+      },
+      "name": "Fetch rates",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// open.er-api returns rates expressed as 'INR -> CODE' (1 INR = N CODE).\n// public.currencies.fx_rate is 'CODE -> INR' (1 CODE = N INR). Invert.\nconst input = $json;\nconst rates = (input && input.rates) || {};\nconst out = {};\nconst targets = ['INR', 'USD', 'SGD', 'AED', 'GBP', 'EUR'];\nfor (const code of targets) {\n  const r = Number(rates[code]);\n  if (code === 'INR') { out[code] = 1; continue; }\n  if (!r || !isFinite(r) || r <= 0) continue;\n  out[code] = Number((1 / r).toFixed(8));\n}\nreturn [{ json: { p_rates: out } }];"
+      },
+      "name": "Build payload",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/rpc/update_currency_fx_rates",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "headers": {
+            "apikey": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}",
+            "Authorization": "Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}",
+            "Content-Type": "application/json"
+          }
+        }
+      },
+      "name": "Update rates",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [800, 300]
+    }
+  ],
+  "connections": {
+    "Daily 02:00 UTC": { "main": [[{ "node": "Fetch rates", "type": "main", "index": 0 }]] },
+    "Fetch rates": { "main": [[{ "node": "Build payload", "type": "main", "index": 0 }]] },
+    "Build payload": { "main": [[{ "node": "Update rates", "type": "main", "index": 0 }]] }
+  }
+}
