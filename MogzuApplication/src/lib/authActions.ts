@@ -27,6 +27,17 @@ export const authActions = {
     return { data, error: fmt(error) }
   },
 
+  // SAML/SSO sign-in — Supabase resolves the IdP via the corporate's
+  // configured domain and returns a redirect URL. Used by LoginPage
+  // when resolveSsoForEmail surfaces an active sso_config row.
+  signInWithSso: async (domain: string, redirectTo?: string) => {
+    const { data, error } = await supabase.auth.signInWithSSO({
+      domain,
+      options: { redirectTo: redirectTo ?? getAuthCallbackUrl() },
+    })
+    return { data, error: fmt(error) }
+  },
+
   signInWithOtp: async (email: string) => {
     const { error } = await supabase.auth.signInWithOtp({
       email,

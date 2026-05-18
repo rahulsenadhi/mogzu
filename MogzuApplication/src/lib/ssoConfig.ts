@@ -110,6 +110,26 @@ export async function recordSsoTest(
   return { error: err?.message ?? null }
 }
 
+// JIT corporate provisioning — call after a SAML-authenticated user
+// lands on /auth/callback. Server-side function reads the active
+// sso_config matching the email domain and binds the profile.
+export async function jitProvisionSsoUser(email: string): Promise<{
+  data:
+    | {
+        profile_id: string
+        corporate_id: string | null
+        role: string | null
+        was_provisioned: boolean
+      }
+    | null
+  error: string | null
+}> {
+  const { data, error } = await supabase.rpc('jit_provision_sso_user', { p_email: email })
+  if (error) return { data: null, error: error.message }
+  const row = Array.isArray(data) ? data[0] : data
+  return { data: row ?? null, error: null }
+}
+
 // Domain → corporate routing preview, used by both the admin Test
 // button now and the login form's pre-SSO redirect in part 2.
 export async function resolveSsoForEmail(

@@ -8,6 +8,7 @@ import { RoleBanner } from '@/app/components/global/RoleBanner';
 import { useAuth } from '@/lib/auth';
 import { authActions } from '@/lib/authActions';
 import { getPostLoginPath } from '@/lib/authRedirect';
+import { resolveSsoForEmail } from '@/lib/ssoConfig';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -29,6 +30,7 @@ export default function LoginPage() {
   const [otpError, setOtpError] = useState('');
   const [resetError, setResetError] = useState('');
   const [showSessionTimeoutBanner, setShowSessionTimeoutBanner] = useState(false);
+  const [ssoHint, setSsoHint] = useState<{ domain: string; enforce: boolean } | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -61,12 +63,33 @@ export default function LoginPage() {
       setEmailError('Enter a valid email format.');
       return;
     }
+
+    // Pre-SSO routing — if the email domain is bound to an active IdP
+    // and enforce_sso is on, the password path is blocked. Redirect
+    // via SAML before falling through to password auth.
+    setIsSubmitting(true);
+    const { data: ssoRow } = await resolveSsoForEmail(email.trim());
+    const domain = email.trim().split('@')[1]?.toLowerCase() ?? '';
+    if (ssoRow && ssoRow.enforce_sso) {
+      const { error: ssoError } = await authActions.signInWithSso(domain);
+      setIsSubmitting(false);
+      if (ssoError) {
+        setFormError(ssoError);
+      }
+      return;
+    }
+    if (ssoRow) {
+      setSsoHint({ domain, enforce: false });
+    } else {
+      setSsoHint(null);
+    }
+
     if (!password.trim()) {
+      setIsSubmitting(false);
       setPasswordError('Password is required.');
       return;
     }
 
-    setIsSubmitting(true);
     const { error } = await signIn(email.trim(), password);
     setIsSubmitting(false);
 
@@ -370,6 +393,23 @@ export default function LoginPage() {
             >
               {isSubmitting ? 'Logging in...' : 'Login'}
             </button>
+
+            {ssoHint && !ssoHint.enforce && (
+              <button
+                type="button"
+                onClick={async () => {
+                  setFormError('');
+                  setIsSubmitting(true);
+                  const { error } = await authActions.signInWithSso(ssoHint.domain);
+                  setIsSubmitting(false);
+                  if (error) setFormError(error);
+                }}
+                disabled={isSubmitting}
+                className="w-full h-[40px] mt-2 border border-[#2563eb] text-[#2563eb] text-[13px] font-medium rounded-full hover:bg-[#eff6ff] transition-colors"
+              >
+                Sign in with {ssoHint.domain} SSO
+              </button>
+            )}
           </form>
           )}
 

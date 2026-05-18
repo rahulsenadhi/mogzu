@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router'
 import { authActions } from '@/lib/authActions'
 import { ensureUserProfile } from '@/lib/auth'
 import { getPostLoginPath } from '@/lib/authRedirect'
+import { jitProvisionSsoUser } from '@/lib/ssoConfig'
 import type { UserRole } from '@/lib/database.types'
 
 function parseHashParams(): URLSearchParams {
@@ -33,7 +34,15 @@ export default function AuthCallbackPage() {
         return
       }
       const { user } = await authActions.getUser()
-      const profile = user ? await ensureUserProfile(user) : null
+      let profile = user ? await ensureUserProfile(user) : null
+      // SSO JIT: if profile has no corporate yet and the email domain
+      // matches an active sso_config, bind the profile to that corporate.
+      if (user?.email && profile && !profile.corporate_id) {
+        const { data: jit } = await jitProvisionSsoUser(user.email)
+        if (jit?.was_provisioned) {
+          profile = { ...profile, corporate_id: jit.corporate_id, role: (jit.role ?? profile.role) as typeof profile.role }
+        }
+      }
       navigate(getPostLoginPath((profile?.role as UserRole | undefined) ?? null), { replace: true })
     }
 
@@ -66,9 +75,15 @@ export default function AuthCallbackPage() {
 
       const { session } = await authActions.getSession()
       if (session) {
-        const profile = session.user
+        let profile = session.user
           ? await ensureUserProfile(session.user)
           : null
+        if (session.user?.email && profile && !profile.corporate_id) {
+          const { data: jit } = await jitProvisionSsoUser(session.user.email)
+          if (jit?.was_provisioned) {
+            profile = { ...profile, corporate_id: jit.corporate_id, role: (jit.role ?? profile.role) as typeof profile.role }
+          }
+        }
         navigate(getPostLoginPath((profile?.role as UserRole | undefined) ?? null), { replace: true })
         return
       }

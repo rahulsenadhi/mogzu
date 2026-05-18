@@ -1,6 +1,6 @@
 // Phase 3 Feature 3 — embeddable "Request a quote" form.
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { CheckCircle2, Loader2 } from 'lucide-react'
 import {
   BUDGET_BANDS,
@@ -9,6 +9,7 @@ import {
   type BudgetBand,
   type Timeline,
 } from '@/lib/publicLeads'
+import TurnstileWidget, { TURNSTILE_SITE_KEY } from '@/app/components/TurnstileWidget'
 
 export default function PublicLeadForm({
   listingId,
@@ -27,10 +28,13 @@ export default function PublicLeadForm({
   const [budget, setBudget] = useState<BudgetBand | ''>('')
   const [timeline, setTimeline] = useState<Timeline | ''>('')
   const [honeypot, setHoneypot] = useState('')
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
 
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
+
+  const handleToken = useCallback((t: string | null) => setTurnstileToken(t), [])
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -38,6 +42,11 @@ export default function PublicLeadForm({
 
     if (!name.trim() || !email.trim()) {
       setError('Name + email are required')
+      return
+    }
+
+    if (TURNSTILE_SITE_KEY && !turnstileToken) {
+      setError('Please complete the verification challenge')
       return
     }
 
@@ -53,6 +62,7 @@ export default function PublicLeadForm({
       budget_band: budget || null,
       timeline: timeline || null,
       honeypot,
+      turnstile_token: turnstileToken,
     })
     setSubmitting(false)
     if (err) {
@@ -174,6 +184,8 @@ export default function PublicLeadForm({
         style={{ position: 'absolute', left: '-9999px', height: 0, width: 0 }}
         aria-hidden="true"
       />
+
+      <TurnstileWidget onToken={handleToken} />
 
       <button
         type="submit"

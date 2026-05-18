@@ -1,0 +1,87 @@
+{
+  "name": "Verify Turnstile leads",
+  "_notes": [
+    "Phase 3 Feature 3 verifier worker.",
+    "Polls public_leads where turnstile_verified = false AND turnstile_token IS NOT NULL,",
+    "calls Cloudflare siteverify, then flips public.mark_turnstile_verified() via PostgREST",
+    "using the service-role key. AI Sales agent assignment happens inside the RPC.",
+    "Required env: TURNSTILE_SECRET_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY"
+  ],
+  "active": false,
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [{ "field": "minutes", "minutesInterval": 2 }] } },
+      "name": "Every 2 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/public_leads?select=id,turnstile_token&turnstile_verified=eq.false&turnstile_token=not.is.null&status=eq.new&limit=25",
+        "options": {
+          "headers": {
+            "apikey": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}",
+            "Authorization": "Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+          }
+        }
+      },
+      "name": "Fetch unverified leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [400, 300]
+    },
+    {
+      "parameters": { "options": {} },
+      "name": "Split out",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "secret", "value": "={{$env.TURNSTILE_SECRET_KEY}}" },
+            { "name": "response", "value": "={{$json.turnstile_token}}" }
+          ]
+        }
+      },
+      "name": "Cloudflare siteverify",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [800, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/rpc/mark_turnstile_verified",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={ \"p_lead_id\": $('Split out').item.json.id, \"p_ok\": $json.success === true, \"p_error\": $json.success ? null : ($json['error-codes'] || []).join(',') }",
+        "options": {
+          "headers": {
+            "apikey": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}",
+            "Authorization": "Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}",
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+          }
+        }
+      },
+      "name": "Mark verified",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 300]
+    }
+  ],
+  "connections": {
+    "Every 2 minutes": { "main": [[{ "node": "Fetch unverified leads", "type": "main", "index": 0 }]] },
+    "Fetch unverified leads": { "main": [[{ "node": "Split out", "type": "main", "index": 0 }]] },
+    "Split out": { "main": [[{ "node": "Cloudflare siteverify", "type": "main", "index": 0 }]] },
+    "Cloudflare siteverify": { "main": [[{ "node": "Mark verified", "type": "main", "index": 0 }]] }
+  }
+}
