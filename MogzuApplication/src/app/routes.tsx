@@ -142,6 +142,7 @@ import AdminLeadsPage from "@/app/components/AdminLeadsPage";
 import AdminAuditPage from "@/app/components/AdminAuditPage";
 import AdminContractsPage from "@/app/components/AdminContractsPage";
 import AdminContractFormPage from "@/app/components/AdminContractFormPage";
+import AdminSubscriptionsPage from "@/app/components/AdminSubscriptionsPage";
 import AdminInvoiceRunPage from "@/app/components/AdminInvoiceRunPage";
 import CorporateEventTemplatesPage from "@/app/components/CorporateEventTemplatesPage";
 import CorporatePicksPage from "@/app/components/CorporatePicksPage";
@@ -1075,6 +1076,11 @@ export const router = createBrowserRouter([
   {
     path: "/admin/invoice-runs/:id",
     element: <AdminInvoiceRunPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/admin/subscriptions",
+    element: <AdminSubscriptionsPage />,
     errorElement: <ErrorPage />,
   },
   {
