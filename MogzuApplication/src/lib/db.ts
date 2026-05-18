@@ -223,6 +223,19 @@ export const listings = {
       .select()
       .single(),
 
+  // P3.1 — flip a listing's public visibility (anon /explore exposure).
+  setPublicVisible: async (id: string, visible: boolean) =>
+    supabase
+      .from('listings')
+      .update({ public_visible: visible, updated_at: new Date().toISOString() } as Partial<Listing>)
+      .eq('id', id),
+
+  listForPublicAdmin: async () =>
+    supabase
+      .from('listings')
+      .select('id, title, module, status, public_visible, vendor_id, vendors(business_name)')
+      .order('created_at', { ascending: false }),
+
   updateStatus: async (id: string, status: ListingStatus) =>
     supabase
       .from('listings')

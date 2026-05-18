@@ -135,6 +135,8 @@ import AdminCmsPage from "@/app/components/AdminCmsPage";
 import AdminAiAgentsPage from "@/app/components/AdminAiAgentsPage";
 import ExplorePage from "@/app/components/ExplorePage";
 import AdminSsoPage from "@/app/components/AdminSsoPage";
+import AdminPublicListingsPage from "@/app/components/AdminPublicListingsPage";
+import PublicLandingPage from "@/app/components/PublicLandingPage";
 import CorporateEventTemplatesPage from "@/app/components/CorporateEventTemplatesPage";
 import CorporatePicksPage from "@/app/components/CorporatePicksPage";
 import CelebrationsPage from "@/app/components/CelebrationsPage";
@@ -1017,6 +1019,16 @@ export const router = createBrowserRouter([
   {
     path: "/admin/sso",
     element: <AdminSsoPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/admin/listings/public",
+    element: <AdminPublicListingsPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/p/:slug",
+    element: <PublicLandingPage />,
     errorElement: <ErrorPage />,
   },
   {

@@ -73,6 +73,18 @@ export type CmsBlockUpsert = {
 
 // ─── Public reads ───────────────────────────────────────────────────────────
 
+export async function getLiveBlockBySlug(
+  slug: string,
+): Promise<{ data: CmsBlockLive | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from('cms_blocks_live')
+    .select('*')
+    .eq('slug', slug)
+    .maybeSingle()
+  if (error) return { data: null, error: error.message }
+  return { data: (data as CmsBlockLive | null) ?? null, error: null }
+}
+
 export async function listLiveBlocks(
   kind?: CmsBlockKind,
 ): Promise<{ data: CmsBlockLive[]; error: string | null }> {

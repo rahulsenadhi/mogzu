@@ -409,6 +409,7 @@ export interface Listing {
   cancellation_policy: string | null
   confirmation_sla_hours: number
   is_mogzu_direct: boolean
+  public_visible: boolean
   metadata: Record<string, unknown>
   created_at: string
   updated_at: string
