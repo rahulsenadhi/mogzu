@@ -1,0 +1,19 @@
+name: audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  abstraction-layers:
+    name: Abstraction-layer audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run abstraction-layer audit
+        working-directory: MogzuApplication
+        run: bash scripts/audit-abstraction-layers.sh
