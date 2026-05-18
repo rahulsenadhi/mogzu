@@ -10,6 +10,7 @@ import {
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import { getAuthCallbackUrl, getPostLoginPath } from './authRedirect'
+import { setLocale as setI18nLocale } from './i18n'
 import type { CorporateAccount, UserProfile, UserRole } from './database.types'
 
 // Never call supabase.auth.* directly in components — use this hook.
@@ -144,6 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (p) {
       setProfile(p)
+      if (p.locale) setI18nLocale(p.locale)
       if (p.corporate_id) {
         const ca = await fetchCorporateAccount(p.corporate_id)
         setCorporateAccount(ca)

@@ -10,6 +10,7 @@ import {
   type Timeline,
 } from '@/lib/publicLeads'
 import TurnstileWidget, { TURNSTILE_SITE_KEY } from '@/app/components/TurnstileWidget'
+import { t } from '@/lib/i18n'
 
 export default function PublicLeadForm({
   listingId,
@@ -41,12 +42,12 @@ export default function PublicLeadForm({
     setError('')
 
     if (!name.trim() || !email.trim()) {
-      setError('Name + email are required')
+      setError(t('leads.name_email_required'))
       return
     }
 
     if (TURNSTILE_SITE_KEY && !turnstileToken) {
-      setError('Please complete the verification challenge')
+      setError(t('leads.verification_required'))
       return
     }
 
@@ -76,9 +77,9 @@ export default function PublicLeadForm({
     return (
       <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-center">
         <CheckCircle2 className="mx-auto mb-2 size-8 text-emerald-500" />
-        <p className="text-sm font-semibold text-emerald-900">Thanks — we'll be in touch</p>
+        <p className="text-sm font-semibold text-emerald-900">{t('leads.thanks_title')}</p>
         <p className="mt-1 text-xs text-emerald-700">
-          A Mogzu sales agent (or the AI Sales agent) will reach out within one business day.
+          {t('leads.thanks_hint')}
         </p>
       </div>
     )
@@ -95,9 +96,9 @@ export default function PublicLeadForm({
     >
       {!compact && (
         <div>
-          <h3 className="text-base font-semibold text-slate-900">Request a quote</h3>
+          <h3 className="text-base font-semibold text-slate-900">{t('leads.request_quote_title')}</h3>
           <p className="mt-1 text-xs text-slate-500">
-            Tell us what you need; no account required.
+            {t('leads.request_quote_hint')}
           </p>
         </div>
       )}
@@ -114,14 +115,14 @@ export default function PublicLeadForm({
           required
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Your name *"
+          placeholder={t('leads.name_placeholder')}
           className="rounded-md border border-slate-200 px-3 py-2 text-sm"
         />
         <input
           type="text"
           value={company}
           onChange={(e) => setCompany(e.target.value)}
-          placeholder="Company"
+          placeholder={t('leads.company_placeholder')}
           className="rounded-md border border-slate-200 px-3 py-2 text-sm"
         />
         <input
@@ -129,14 +130,14 @@ export default function PublicLeadForm({
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="Work email *"
+          placeholder={t('leads.email_placeholder')}
           className="rounded-md border border-slate-200 px-3 py-2 text-sm"
         />
         <input
           type="tel"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
-          placeholder="Phone"
+          placeholder={t('leads.phone_placeholder')}
           className="rounded-md border border-slate-200 px-3 py-2 text-sm"
         />
         <select
@@ -144,7 +145,7 @@ export default function PublicLeadForm({
           onChange={(e) => setBudget(e.target.value as BudgetBand)}
           className="rounded-md border border-slate-200 px-3 py-2 text-sm"
         >
-          <option value="">Budget</option>
+          <option value="">{t('leads.budget_placeholder')}</option>
           {BUDGET_BANDS.map((b) => (
             <option key={b.value} value={b.value}>
               {b.label}
@@ -156,7 +157,7 @@ export default function PublicLeadForm({
           onChange={(e) => setTimeline(e.target.value as Timeline)}
           className="rounded-md border border-slate-200 px-3 py-2 text-sm"
         >
-          <option value="">Timeline</option>
+          <option value="">{t('leads.timeline_placeholder')}</option>
           {TIMELINES.map((t) => (
             <option key={t.value} value={t.value}>
               {t.label}
@@ -169,7 +170,7 @@ export default function PublicLeadForm({
         rows={3}
         value={requirement}
         onChange={(e) => setRequirement(e.target.value)}
-        placeholder="What are you looking for?"
+        placeholder={t('leads.requirement_placeholder')}
         className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
       />
 
@@ -193,7 +194,7 @@ export default function PublicLeadForm({
         className="inline-flex items-center gap-1.5 rounded-md bg-[#2563eb] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1d4ed8] disabled:opacity-60"
       >
         {submitting && <Loader2 className="size-4 animate-spin" />}
-        Request quote
+        {t('catalogue.request_quote')}
       </button>
     </form>
   )

@@ -8,20 +8,53 @@
     "search": "Search",
     "next": "Next",
     "back": "Back",
-    "submit": "Submit"
+    "submit": "Submit",
+    "no_image": "No image",
+    "dash": "—"
   },
   "auth": {
     "sign_in": "Sign in",
     "sign_up": "Sign up",
     "sign_out": "Sign out",
     "email": "Email",
-    "password": "Password"
+    "password": "Password",
+    "get_started": "Get started"
   },
   "catalogue": {
     "request_quote": "Request quote",
     "sign_up_to_book": "Sign up to book",
     "view_details": "View details",
-    "no_results": "No listings match"
+    "no_results": "No listings match",
+    "explore_prefix": "Explore",
+    "subtitle": "Browse Mogzu's curated catalogue. Sign up to book or request a quote.",
+    "search_placeholder_prefix": "Search",
+    "empty_prefix": "No public listings yet for",
+    "empty_hint": "Vendors and admins can flip",
+    "empty_hint_suffix": "on listings to surface them here.",
+    "mogzu_direct": "Mogzu Direct"
+  },
+  "leads": {
+    "request_quote_title": "Request a quote",
+    "request_quote_hint": "Tell us what you need; no account required.",
+    "name_placeholder": "Your name *",
+    "company_placeholder": "Company",
+    "email_placeholder": "Work email *",
+    "phone_placeholder": "Phone",
+    "budget_placeholder": "Budget",
+    "timeline_placeholder": "Timeline",
+    "requirement_placeholder": "What are you looking for?",
+    "thanks_title": "Thanks — we'll be in touch",
+    "thanks_hint": "A Mogzu sales agent (or the AI Sales agent) will reach out within one business day.",
+    "name_email_required": "Name + email are required",
+    "verification_required": "Please complete the verification challenge"
+  },
+  "profile": {
+    "lang_currency_title": "Language & currency",
+    "lang_currency_hint": "Affects price display + number formatting. Settlement currency is unchanged.",
+    "locale_label": "Locale",
+    "display_currency_label": "Display currency",
+    "save_preferences": "Save preferences",
+    "saved": "Saved"
   },
   "billing": {
     "subtotal": "Subtotal",

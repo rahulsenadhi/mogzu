@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react'
 import { Check, Loader2 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { listCurrencies, setUserLocale, type Currency } from '@/lib/currencies'
+import { setLocale as setI18nLocale, t } from '@/lib/i18n'
 
 const LOCALES: { value: string; label: string }[] = [
   { value: 'en-IN', label: 'English (India)' },
@@ -49,15 +50,16 @@ export default function LocalePickerCard() {
       setError(err)
       return
     }
+    setI18nLocale(locale)
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h3 className="text-base font-semibold text-slate-900">Language &amp; currency</h3>
+      <h3 className="text-base font-semibold text-slate-900">{t('profile.lang_currency_title')}</h3>
       <p className="mt-1 text-xs text-slate-500">
-        Affects price display + number formatting. Settlement currency is unchanged.
+        {t('profile.lang_currency_hint')}
       </p>
 
       {error && (
@@ -68,7 +70,7 @@ export default function LocalePickerCard() {
 
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-slate-700">Locale</span>
+          <span className="mb-1 block font-medium text-slate-700">{t('profile.locale_label')}</span>
           <select
             value={locale}
             onChange={(e) => setLocale(e.target.value)}
@@ -83,7 +85,7 @@ export default function LocalePickerCard() {
         </label>
 
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-slate-700">Display currency</span>
+          <span className="mb-1 block font-medium text-slate-700">{t('profile.display_currency_label')}</span>
           <select
             value={currency}
             onChange={(e) => setCurrency(e.target.value)}
@@ -106,11 +108,11 @@ export default function LocalePickerCard() {
           className="inline-flex items-center gap-1.5 rounded-md bg-[#2563eb] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1d4ed8] disabled:opacity-60"
         >
           {saving && <Loader2 className="size-4 animate-spin" />}
-          Save preferences
+          {t('profile.save_preferences')}
         </button>
         {saved && (
           <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
-            <Check className="size-4" /> Saved
+            <Check className="size-4" /> {t('profile.saved')}
           </span>
         )}
       </div>

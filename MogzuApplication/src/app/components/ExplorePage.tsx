@@ -5,6 +5,7 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { Loader2, Search } from 'lucide-react'
 import { listPublicListings, PUBLIC_MODULES, type PublicListingCard } from '@/lib/publicCatalogue'
 import { storageService } from '@/lib/storage'
+import { t } from '@/lib/i18n'
 import type { ModuleId } from '@/lib/database.types'
 
 function imageUrl(path: string | null): string | undefined {
@@ -15,8 +16,8 @@ function imageUrl(path: string | null): string | undefined {
 }
 
 function formatPrice(card: PublicListingCard): string {
-  if (card.pricing_mode === 'request_for_price') return 'Request quote'
-  if (card.base_price == null) return '—'
+  if (card.pricing_mode === 'request_for_price') return t('catalogue.request_quote')
+  if (card.base_price == null) return t('common.dash')
   return `₹${Number(card.base_price).toLocaleString('en-IN')}`
 }
 
@@ -62,22 +63,22 @@ export default function ExplorePage() {
               to="/login"
               className="text-sm font-medium text-slate-600 hover:text-[#0e1e3f]"
             >
-              Sign in
+              {t('auth.sign_in')}
             </Link>
             <Link
               to="/signup"
               className="rounded-md bg-[#2563eb] px-4 py-1.5 text-sm font-semibold text-white hover:bg-[#1d4ed8]"
             >
-              Get started
+              {t('auth.get_started')}
             </Link>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-6xl px-6 py-8">
-        <h1 className="text-2xl font-bold text-slate-900">Explore {moduleLabel}</h1>
+        <h1 className="text-2xl font-bold text-slate-900">{t('catalogue.explore_prefix')} {moduleLabel}</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Browse Mogzu's curated catalogue. Sign up to book or request a quote.
+          {t('catalogue.subtitle')}
         </p>
 
         <div className="mt-5 flex flex-wrap items-center gap-2">
@@ -103,7 +104,7 @@ export default function ExplorePage() {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={`Search ${moduleLabel.toLowerCase()}…`}
+            placeholder={`${t('catalogue.search_placeholder_prefix')} ${moduleLabel.toLowerCase()}…`}
             className="flex-1 text-sm outline-none"
           />
         </div>
@@ -122,9 +123,9 @@ export default function ExplorePage() {
           ) : rows.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-200 bg-white p-12 text-center">
               <p className="text-sm text-slate-500">
-                No public listings yet for {moduleLabel}. Vendors and admins can flip
+                {t('catalogue.empty_prefix')} {moduleLabel}. {t('catalogue.empty_hint')}
                 <code className="mx-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs">public_visible</code>
-                on listings to surface them here.
+                {t('catalogue.empty_hint_suffix')}
               </p>
             </div>
           ) : (
@@ -140,7 +141,7 @@ export default function ExplorePage() {
                       />
                     ) : (
                       <div className="flex size-full items-center justify-center text-xs text-slate-400">
-                        No image
+                        {t('common.no_image')}
                       </div>
                     )}
                   </div>
@@ -149,12 +150,12 @@ export default function ExplorePage() {
                       <h3 className="text-sm font-semibold text-slate-900">{card.title}</h3>
                       {card.is_mogzu_direct && (
                         <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                          Mogzu Direct
+                          {t('catalogue.mogzu_direct')}
                         </span>
                       )}
                     </div>
                     <p className="mt-1 text-xs text-slate-500">
-                      {card.vendor_name ?? '—'}
+                      {card.vendor_name ?? t('common.dash')}
                       {card.category_name ? ` · ${card.category_name}` : ''}
                     </p>
                     {card.description && (
@@ -166,7 +167,7 @@ export default function ExplorePage() {
                         to={`/signup?next=/explore/${card.module}/${card.id}`}
                         className="rounded-md bg-[#2563eb] px-3 py-1 text-xs font-semibold text-white hover:bg-[#1d4ed8]"
                       >
-                        Sign up to book
+                        {t('catalogue.sign_up_to_book')}
                       </Link>
                     </div>
                   </div>
