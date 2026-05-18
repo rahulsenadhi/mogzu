@@ -8,6 +8,9 @@ import imgImage24877 from 'figma:asset/d016f8256f9617c2da6226bb1fd8682cacd46dae.
 import imgAvatar from 'figma:asset/e67667939a12621af070c82a05583b9248a7c28e.png';
 import { appendUnifiedBooking } from '@/app/lib/bookingRecordsStorage';
 import { deriveBookingTypeFromStatus } from '@/app/lib/bookingStatus';
+import { useAuth } from '@/lib/auth';
+import { db } from '@/lib/db';
+import { submitBrandingSelection, type PlacementType } from '@/lib/giftingBranding';
 
 interface Recipient {
   name: string;
@@ -23,6 +26,12 @@ interface SizeQuantity {
 
 interface GiftingBookingProductPayload {
   id?: number;
+  // When the product came from the DB-backed catalogue, these UUID
+  // fields are populated and the booking can be persisted to Supabase.
+  // Demo products (apparelProducts etc.) leave them undefined and the
+  // checkout falls back to the localStorage-only path.
+  listingId?: string;
+  vendorId?: string;
   category?: string;
   name?: string;
   brand?: string;
@@ -74,9 +83,39 @@ const defaultBookingProduct = {
   vendor: 'Mogzu Gifting',
 };
 
+// Map the demo-string brandingPosition values (e.g. 'center-chest',
+// 'sleeve', 'back') onto the canonical PlacementType the DB constraint
+// accepts. Anything we can't map falls back to 'front_print'.
+function toPlacementType(value: string | undefined): PlacementType {
+  switch (value) {
+    case 'front_print':
+    case 'back_print':
+    case 'embossing':
+    case 'label':
+    case 'sleeve_band':
+      return value;
+    case 'back':
+      return 'back_print';
+    case 'sleeve':
+    case 'strap':
+    case 'band':
+      return 'sleeve_band';
+    case 'label_tag':
+    case 'cover':
+    case 'tag':
+      return 'label';
+    case 'emboss':
+    case 'interior':
+      return 'embossing';
+    default:
+      return 'front_print';
+  }
+}
+
 export default function BookingFlow() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { corporateId, user } = useAuth();
   const bookingState = location.state as GiftingBookingLocationState | null;
   const productData = bookingState?.product ?? null;
   const customizationFromPdp = bookingState?.customization;
@@ -327,7 +366,7 @@ export default function BookingFlow() {
     { number: 6, label: 'Pay', status: currentStep === 6 ? 'active' : 'upcoming' },
   ];
 
-  const handleNext = () => {
+  const handleNext = async () => {
     let isValid = false;
     
     switch (currentStep) {
@@ -392,8 +431,70 @@ export default function BookingFlow() {
             team: selectedTeam
           };
 
+          // DB-backed path: when the corporate user is signed in, the
+          // product came from the real catalogue (UUID listing + vendor
+          // IDs present), persist a real `bookings` row and link the
+          // gifting branding selection (Feature 4 + carry-over).
+          // The localStorage append still runs so the existing
+          // bookings dashboard reflects the new booking immediately.
+          let dbBookingId: string | null = null;
+          let dbError: string | null = null;
+          if (
+            productData?.listingId &&
+            productData?.vendorId &&
+            corporateId &&
+            user?.id
+          ) {
+            const { data: bookingRow, error } = await db.bookings.create({
+              corporate_id: corporateId,
+              user_id: user.id,
+              vendor_id: productData.vendorId,
+              listing_id: productData.listingId,
+              module: 'gifting',
+              status: 'pending_approval',
+              group_size: productQty,
+              base_amount: pricing.subtotal,
+              add_ons_amount: pricing.brandingCost,
+              platform_fee: pricing.processingFee,
+              total_amount: pricing.total,
+              payment_method: paymentMethod === 'card' || paymentMethod === 'upi' ? paymentMethod : 'wallet',
+              payment_status: paymentOption === 'pay-now' ? 'paid' : 'pending',
+              purpose_note: plannedFor || null,
+              commission_rate: null,
+              payment_reference: null,
+              approved_by: null,
+              approved_at: null,
+              cancelled_at: null,
+              cancellation_reason: null,
+              cancellation_fee: null,
+              vendor_response_deadline: null,
+              completed_at: null,
+              start_time: null,
+              end_time: null,
+            } as any);
+            if (error) {
+              dbError = error.message;
+              console.warn('booking persist failed, falling back to localStorage:', dbError);
+            } else if (bookingRow) {
+              dbBookingId = (bookingRow as { id: string }).id;
+              // Link the branding selection if a logo was uploaded.
+              if (customizationFromPdp?.logoUploadId && uploadedLogo) {
+                const { error: brandErr } = await submitBrandingSelection(
+                  dbBookingId,
+                  customizationFromPdp.logoUploadId,
+                  toPlacementType(brandingPosition),
+                  null,
+                  `Method: ${brandingMethod}. Demo position label: ${brandingPosition}.`,
+                );
+                if (brandErr) {
+                  console.warn('branding selection persist failed:', brandErr);
+                }
+              }
+            }
+          }
+
           appendUnifiedBooking({
-            id: bookingData.id,
+            id: dbBookingId ?? bookingData.id,
             name: bookingData.name,
             venue: bookingData.venue,
             vendor: bookingData.vendor,
