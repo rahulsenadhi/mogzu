@@ -7,13 +7,15 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'react-router'
-import { Loader2, Printer, ShieldAlert } from 'lucide-react'
+import { Download, Loader2, Mail, Printer, ShieldAlert } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { corporateAccounts } from '@/lib/db'
 import {
   getContract,
+  getInvoicePdfSignedUrl,
   getInvoiceRun,
   listLineItems,
+  markInvoiceEmailed,
   updateInvoiceStatus,
   type Contract,
   type ContractLineItem,
@@ -84,6 +86,24 @@ export default function AdminInvoiceRunPage() {
     else load()
   }
 
+  const downloadPdf = async () => {
+    if (!run?.pdf_storage_path) return
+    const { url, error: err } = await getInvoicePdfSignedUrl(run.pdf_storage_path)
+    if (err || !url) {
+      setError(err ?? 'PDF unavailable')
+      return
+    }
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  const sendEmail = async () => {
+    if (!run) return
+    if (!window.confirm('Email this invoice to the corporate billing contact?')) return
+    const { error: err } = await markInvoiceEmailed(run.id)
+    if (err) setError(err)
+    else load()
+  }
+
   const markPaid = async () => {
     if (!run) return
     const ref = window.prompt('Payment reference / UTR (optional)') ?? undefined
@@ -146,6 +166,24 @@ export default function AdminInvoiceRunPage() {
                 className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
               >
                 Mark sent
+              </button>
+            )}
+            {run.pdf_storage_path && (
+              <button
+                type="button"
+                onClick={downloadPdf}
+                className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                <Download className="size-3.5" /> Download PDF
+              </button>
+            )}
+            {(run.status === 'finalised' || run.status === 'sent') && !run.email_sent_at && (
+              <button
+                type="button"
+                onClick={sendEmail}
+                className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                <Mail className="size-3.5" /> Email invoice
               </button>
             )}
             {(run.status === 'sent' || run.status === 'overdue') && (

@@ -43,6 +43,7 @@ export type InvoiceRun = {
   pdf_storage_path: string | null
   finalised_at: string | null
   sent_at: string | null
+  email_sent_at: string | null
   paid_at: string | null
   payment_reference: string | null
   created_at: string
@@ -161,6 +162,26 @@ export async function createInvoiceRun(
   })
   if (error) return { id: null, error: error.message }
   return { id: data as string, error: null }
+}
+
+export async function getInvoicePdfSignedUrl(
+  storagePath: string,
+  expiresInSeconds = 3600,
+): Promise<{ url: string | null; error: string | null }> {
+  const { data, error } = await supabase.storage
+    .from('invoices')
+    .createSignedUrl(storagePath, expiresInSeconds)
+  if (error) return { url: null, error: error.message }
+  return { url: data?.signedUrl ?? null, error: null }
+}
+
+export async function markInvoiceEmailed(
+  invoiceId: string,
+): Promise<{ error: string | null }> {
+  const { error } = await supabase.rpc('mark_invoice_emailed', {
+    p_invoice_id: invoiceId,
+  })
+  return { error: error?.message ?? null }
 }
 
 export async function updateInvoiceStatus(

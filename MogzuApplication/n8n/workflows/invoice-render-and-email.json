@@ -1,0 +1,168 @@
+{
+  "name": "Invoice render + email",
+  "_notes": [
+    "Phase 3 Feature 8 follow-up — renders finalised invoices to PDF, uploads to the invoices storage bucket, and emails the customer.",
+    "Runs hourly. Targets invoice_runs where status='finalised' AND pdf_storage_path IS NULL.",
+    "Render strategy: hits PUPPETEER_RENDER_URL with { url: <app>/print/invoice/<id>, auth_token: <service_role> } and expects a base64 PDF back. Swap the render service for any headless renderer; the rest of the pipeline is unchanged.",
+    "Email step uses Resend with the signed-URL link embedded.",
+    "Required env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, APP_URL, PUPPETEER_RENDER_URL, RESEND_API_KEY, RESEND_FROM_EMAIL"
+  ],
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "cronExpression", "expression": "5 * * * *" }] }
+      },
+      "name": "Hourly :05",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [120, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/invoice_runs?status=eq.finalised&pdf_storage_path=is.null&select=id,contract_id,total,currency,period_starts_on,period_ends_on",
+        "method": "GET",
+        "options": {
+          "headers": {
+            "apikey": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}",
+            "Authorization": "Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+          }
+        }
+      },
+      "name": "List finalised w/o PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [320, 300]
+    },
+    {
+      "parameters": {},
+      "name": "Split items",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [520, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.PUPPETEER_RENDER_URL}}",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={ \"url\": \"{{$env.APP_URL}}/print/invoice/{{$json.id}}\", \"auth_token\": \"{{$env.SUPABASE_SERVICE_ROLE_KEY}}\" }",
+        "options": { "response": { "response": { "responseFormat": "json" } } }
+      },
+      "name": "Render PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.SUPABASE_URL}}/storage/v1/object/invoices/{{$json.id}}.pdf",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "binaryData",
+        "binaryPropertyName": "data",
+        "options": {
+          "headers": {
+            "apikey": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}",
+            "Authorization": "Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}",
+            "Content-Type": "application/pdf"
+          }
+        }
+      },
+      "name": "Upload to storage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [920, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/rpc/mark_invoice_pdf_uploaded",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={ \"p_invoice_id\": \"{{$json.id}}\", \"p_storage_path\": \"{{$json.id}}.pdf\" }",
+        "options": {
+          "headers": {
+            "apikey": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}",
+            "Authorization": "Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}",
+            "Content-Type": "application/json"
+          }
+        }
+      },
+      "name": "Mark PDF uploaded",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.SUPABASE_URL}}/storage/v1/object/sign/invoices/{{$json.id}}.pdf",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={ \"expiresIn\": 604800 }",
+        "options": {
+          "headers": {
+            "apikey": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}",
+            "Authorization": "Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}",
+            "Content-Type": "application/json"
+          }
+        }
+      },
+      "name": "Signed URL (7d)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1320, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.resend.com/emails",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={ \"from\": \"{{$env.RESEND_FROM_EMAIL}}\", \"to\": [\"{{$json.billing_email}}\"], \"subject\": \"Invoice INV-{{$json.id}}\", \"html\": \"<p>Your invoice for the period {{$json.period_starts_on}} to {{$json.period_ends_on}} is attached.</p><p>Total: {{$json.currency}} {{$json.total}}</p><p><a href='{{$json.signedURL}}'>Download PDF</a></p>\" }",
+        "options": {
+          "headers": {
+            "Authorization": "Bearer {{$env.RESEND_API_KEY}}",
+            "Content-Type": "application/json"
+          }
+        }
+      },
+      "name": "Send email (Resend)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1520, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/rpc/mark_invoice_emailed",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={ \"p_invoice_id\": \"{{$json.id}}\" }",
+        "options": {
+          "headers": {
+            "apikey": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}",
+            "Authorization": "Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}",
+            "Content-Type": "application/json"
+          }
+        }
+      },
+      "name": "Mark emailed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1720, 300]
+    }
+  ],
+  "connections": {
+    "Hourly :05": { "main": [[{ "node": "List finalised w/o PDF", "type": "main", "index": 0 }]] },
+    "List finalised w/o PDF": { "main": [[{ "node": "Split items", "type": "main", "index": 0 }]] },
+    "Split items": { "main": [[{ "node": "Render PDF", "type": "main", "index": 0 }]] },
+    "Render PDF": { "main": [[{ "node": "Upload to storage", "type": "main", "index": 0 }]] },
+    "Upload to storage": { "main": [[{ "node": "Mark PDF uploaded", "type": "main", "index": 0 }]] },
+    "Mark PDF uploaded": { "main": [[{ "node": "Signed URL (7d)", "type": "main", "index": 0 }]] },
+    "Signed URL (7d)": { "main": [[{ "node": "Send email (Resend)", "type": "main", "index": 0 }]] },
+    "Send email (Resend)": { "main": [[{ "node": "Mark emailed", "type": "main", "index": 0 }]] }
+  }
+}
