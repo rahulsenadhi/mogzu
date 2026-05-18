@@ -40,7 +40,27 @@ sql = sql.replace(
     `DROP TRIGGER IF EXISTS ${name} ON ${target};\n${match}`,
 )
 
-// 6. INSERT INTO seed rows that lack ON CONFLICT — leave alone. The two
+// 6. ALTER TABLE ... ADD CONSTRAINT name ...  →  prepend
+//    `ALTER TABLE table DROP CONSTRAINT IF EXISTS name;`. Handles both
+//    single-clause and multi-clause ALTER TABLE statements.
+sql = sql.replace(
+  /ALTER TABLE\s+(public\.\w+)([\s\S]*?);\s*$/gm,
+  (block, table) => {
+    const constraintNames = [...block.matchAll(/ADD CONSTRAINT\s+(\w+)/g)].map((m) => m[1])
+    if (constraintNames.length === 0) return block
+    const drops = constraintNames
+      .map((c) => `ALTER TABLE ${table} DROP CONSTRAINT IF EXISTS ${c};`)
+      .join('\n')
+    return `${drops}\n${block}`
+  },
+)
+
+// 7. ADD COLUMN (without IF NOT EXISTS) inside ALTER TABLE  →
+//    ADD COLUMN IF NOT EXISTS. Most migrations already use the safe
+//    form; this catches the few that don't (e.g. migration 19).
+sql = sql.replace(/\bADD COLUMN (?!IF NOT EXISTS)/g, 'ADD COLUMN IF NOT EXISTS ')
+
+// 8. INSERT INTO seed rows that lack ON CONFLICT — leave alone. The two
 //    known seeds (Mogzu Direct vendor in migration 25, AI agents in
 //    migration 28) already include ON CONFLICT DO NOTHING.
 
