@@ -1314,6 +1314,66 @@ export interface Database {
         Insert: never
         Update: never
       }
+      sso_config: {
+        Row: {
+          id: string
+          corporate_id: string
+          provider: 'okta' | 'azure_ad' | 'google_workspace' | 'onelogin' | 'generic_saml'
+          display_name: string | null
+          entity_id: string
+          sso_url: string
+          acs_url: string | null
+          certificate: string
+          email_domain: string
+          email_attribute_name: string
+          enforce_sso: boolean
+          is_active: boolean
+          last_tested_at: string | null
+          last_tested_status: 'ok' | 'failed' | null
+          last_tested_error: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: Omit<
+          {
+            id: string
+            corporate_id: string
+            provider: string
+            display_name: string | null
+            entity_id: string
+            sso_url: string
+            acs_url: string | null
+            certificate: string
+            email_domain: string
+            email_attribute_name: string
+            enforce_sso: boolean
+            is_active: boolean
+            last_tested_at: string | null
+            last_tested_status: string | null
+            last_tested_error: string | null
+            created_by: string | null
+            created_at: string
+            updated_at: string
+          },
+          'id' | 'created_at' | 'updated_at'
+        >
+        Update: Partial<{
+          provider: string
+          display_name: string | null
+          entity_id: string
+          sso_url: string
+          acs_url: string | null
+          certificate: string
+          email_domain: string
+          email_attribute_name: string
+          enforce_sso: boolean
+          is_active: boolean
+          last_tested_at: string | null
+          last_tested_status: string | null
+          last_tested_error: string | null
+        }>
+      }
       vendors_public: {
         Row: {
           id: string
