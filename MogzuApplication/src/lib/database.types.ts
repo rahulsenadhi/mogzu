@@ -1314,6 +1314,16 @@ export interface Database {
         Insert: never
         Update: never
       }
+      vendors_public: {
+        Row: {
+          id: string
+          business_name: string
+          description: string | null
+          status: string
+        }
+        Insert: never
+        Update: never
+      }
       cms_blocks_live: {
         Row: Pick<
           CmsBlockRow,

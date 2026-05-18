@@ -133,6 +133,7 @@ import AdminPromotionsApprovalPage from "@/app/components/AdminPromotionsApprova
 import AdminBrandingApprovalsPage from "@/app/components/AdminBrandingApprovalsPage";
 import AdminCmsPage from "@/app/components/AdminCmsPage";
 import AdminAiAgentsPage from "@/app/components/AdminAiAgentsPage";
+import ExplorePage from "@/app/components/ExplorePage";
 import CorporateEventTemplatesPage from "@/app/components/CorporateEventTemplatesPage";
 import CorporatePicksPage from "@/app/components/CorporatePicksPage";
 import CelebrationsPage from "@/app/components/CelebrationsPage";
@@ -1000,6 +1001,16 @@ export const router = createBrowserRouter([
   {
     path: "/admin/ai-agents",
     element: <AdminAiAgentsPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/explore",
+    element: <ExplorePage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/explore/:module",
+    element: <ExplorePage />,
     errorElement: <ErrorPage />,
   },
   {

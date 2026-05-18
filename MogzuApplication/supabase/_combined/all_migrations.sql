@@ -1,9 +1,8 @@
 -- Mogzu — combined migrations 01-NN
--- Generated 2026-05-18T09:41:52Z
+-- Generated 2026-05-18T12:59:24Z
 
 
 -- ══ 20260516000001_core_schema.sql ══
-
 -- Mogzu Core Schema — Migration 001
 -- Run: supabase db push (or apply via Supabase dashboard SQL editor)
 
@@ -308,7 +307,6 @@ CREATE TRIGGER trg_bookings_updated_at
 
 
 -- ══ 20260516000002_rls_policies.sql ══
-
 -- Mogzu RLS Policies — Migration 002
 -- Run after migration 001.
 -- All tables in the public schema have RLS enabled.
@@ -723,7 +721,6 @@ CREATE POLICY "commissions_update" ON public.commissions
 
 
 -- ══ 20260516000003_seed_data.sql ══
-
 -- Mogzu Seed Data — Migration 003
 -- Initial categories and global commission rate.
 -- Safe to re-run (uses INSERT ... ON CONFLICT DO NOTHING).
@@ -782,7 +779,6 @@ ON CONFLICT DO NOTHING;
 
 
 -- ══ 20260516000004_gifting_rules.sql ══
-
 -- ─── Gifting Rules (Story 4.1) ───────────────────────────────────────────────
 --
 -- L3 Admin configures per-occasion gifting policies: budget cap per recipient,
@@ -855,7 +851,6 @@ CREATE POLICY "L3 admin can manage gifting_rules"
 
 
 -- ══ 20260516000005_role_switcher.sql ══
-
 -- ─── Role Switcher (Story 1.5) ───────────────────────────────────────────────
 --
 -- Allow a single user_profile to hold multiple roles (e.g. L2 Manager + L3 Admin
@@ -903,7 +898,6 @@ CREATE POLICY "User can log own role switches"
 
 
 -- ══ 20260516000006_refunds.sql ══
-
 -- ─── Refunds (Story 6.3) ─────────────────────────────────────────────────────
 --
 -- Automated refund tracking on booking cancellation.
@@ -1006,7 +1000,6 @@ CREATE POLICY "Booking owner initiates refund (self-cancel)"
 
 
 -- ══ 20260516000007_payouts.sql ══
-
 -- ─── Vendor Payouts (Story 6.4) ──────────────────────────────────────────────
 --
 -- Vendor receives payout = booking.total_amount - (total * commission_rate),
@@ -1093,7 +1086,6 @@ CREATE POLICY "Vendor or admin inserts payout for own booking"
 
 
 -- ══ 20260516000008_employees.sql ══
-
 -- ─── Corporate Employee Directory (Story 10.0) ───────────────────────────────
 --
 -- Separate from user_profiles (which requires a Supabase auth user). L3 Admin
@@ -1164,7 +1156,6 @@ CREATE POLICY "L3 admin manages employees"
 
 
 -- ══ 20260516000009_notifications.sql ══
-
 -- ─── Notifications (Story 7.2) ───────────────────────────────────────────────
 --
 -- In-app notification feed + delivery preferences per user. Emails are
@@ -1261,7 +1252,6 @@ CREATE POLICY "User manages own preferences"
 
 
 -- ══ 20260516000010_support_tickets.sql ══
-
 -- ─── Support Tickets (Stories 12.1, 12.2, 12.3) ──────────────────────────────
 --
 -- Single tickets table with audience='corporate' | 'vendor' to split queues
@@ -1410,7 +1400,6 @@ CREATE POLICY "Support roles manage all notes"
 
 
 -- ══ 20260516000011_celebration_events.sql ══
-
 -- ─── Celebration Events (Stories 10.1, 10.2) ─────────────────────────────────
 --
 -- One row per scheduled milestone gift per employee. N8N daily cron computes
@@ -1523,7 +1512,6 @@ CREATE POLICY "L2 manager personalises own team celebrations"
 
 
 -- ══ 20260516000012_travel_and_tracking.sql ══
-
 -- ─── Travel & Space Policy (Story 5.5) ──────────────────────────────────────
 --
 -- L3 Admin defines policy tiers per role. Stay/space search enforces by
@@ -1605,7 +1593,6 @@ CREATE INDEX IF NOT EXISTS idx_bookings_fulfilment
 
 
 -- ══ 20260516000013_messages_disputes.sql ══
-
 -- ─── Booking Messages (Story 7.1) ────────────────────────────────────────────
 --
 -- One thread per booking. Corporate user, vendor, and (for disputes) Mogzu
@@ -1755,7 +1742,6 @@ CREATE POLICY "Support roles manage disputes"
 
 
 -- ══ 20260516000014_gifting_campaigns.sql ══
-
 -- ─── Bulk Gifting Campaigns (Story 4.3) ─────────────────────────────────────
 --
 -- L3 Admin runs a bulk gifting campaign: picks an occasion, a gifting product,
@@ -1829,7 +1815,6 @@ CREATE INDEX IF NOT EXISTS idx_bookings_campaign
 
 
 -- ══ 20260516000015_wishlist_reviews.sql ══
-
 -- ─── Wishlist (Story 13.1) ───────────────────────────────────────────────────
 
 CREATE TABLE public.wishlists (
@@ -2007,7 +1992,6 @@ CREATE POLICY "Mogzu admin reads all invites"
 
 
 -- ══ 20260516000016_promotions_templates.sql ══
-
 -- ─── Promotions (Stories 8.7, 9.6) ──────────────────────────────────────────
 
 CREATE TYPE public.promotion_kind AS ENUM ('percent_off', 'flat_off', 'free_addon', 'paid_boost');
@@ -2141,7 +2125,6 @@ CREATE POLICY "L3 admin manages own templates"
 
 
 -- ══ 20260516000017_shortlists_heygenie.sql ══
-
 -- ─── Shortlists (Story 13.3) ─────────────────────────────────────────────────
 --
 -- Account Manager curates a list of listings for a specific corporate client.
@@ -2311,7 +2294,6 @@ CREATE POLICY "Mogzu admin reads all heygenie sessions"
 
 
 -- ══ 20260516000018_partners.sql ══
-
 -- Sprint 19 — Partner Foundation (Stories 14.1, 14.6, 14.2)
 --
 -- Partners are independent referrers / resellers who bring corporate clients
@@ -2694,7 +2676,6 @@ GRANT EXECUTE ON FUNCTION public.credit_partner_commission(UUID, UUID) TO authen
 
 
 -- ══ 20260516000019_partner_advanced.sql ══
-
 -- Sprint 20 — Partner Advanced: Resell + Own Listings (Stories 14.3, 14.4)
 --
 -- Adds the listing ownership split (vendor vs partner), the per-booking
@@ -2945,7 +2926,6 @@ GRANT EXECUTE ON FUNCTION public.mark_partner_payout_paid(UUID, UUID, TEXT) TO a
 
 
 -- ══ 20260516000020_partner_security_hardening.sql ══
-
 -- Phase 1 P2 — final security hardening pass.
 --
 -- 1. Sprint 20 shipped a public RLS policy on bookings keyed only on
@@ -3062,7 +3042,6 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
 -- ══ 20260516000021_rbac_sub_users.sql ══
-
 -- Phase 2 — Feature 6: Sub-Users & RBAC.
 --
 -- Adds two new internal roles (sales_agent, field_agent), a per-user
@@ -3288,7 +3267,6 @@ GRANT EXECUTE ON FUNCTION public.accept_user_invite(TEXT) TO authenticated;
 
 
 -- ══ 20260516000022_status_tracker_proof.sql ══
-
 -- Phase 2 — Features 2 & 3:
 -- Live status tracker + proof of execution, and proof-of-conditions.
 --
@@ -3555,7 +3533,6 @@ CREATE POLICY "Admin manages all milestones"
 
 
 -- ══ 20260516000023_quick_share.sql ══
-
 -- Phase 2 Feature 1 — Quick Share Catalogue (off-platform sales).
 --
 -- Admin curates a list of listings, generates a tokenised link, sends it
@@ -3793,7 +3770,6 @@ GRANT EXECUTE ON FUNCTION public.submit_quick_share(TEXT, TEXT, TEXT, TEXT, TEXT
 
 
 -- ══ 20260516000024_categories_description.sql ══
-
 -- Phase 2 Feature 5 — Category management.
 --
 -- listing_categories already exists from the core schema; this migration
@@ -3860,7 +3836,6 @@ GRANT EXECUTE ON FUNCTION public.count_active_listings_for_category(UUID) TO aut
 
 
 -- ══ 20260516000025_mogzu_direct.sql ══
-
 -- Phase 2 Feature 7 — Mogzu Direct Listings on Supabase.
 --
 -- Mogzu publishes its own listings without a vendor approval workflow.
@@ -4198,7 +4173,6 @@ GRANT EXECUTE ON FUNCTION public.set_mogzu_direct_images(UUID, TEXT[]) TO authen
 
 
 -- ══ 20260516000026_gifting_branding.sql ══
-
 -- Phase 2 Feature 4 — Gifting Auto Branding Placement Preview.
 --
 -- Corporate uploads a logo for a gifting order, picks one or more
@@ -4461,7 +4435,6 @@ GRANT EXECUTE ON FUNCTION public.review_gifting_branding(UUID, TEXT, TEXT) TO au
 
 
 -- ══ 20260516000027_cms.sql ══
-
 -- Phase 2 Feature 8 — CMS for public website content.
 --
 -- Single `cms_blocks` table covers every editable surface: hero banner,
@@ -4699,7 +4672,6 @@ GRANT EXECUTE ON FUNCTION public.promote_scheduled_cms_blocks() TO authenticated
 
 
 -- ══ 20260516000028_ai_agents.sql ══
-
 -- Phase 2 Feature 9 — AI Agents Management.
 --
 -- Two agents ship from the spec (support, sales) but the schema does not
@@ -4947,7 +4919,6 @@ ON CONFLICT (slug) DO NOTHING;
 
 
 -- ══ 20260518000001_fix_commissions_anon_leak.sql ══
-
 -- 2026-05-18 — RLS smoke test caught the global commission row leaking
 -- to anonymous clients. The original `commissions_select` policy
 -- exposed any row with `scope = 'global'` to everyone (including anon)
@@ -4969,7 +4940,6 @@ CREATE POLICY "commissions_select" ON public.commissions
 
 
 -- ══ 20260518000002_cms_promote_service_role.sql ══
-
 -- 2026-05-18 — allow service_role (from N8N cron) to call
 -- promote_scheduled_cms_blocks. The original RPC gated on
 -- private.is_mogzu_admin() which checks auth.uid() — that's NULL for
@@ -5002,4 +4972,105 @@ BEGIN
   RETURN v_count;
 END;
 $$;
+
+
+-- ══ 20260518000003_p3_public_catalogue.sql ══
+-- Phase 3 Feature 1 (part 1) — Public Catalogue Browse foundation.
+--
+-- Add an explicit `public_visible` flag on listings so a vendor /
+-- admin can decide which active listings appear on the unauthenticated
+-- /explore routes. The existing listings_select policy allowed any
+-- authenticated user to read active listings — we widen it to also
+-- allow anonymous reads when public_visible = TRUE, while keeping
+-- the vendor-only + admin-only branches intact.
+--
+-- Phase 3 P3.1 will pair this DB change with the /explore/:module
+-- routes and SSR meta tags.
+
+ALTER TABLE public.listings
+  ADD COLUMN IF NOT EXISTS public_visible BOOLEAN NOT NULL DEFAULT FALSE;
+
+CREATE INDEX IF NOT EXISTS idx_listings_public
+  ON public.listings (module, public_visible, status)
+  WHERE public_visible = TRUE AND status = 'active';
+
+-- Update the existing select policy. Authenticated users continue to
+-- see every active listing (existing behaviour); anonymous clients now
+-- only see active + public_visible rows.
+DROP POLICY IF EXISTS "listings_select" ON public.listings;
+
+CREATE POLICY "listings_select" ON public.listings
+  FOR SELECT USING (
+    (
+      auth.uid() IS NOT NULL
+      AND (
+        status = 'active'
+        OR private.is_mogzu_admin()
+        OR vendor_id = private.user_vendor_id()
+      )
+    )
+    OR (
+      auth.uid() IS NULL
+      AND status = 'active'
+      AND public_visible = TRUE
+    )
+  );
+
+-- Mirror on listing_images so anon can see images of the listings
+-- they can see.
+DROP POLICY IF EXISTS "listing_images_select" ON public.listing_images;
+
+CREATE POLICY "listing_images_select" ON public.listing_images
+  FOR SELECT USING (
+    listing_id IN (
+      SELECT id FROM public.listings
+      WHERE (
+        auth.uid() IS NOT NULL
+        AND (
+          status = 'active'
+          OR private.is_mogzu_admin()
+          OR vendor_id = private.user_vendor_id()
+        )
+      )
+      OR (
+        auth.uid() IS NULL
+        AND status = 'active'
+        AND public_visible = TRUE
+      )
+    )
+  );
+
+-- Mirror on listing_add_ons.
+DROP POLICY IF EXISTS "listing_add_ons_select" ON public.listing_add_ons;
+
+CREATE POLICY "listing_add_ons_select" ON public.listing_add_ons
+  FOR SELECT USING (
+    listing_id IN (
+      SELECT id FROM public.listings
+      WHERE (
+        auth.uid() IS NOT NULL
+        AND (
+          status = 'active'
+          OR private.is_mogzu_admin()
+          OR vendor_id = private.user_vendor_id()
+        )
+      )
+      OR (
+        auth.uid() IS NULL
+        AND status = 'active'
+        AND public_visible = TRUE
+      )
+    )
+  );
+
+-- Vendor business_name + cover_image are the only fields we want to
+-- leak to anon (so listing cards can show "by FooVendor"). Other vendor
+-- columns (bank details, contact emails) stay private. The view sits in
+-- public so the anon role can SELECT from it.
+CREATE OR REPLACE VIEW public.vendors_public AS
+  SELECT id, business_name, description, status
+    FROM public.vendors
+   WHERE status = 'active';
+
+GRANT SELECT ON public.vendors_public TO anon, authenticated;
 
