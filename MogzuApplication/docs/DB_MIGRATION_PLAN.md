@@ -148,16 +148,25 @@ the audit items in §4 are already closed.
 
 ## 9. Verification
 
-Run the audit script before every Phase 3 deploy:
+Three checks run on every push + PR via `.github/workflows/audit.yml`:
 
 ```bash
-bash MogzuApplication/scripts/audit-abstraction-layers.sh
+bash MogzuApplication/scripts/audit-abstraction-layers.sh   # invariants
+npm --prefix MogzuApplication test                          # unit suite
+npm --prefix MogzuApplication run rehearse:pgdump           # portability
 ```
 
-Script fails CI if:
-- any component imports `supabase` directly,
-- any component calls `supabase.from(`, `supabase.auth.`, `supabase.storage.`, or `supabase.channel(`,
-- any of the four lib files (`auth.ts`, `db.ts`, `storage.ts`, `realtime.ts`) is missing.
+- **Abstraction audit** fails if any component imports `supabase`
+  directly or calls `supabase.from(`, `supabase.auth.`,
+  `supabase.storage.`, or `supabase.channel(`, or if any of the four
+  lib files (`auth.ts`, `db.ts`, `storage.ts`, `realtime.ts`) is
+  missing.
+- **Unit suite** runs Vitest against `src/lib/**/*.test.ts`.
+- **pg_dump rehearsal** spins up an in-memory Postgres (pglite),
+  applies `auth_shim.sql` + `_combined/all_migrations.sql`, and
+  reports object counts. Fails if any migration uses Supabase-only
+  syntax. Current baseline (2026-05-18): 63 tables · 2 views ·
+  163 policies · 43 functions · 166 indexes on vanilla Postgres.
 
 ---
 

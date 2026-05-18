@@ -40,6 +40,10 @@ jobs:
         working-directory: MogzuApplication
         run: npm test
 
+      - name: pg_dump rehearsal (schema portability)
+        working-directory: MogzuApplication
+        run: npm run rehearse:pgdump
+
   rls-smoke:
     name: RLS smoke test
     runs-on: ubuntu-latest
