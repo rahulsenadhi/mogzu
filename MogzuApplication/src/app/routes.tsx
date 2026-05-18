@@ -137,6 +137,7 @@ import ExplorePage from "@/app/components/ExplorePage";
 import AdminSsoPage from "@/app/components/AdminSsoPage";
 import AdminPublicListingsPage from "@/app/components/AdminPublicListingsPage";
 import PublicLandingPage from "@/app/components/PublicLandingPage";
+import PublicBlogIndexPage from "@/app/components/PublicBlogIndexPage";
 import AdminLeadsPage from "@/app/components/AdminLeadsPage";
 import AdminAuditPage from "@/app/components/AdminAuditPage";
 import AdminContractsPage from "@/app/components/AdminContractsPage";
@@ -1033,6 +1034,16 @@ export const router = createBrowserRouter([
   },
   {
     path: "/p/:slug",
+    element: <PublicLandingPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/blog",
+    element: <PublicBlogIndexPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/blog/:slug",
     element: <PublicLandingPage />,
     errorElement: <ErrorPage />,
   },
