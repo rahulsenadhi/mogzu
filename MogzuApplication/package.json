@@ -6,6 +6,8 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "normalize-spacex-tab-icons": "node scripts/normalize-spacex-tab-icons.mjs"
   },
   "dependencies": {
@@ -72,7 +74,8 @@
     "@vitejs/plugin-react": "4.7.0",
     "sharp": "^0.34.5",
     "tailwindcss": "4.1.12",
-    "vite": "6.3.5"
+    "vite": "6.3.5",
+    "vitest": "^4.1.6"
   },
   "peerDependencies": {
     "react": "18.3.1",

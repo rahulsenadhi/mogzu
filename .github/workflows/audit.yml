@@ -18,6 +18,28 @@ jobs:
         working-directory: MogzuApplication
         run: bash scripts/audit-abstraction-layers.sh
 
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: MogzuApplication/package-lock.json
+
+      - name: Install
+        working-directory: MogzuApplication
+        run: npm ci
+
+      - name: Run unit tests
+        working-directory: MogzuApplication
+        run: npm test
+
   rls-smoke:
     name: RLS smoke test
     runs-on: ubuntu-latest

@@ -62,6 +62,35 @@ export type BrandingSelection = {
 const ALLOWED_MIME = new Set(['image/png', 'image/svg+xml', 'image/jpeg'])
 const MAX_LOGO_BYTES = 5 * 1024 * 1024 // 5 MB
 
+// Map demo position strings (center-chest, sleeve, back, etc.) onto
+// the canonical PlacementType the DB CHECK constraint accepts. Lives
+// here so it can be unit-tested without importing the BookingFlow.
+export function toPlacementType(value: string | undefined | null): PlacementType {
+  switch (value) {
+    case 'front_print':
+    case 'back_print':
+    case 'embossing':
+    case 'label':
+    case 'sleeve_band':
+      return value
+    case 'back':
+      return 'back_print'
+    case 'sleeve':
+    case 'strap':
+    case 'band':
+      return 'sleeve_band'
+    case 'label_tag':
+    case 'cover':
+    case 'tag':
+      return 'label'
+    case 'emboss':
+    case 'interior':
+      return 'embossing'
+    default:
+      return 'front_print'
+  }
+}
+
 export async function uploadBrandingLogo(
   corporateId: string,
   uploadedBy: string,

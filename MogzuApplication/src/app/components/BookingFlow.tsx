@@ -10,7 +10,7 @@ import { appendUnifiedBooking } from '@/app/lib/bookingRecordsStorage';
 import { deriveBookingTypeFromStatus } from '@/app/lib/bookingStatus';
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { submitBrandingSelection, type PlacementType } from '@/lib/giftingBranding';
+import { submitBrandingSelection, toPlacementType } from '@/lib/giftingBranding';
 
 interface Recipient {
   name: string;
@@ -82,35 +82,6 @@ const defaultBookingProduct = {
   sizes: ['S', 'M', 'L', 'XL'],
   vendor: 'Mogzu Gifting',
 };
-
-// Map the demo-string brandingPosition values (e.g. 'center-chest',
-// 'sleeve', 'back') onto the canonical PlacementType the DB constraint
-// accepts. Anything we can't map falls back to 'front_print'.
-function toPlacementType(value: string | undefined): PlacementType {
-  switch (value) {
-    case 'front_print':
-    case 'back_print':
-    case 'embossing':
-    case 'label':
-    case 'sleeve_band':
-      return value;
-    case 'back':
-      return 'back_print';
-    case 'sleeve':
-    case 'strap':
-    case 'band':
-      return 'sleeve_band';
-    case 'label_tag':
-    case 'cover':
-    case 'tag':
-      return 'label';
-    case 'emboss':
-    case 'interior':
-      return 'embossing';
-    default:
-      return 'front_print';
-  }
-}
 
 export default function BookingFlow() {
   const navigate = useNavigate();
