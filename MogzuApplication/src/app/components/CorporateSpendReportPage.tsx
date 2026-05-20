@@ -6,6 +6,7 @@ import {
   Download,
   FileText,
   Loader2,
+  Printer,
   ShieldAlert,
 } from 'lucide-react'
 import { SharedHeader } from './layouts/SharedHeader'
@@ -41,6 +42,74 @@ const CHARGED_STATUSES: Booking['status'][] = [
   'completed',
 ]
 
+function csvCell(v: string | number | null | undefined): string {
+  const s = v == null ? '' : String(v)
+  return `"${s.replace(/"/g, '""')}"`
+}
+
+function daysAgoIso(n: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() - n)
+  return d.toISOString()
+}
+
+// DEMO FALLBACK — shows when Supabase returns 0 bookings for this corporate
+// Remove once real bookings exist
+const DEMO_CORP_ID = 'demo-corp'
+
+const DEMO_DATA_USERS: UserProfile[] = [
+  { id: 'demo-u-1', email: 'priya.sharma@acme.in', full_name: 'Priya Sharma', phone: null, role: 'l2_employee', corporate_id: DEMO_CORP_ID, department: 'Engineering', employee_id: 'E001', avatar_url: null, kyc_status: 'verified', is_active: true, created_at: daysAgoIso(120), updated_at: daysAgoIso(30) } as unknown as UserProfile,
+  { id: 'demo-u-2', email: 'arjun.mehta@acme.in', full_name: 'Arjun Mehta', phone: null, role: 'l2_employee', corporate_id: DEMO_CORP_ID, department: 'Sales', employee_id: 'E002', avatar_url: null, kyc_status: 'verified', is_active: true, created_at: daysAgoIso(120), updated_at: daysAgoIso(30) } as unknown as UserProfile,
+  { id: 'demo-u-3', email: 'neha.kapoor@acme.in', full_name: 'Neha Kapoor', phone: null, role: 'l2_employee', corporate_id: DEMO_CORP_ID, department: 'Marketing', employee_id: 'E003', avatar_url: null, kyc_status: 'verified', is_active: true, created_at: daysAgoIso(120), updated_at: daysAgoIso(30) } as unknown as UserProfile,
+  { id: 'demo-u-4', email: 'rohan.iyer@acme.in', full_name: 'Rohan Iyer', phone: null, role: 'l2_employee', corporate_id: DEMO_CORP_ID, department: 'Product', employee_id: 'E004', avatar_url: null, kyc_status: 'verified', is_active: true, created_at: daysAgoIso(120), updated_at: daysAgoIso(30) } as unknown as UserProfile,
+  { id: 'demo-u-5', email: 'sneha.rao@acme.in', full_name: 'Sneha Rao', phone: null, role: 'l2_employee', corporate_id: DEMO_CORP_ID, department: 'HR', employee_id: 'E005', avatar_url: null, kyc_status: 'verified', is_active: true, created_at: daysAgoIso(120), updated_at: daysAgoIso(30) } as unknown as UserProfile,
+  { id: 'demo-u-6', email: 'vikram.singh@acme.in', full_name: 'Vikram Singh', phone: null, role: 'l2_employee', corporate_id: DEMO_CORP_ID, department: 'Engineering', employee_id: 'E006', avatar_url: null, kyc_status: 'verified', is_active: true, created_at: daysAgoIso(120), updated_at: daysAgoIso(30) } as unknown as UserProfile,
+  { id: 'demo-u-7', email: 'ananya.desai@acme.in', full_name: 'Ananya Desai', phone: null, role: 'l2_employee', corporate_id: DEMO_CORP_ID, department: 'Sales', employee_id: 'E007', avatar_url: null, kyc_status: 'verified', is_active: true, created_at: daysAgoIso(120), updated_at: daysAgoIso(30) } as unknown as UserProfile,
+  { id: 'demo-u-8', email: 'kabir.nair@acme.in', full_name: 'Kabir Nair', phone: null, role: 'l2_employee', corporate_id: DEMO_CORP_ID, department: 'Marketing', employee_id: 'E008', avatar_url: null, kyc_status: 'verified', is_active: true, created_at: daysAgoIso(120), updated_at: daysAgoIso(30) } as unknown as UserProfile,
+  { id: 'demo-u-9', email: 'isha.bhatt@acme.in', full_name: 'Isha Bhatt', phone: null, role: 'l2_employee', corporate_id: DEMO_CORP_ID, department: 'Product', employee_id: 'E009', avatar_url: null, kyc_status: 'verified', is_active: true, created_at: daysAgoIso(120), updated_at: daysAgoIso(30) } as unknown as UserProfile,
+  { id: 'demo-u-10', email: 'manish.gupta@acme.in', full_name: 'Manish Gupta', phone: null, role: 'l2_employee', corporate_id: DEMO_CORP_ID, department: 'Operations', employee_id: 'E010', avatar_url: null, kyc_status: 'verified', is_active: true, created_at: daysAgoIso(120), updated_at: daysAgoIso(30) } as unknown as UserProfile,
+]
+
+function demoBooking(
+  id: string,
+  userId: string,
+  module: ModuleId,
+  status: Booking['status'],
+  payment: Booking['payment_status'],
+  amount: number,
+  daysAgo: number,
+  listingTitle: string,
+  vendorName: string,
+): BookingRow {
+  return {
+    id,
+    corporate_id: DEMO_CORP_ID,
+    user_id: userId,
+    vendor_id: 'demo-vendor',
+    listing_id: 'demo-listing',
+    module,
+    status,
+    total_amount: amount,
+    payment_status: payment,
+    created_at: daysAgoIso(daysAgo),
+    listings: { title: listingTitle } as unknown as Listing,
+    vendors: { business_name: vendorName } as unknown as Vendor,
+  } as unknown as BookingRow
+}
+
+const DEMO_DATA_BOOKINGS: BookingRow[] = [
+  demoBooking('demo-b-1', 'demo-u-1', 'events', 'completed', 'paid', 85_000, 2, 'Team offsite — Lonavala villa retreat', 'Wanderlust Stays'),
+  demoBooking('demo-b-2', 'demo-u-2', 'gifting', 'completed', 'paid', 42_500, 4, 'Diwali gift box — premium dry fruits', 'Gourmet Hampers Co.'),
+  demoBooking('demo-b-3', 'demo-u-3', 'spacex_coworking', 'confirmed', 'paid', 18_000, 6, 'BKC coworking — 6 desks / 2 days', 'WorkLoft BKC'),
+  demoBooking('demo-b-4', 'demo-u-4', 'events', 'completed', 'paid', 1_25_000, 8, 'Product launch — rooftop venue Bandra', 'Skyline Events'),
+  demoBooking('demo-b-5', 'demo-u-5', 'gifting', 'completed', 'paid', 28_900, 11, 'New hire welcome kit — 25 employees', 'Onboard Boxes'),
+  demoBooking('demo-b-6', 'demo-u-6', 'spacex_stay', 'confirmed', 'paid', 32_400, 13, 'Client visit — 2 nights Mumbai hotel', 'Hospitality Inn'),
+  demoBooking('demo-b-7', 'demo-u-7', 'events', 'pending_approval', 'pending', 67_500, 15, 'Sales kickoff — daylong conference hall', 'ConfHub Worli'),
+  demoBooking('demo-b-8', 'demo-u-8', 'gifting', 'completed', 'paid', 15_750, 18, 'Client appreciation — wine + cheese hampers', 'Vintage Cellars'),
+  demoBooking('demo-b-9', 'demo-u-9', 'spacex_coworking', 'completed', 'paid', 9_500, 22, 'Powai coworking — 3 desks / 1 day', 'CoSpace Powai'),
+  demoBooking('demo-b-10', 'demo-u-10', 'events', 'completed', 'paid', 54_200, 27, 'Quarterly town hall — auditorium booking', 'Grand Hall Andheri'),
+]
+
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
 }
@@ -51,10 +120,6 @@ function thirtyDaysAgoIso(): string {
   return d.toISOString().slice(0, 10)
 }
 
-function csvCell(v: string | number | null | undefined): string {
-  const s = v == null ? '' : String(v)
-  return `"${s.replace(/"/g, '""')}"`
-}
 
 export default function CorporateSpendReportPage() {
   const navigate = useNavigate()
@@ -81,8 +146,15 @@ export default function CorporateSpendReportPage() {
       db.userProfiles.listByCorporate(corporateId),
     ])
     if (bRes.error) setLoadError(bRes.error.message)
-    else setBookings((bRes.data ?? []) as BookingRow[])
-    setUsers((uRes.data ?? []) as UserProfile[])
+    const realBookings = (bRes.data ?? []) as BookingRow[]
+    const realUsers = (uRes.data ?? []) as UserProfile[]
+    if (realBookings.length === 0) {
+      setBookings(DEMO_DATA_BOOKINGS)
+      setUsers(realUsers.length > 0 ? realUsers : DEMO_DATA_USERS)
+    } else {
+      setBookings(realBookings)
+      setUsers(realUsers)
+    }
     setLoading(false)
   }, [corporateId])
 
@@ -176,6 +248,10 @@ export default function CorporateSpendReportPage() {
     URL.revokeObjectURL(url)
   }
 
+  const handlePrintPdf = () => {
+    window.print()
+  }
+
   if (!canView) {
     return (
       <div className="flex h-screen items-center justify-center bg-[#FFFDF9]">
@@ -217,15 +293,26 @@ export default function CorporateSpendReportPage() {
                   organisation's spend. Export CSV for offline analysis.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={handleExportCsv}
-                disabled={filtered.length === 0}
-                className="inline-flex items-center gap-1.5 rounded-md bg-[#2563eb] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-              >
-                <Download className="size-4" />
-                Export CSV ({filtered.length})
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handlePrintPdf}
+                  disabled={filtered.length === 0}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 print:hidden"
+                >
+                  <Printer className="size-4" />
+                  Print / Save as PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportCsv}
+                  disabled={filtered.length === 0}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-[#2563eb] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 print:hidden"
+                >
+                  <Download className="size-4" />
+                  Export CSV ({filtered.length})
+                </button>
+              </div>
             </div>
 
             <div className="mb-4 grid grid-cols-2 gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-4">
