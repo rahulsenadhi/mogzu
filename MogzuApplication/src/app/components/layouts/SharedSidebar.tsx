@@ -102,7 +102,7 @@ export function SharedSidebar({
     { id: 'notification', label: 'Notification', icon: 'p4e64800', path: '/corporate/notifications' },
     { id: 'communication', label: 'Communication', icon: 'p319d300', path: '/communication' },
     { id: 'budget', label: 'Budget', icon: 'p2683f80', path: '/corporate/budget' },
-    { id: 'report', label: 'Report', icon: 'p1f81a280', path: '/report' },
+    { id: 'report', label: 'Report', icon: 'p1f81a280', path: '/corporate/spend-report' },
     { id: 'transactions', label: 'Transactions', icon: 'p2683f80', path: '/corporate/transactions' },
     { id: 'settings', label: 'Settings', icon: 'pde1bb00', path: '/company-settings' },
   ];
@@ -130,7 +130,7 @@ export function SharedSidebar({
     if (path.startsWith('/celebrations')) return 'celebrations';
     if (path.startsWith('/user-management')) return 'users';
     if (path.startsWith('/communication')) return 'communication';
-    if (path.startsWith('/report')) return 'report';
+    if (path.startsWith('/corporate/spend-report') || path.startsWith('/report')) return 'report';
     if (path.startsWith('/favourites')) return 'favourites';
     if (path.startsWith('/deals')) return 'deals';
     if (path.startsWith('/corporate/transactions')) return 'transactions';

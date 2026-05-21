@@ -2,6 +2,17 @@
 
 > One line per file touched. Newest at top.
 
+## 2026-05-21 — Batch 5: Spend report sidebar wiring
+
+- `MogzuApplication/src/app/components/layouts/SharedSidebar.tsx` — `report` nav item path: `/report` → `/corporate/spend-report`. Active matcher extended: `if (path.startsWith('/corporate/spend-report') || path.startsWith('/report')) return 'report'`. Old `/report` route preserved (ReportsPage hardcoded Jan-Dec demo charts still served if deep-linked) but no longer surfaced.
+- `MogzuApplication/src/app/components/CorporateSpendReportPage.tsx` (no change) — already fully wired: date/dept/module filters, totals + breakdowns by module/department, CSV export via Blob URL with proper `csvCell` escaping, print/PDF via `window.print`. DEMO_DATA_BOOKINGS/USERS fallback when corporate has no bookings. L3-admin gate.
+
+Why: glitch #5 — sidebar "Report" CTA pointed at `ReportsPage` (hardcoded `totalSpentData` + `totalSavingsData` arrays) instead of the real `CorporateSpendReportPage`. Real page was only reachable via deep-link from `AccountManagerPortfolioPage`.
+
+Carry-over: ReportsPage still exists at `/report`; safe to keep for now (no inbound links from corp surfaces). Delete in Batch 15 cleanup pass per "Never delete working code" rule.
+
+Verified: `npm run build` exit 0, `built in 25.06s`.
+
 ## 2026-05-21 — Batch 4: Approvals queue requester name embed
 
 - `MogzuApplication/src/lib/db.ts` — `bookings.listByCorporate` select extended from `*, listings(*), vendors(*)` to `*, listings(*), vendors(*), user_profiles!user_id(*)`. Symmetry with `listPendingApproval` (line 328) which already embeds user_profiles.
