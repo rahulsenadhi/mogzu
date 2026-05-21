@@ -14,7 +14,7 @@ export type PublicListingCard = {
   category_name: string | null
   cover_image_path: string | null
   base_price: number | null
-  pricing_mode: string | null
+  pricing_type: string | null
   vendor_id: string
   vendor_name: string | null
   rating_avg: number | null
@@ -38,11 +38,11 @@ export async function listPublicListings(
   let q = supabase
     .from('listings')
     .select(
-      `id, module, title, description, category_id, base_price, pricing_mode,
+      `id, module, title, description, category_id, base_price, pricing_type,
        vendor_id, is_mogzu_direct,
        category:listing_categories(name),
        vendor:vendors_public!vendor_id(business_name),
-       images:listing_images(image_path, display_order)`,
+       images:listing_images(storage_path, display_order)`,
     )
     .eq('status', 'active')
     .eq('public_visible', true)
@@ -60,7 +60,7 @@ export async function listPublicListings(
   if (error) return { data: [], error: error.message }
 
   const rows = (data ?? []).map((r: any) => {
-    const images: { image_path: string; display_order: number }[] = r.images ?? []
+    const images: { storage_path: string; display_order: number }[] = r.images ?? []
     images.sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0))
     return {
       id: r.id,
@@ -69,9 +69,9 @@ export async function listPublicListings(
       description: r.description,
       category_id: r.category_id,
       category_name: r.category?.name ?? null,
-      cover_image_path: images[0]?.image_path ?? null,
+      cover_image_path: images[0]?.storage_path ?? null,
       base_price: r.base_price,
-      pricing_mode: r.pricing_mode,
+      pricing_type: r.pricing_type,
       vendor_id: r.vendor_id,
       vendor_name: r.vendor?.business_name ?? null,
       rating_avg: null,

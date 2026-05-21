@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Info, X } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import type { BookingHandoffPayload } from '@/app/types/bookingHandoff';
@@ -176,37 +176,6 @@ export default function PriceBlock({
         }
       : null;
 
-  useEffect(() => {
-    if (!toast) return;
-    const id = window.setTimeout(() => setToast(''), 3200);
-    return () => window.clearTimeout(id);
-  }, [toast]);
-
-  useEffect(() => {
-    onDraftChange?.({
-      group_size: groupSize,
-      duration,
-      selected_addons: selectedAddons.map((addon) => ({
-        name: addon.name,
-        price: addon.price ?? null,
-        negotiable: pricingType === 'offer_price' || pricingType === 'request_for_price',
-      })),
-      offer_amount: pricingType === 'offer_price' ? offerPerUnit : null,
-      calculated: {
-        base_subtotal: baseTotalRaw,
-        addons_total: addonPriceTotal,
-        platform_fee: feeRaw,
-        grand_total: grandTotalRaw,
-      },
-    });
-  }, [groupSize, duration, selectedAddons, pricingType, offerPerUnit, baseTotalRaw, addonPriceTotal, feeRaw, grandTotalRaw, onDraftChange]);
-
-  useEffect(() => {
-    setFlashTotal(true)
-    const id = window.setTimeout(() => setFlashTotal(false), 620)
-    return () => window.clearTimeout(id)
-  }, [grandTotalRaw])
-
   const selectedAddons = useMemo(
     () => addons.filter((a) => selectedAddonNames.includes(a.name)),
     [addons, selectedAddonNames],
@@ -226,6 +195,46 @@ export default function PriceBlock({
   const baseTotalRaw = defaultPriceType === 'flat' || defaultPriceType === 'package' ? unitPrice : unitPrice * groupSize;
   const feeRaw = Math.round((baseTotalRaw + addonPriceTotal) * 0.05);
   const grandTotalRaw = baseTotalRaw + addonPriceTotal + feeRaw;
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = window.setTimeout(() => setToast(''), 3200);
+    return () => window.clearTimeout(id);
+  }, [toast]);
+
+  const lastDraftSigRef = useRef('')
+  useEffect(() => {
+    const payload = {
+      group_size: groupSize,
+      duration,
+      selected_addons: selectedAddons.map((addon) => ({
+        name: addon.name,
+        price: addon.price ?? null,
+        negotiable: pricingType === 'offer_price' || pricingType === 'request_for_price',
+      })),
+      offer_amount: pricingType === 'offer_price' ? offerPerUnit : null,
+      calculated: {
+        base_subtotal: baseTotalRaw,
+        addons_total: addonPriceTotal,
+        platform_fee: feeRaw,
+        grand_total: grandTotalRaw,
+      },
+    }
+    // Dedup: parents pass inline `listing` + `onDraftChange` props; without
+    // a signature guard the effect re-fires every render on identical data
+    // and produces an infinite loop.
+    const sig = JSON.stringify(payload)
+    if (sig === lastDraftSigRef.current) return
+    lastDraftSigRef.current = sig
+    onDraftChange?.(payload);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupSize, duration, selectedAddons, pricingType, offerPerUnit, baseTotalRaw, addonPriceTotal, feeRaw, grandTotalRaw]);
+
+  useEffect(() => {
+    setFlashTotal(true)
+    const id = window.setTimeout(() => setFlashTotal(false), 620)
+    return () => window.clearTimeout(id)
+  }, [grandTotalRaw])
 
   const baseTotal = useAnimatedNumber(baseTotalRaw);
   const addonTotal = useAnimatedNumber(addonPriceTotal);
@@ -410,7 +419,7 @@ export default function PriceBlock({
                 return;
               }
               onBookNow?.();
-              if (!onBookNow) navigate('/booking-confirmation');
+              if (!onBookNow) navigate('/request-to-book', { state: { category: listing.category ?? 'conference', from: 'price-block' } });
             }}
             disabled={!hasDateAndSlot}
             className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
@@ -546,7 +555,7 @@ export default function PriceBlock({
                       created_at: new Date().toISOString(),
                     });
                   } else {
-                    navigate('/booking-confirmation');
+                    navigate('/request-to-book', { state: { category: listing.category ?? 'conference', from: 'price-block-offer' } });
                   }
                   setShowOfferConfirm(false);
                 }}

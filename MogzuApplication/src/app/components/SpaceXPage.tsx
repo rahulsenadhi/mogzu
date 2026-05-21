@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import {
-  Heart,
   Search,
   ChevronDown,
   Bell,
@@ -11,12 +10,14 @@ import {
   Coffee,
   BriefcaseBusiness,
   CalendarDays,
+  ArrowUpRight,
   type LucideIcon,
 } from "lucide-react";
 import { useNavigate } from "react-router";
 import { SharedHeader } from "@/app/components/layouts/SharedHeader";
 import { SharedSidebar } from "@/app/components/layouts/SharedSidebar";
 import { MogzuCorporateScrollSurface } from "@/app/components/layouts/MogzuCorporateScrollSurface";
+import { WishlistHeart } from "@/app/components/global/WishlistHeart";
 import svgPaths from "@/imports/svg-5pj2l0pukf";
 import svgPathsDashboard from "@/imports/svg-camfkj9vq4";
 import imgImage24995 from "figma:asset/3fd0634bc82e44a536b4f08060cd6f224c13e9e8.png";
@@ -45,6 +46,70 @@ import {
 } from "@/app/lib/corporateAdminPromotionsStorage";
 import { matchesPriceRange, matchesSourceFilter, parsePriceLike, type CatalogueSourceFilter } from "@/utils/filterContracts";
 import { buildUnsplashKeywordImage, getListingSlideImages, getPriceDisplayParts } from "./dspaceCardUtils";
+import { db } from "@/lib/db";
+import { storageService } from "@/lib/storage";
+import type { Listing, ListingImage } from "@/lib/database.types";
+
+function classifySpaceCategory(text: string): "conference" | "casual" | "corporate" {
+  const lower = text.toLowerCase();
+  if (/conference|boardroom|seminar|training/.test(lower)) return "conference";
+  if (/ballroom|banquet|gala|event venue|function|auditorium/.test(lower)) return "corporate";
+  return "casual";
+}
+
+function listingToSpaceCard(l: Listing & { listing_images?: ListingImage[] }): {
+  id: string;
+  name: string;
+  type: string;
+  location: string;
+  tags: string[];
+  capacity: string;
+  price: string;
+  rating: string;
+  image: string;
+  category: "conference" | "casual" | "corporate";
+  pricingType?: "transparent" | "offer" | "on_request";
+} {
+  const meta = (l.metadata ?? {}) as Record<string, unknown>;
+  const rawTags = meta.tags;
+  const tags = Array.isArray(rawTags)
+    ? rawTags.filter((t): t is string => typeof t === "string").map((t) => t.toUpperCase())
+    : [];
+  const cover = (l.listing_images ?? [])[0];
+  const image = cover
+    ? storageService.spaceImages.getUrl(cover.storage_path)
+    : "https://images.unsplash.com/photo-1497366216548-37526070297c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080";
+  const capacity =
+    l.min_capacity != null && l.max_capacity != null
+      ? `${l.min_capacity}-${l.max_capacity}`
+      : l.max_capacity != null
+        ? `Up to ${l.max_capacity}`
+        : "On request";
+  const price =
+    l.base_price != null
+      ? `₹${l.base_price.toLocaleString("en-IN")}${l.price_unit ? `/${l.price_unit.replace("_", " ")}` : ""}`
+      : "On request";
+  const rating = typeof meta.rating === "number" ? meta.rating.toFixed(1) : "New";
+  const pricingType: "transparent" | "offer" | "on_request" =
+    l.pricing_type === "offer"
+      ? "offer"
+      : l.pricing_type === "request_for_price"
+        ? "on_request"
+        : "transparent";
+  return {
+    id: l.id,
+    name: l.title,
+    type: typeof meta.spaceType === "string" ? meta.spaceType : "Workspace",
+    location: l.location_city ?? l.location_address ?? "",
+    tags,
+    capacity,
+    price,
+    rating,
+    image,
+    category: classifySpaceCategory(`${l.title} ${l.description ?? ""}`),
+    pricingType,
+  };
+}
 
 type SpaceXCategoryTab = {
   id: string;
@@ -147,7 +212,6 @@ export default function SpaceXPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 9;
   const [isError, setIsError] = useState(false);
-  const [likedSpaces, setLikedSpaces] = useState<Record<string, boolean>>({});
   const [cardImageIndexById, setCardImageIndexById] = useState<Record<string, number>>({});
   const [corpListingTick, setCorpListingTick] = useState(0);
   const [corpPromoTick, setCorpPromoTick] = useState(0);
@@ -289,7 +353,9 @@ export default function SpaceXPage() {
     }, 5000);
   };
 
-  const staticSpaces: SpaceCard[] = [
+  // DEMO FALLBACK — shows when Supabase returns 0 rows
+  // Remove this fallback once real listings exist in Supabase
+  const DEMO_DATA_SPACES: SpaceCard[] = [
     // CONFERENCE SPACES (Formal)
     {
       id: "conf1",
@@ -674,9 +740,41 @@ export default function SpaceXPage() {
       });
   }, [corpListingTick]);
 
+  const [supabaseSpaces, setSupabaseSpaces] = useState<SpaceCard[]>([]);
+  const [spacesLoading, setSpacesLoading] = useState(true);
+  const [spacesError, setSpacesError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setSpacesLoading(true);
+      setSpacesError(null);
+      const [coworking, stay] = await Promise.all([
+        db.listings.listByModule("spacex_coworking", "active"),
+        db.listings.listByModule("spacex_stay", "active"),
+      ]);
+      if (cancelled) return;
+      const firstErr = coworking.error ?? stay.error;
+      if (firstErr) {
+        setSpacesError(firstErr.message);
+        setSupabaseSpaces([]);
+      } else {
+        const rows = [...(coworking.data ?? []), ...(stay.data ?? [])];
+        setSupabaseSpaces(rows.map(listingToSpaceCard));
+      }
+      setSpacesLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const spaces: SpaceCard[] = useMemo(
-    () => [...partnerSpaceCards, ...staticSpaces],
-    [partnerSpaceCards, staticSpaces]
+    () => [
+      ...partnerSpaceCards,
+      ...(supabaseSpaces.length > 0 ? supabaseSpaces : DEMO_DATA_SPACES),
+    ],
+    [partnerSpaceCards, supabaseSpaces]
   );
 
   const categories: SpaceXCategoryTab[] = [
@@ -1062,40 +1160,46 @@ export default function SpaceXPage() {
       if (!matchesRating) return false;
     }
 
-    // Amenities filter (check tags - category-specific matching)
+    // Amenities filter (restrictive AND-match: every selected amenity must match)
     const amenitiesActive = Object.values(amenities).some((v) => v);
     if (amenitiesActive) {
       const spaceTags = space.tags.map((t) => t.toLowerCase());
-      let hasMatchingAmenity = false;
+      const amenityTokenMap: Record<keyof typeof amenities, string[]> = isConferenceLikeCategory
+        ? {
+            wifi: ["wifi"],
+            printing: ["projector", "screen", "dual"],
+            meetingRooms: ["video", "conferencing"],
+            phoneBooths: ["whiteboard"],
+            lounge: ["catering"],
+            parking: ["recording"],
+          }
+        : selectedCategory === "casual"
+        ? {
+            wifi: ["wifi"],
+            printing: ["projector", "screen", "tv"],
+            meetingRooms: ["whiteboard"],
+            phoneBooths: ["video", "conferencing"],
+            lounge: ["refreshments", "coffee", "snacks"],
+            parking: ["comfortable", "seating"],
+          }
+        : {
+            wifi: ["wifi"],
+            printing: ["av", "stage", "led"],
+            meetingRooms: ["catering"],
+            phoneBooths: ["bar"],
+            lounge: ["valet", "parking"],
+            parking: ["green", "room"],
+          };
 
-      if (isConferenceLikeCategory) {
-        hasMatchingAmenity =
-          (amenities.wifi && spaceTags.some((t) => t.includes("wifi"))) ||
-          (amenities.printing && spaceTags.some((t) => t.includes("projector") || t.includes("screen") || t.includes("dual"))) ||
-          (amenities.meetingRooms && spaceTags.some((t) => t.includes("video") || t.includes("conferencing"))) ||
-          (amenities.phoneBooths && spaceTags.some((t) => t.includes("whiteboard"))) ||
-          (amenities.lounge && spaceTags.some((t) => t.includes("catering"))) ||
-          (amenities.parking && spaceTags.some((t) => t.includes("recording")));
-      } else if (selectedCategory === "casual") {
-        hasMatchingAmenity =
-          (amenities.wifi && spaceTags.some((t) => t.includes("wifi"))) ||
-          (amenities.printing && spaceTags.some((t) => t.includes("projector") || t.includes("screen") || t.includes("tv"))) ||
-          (amenities.meetingRooms && spaceTags.some((t) => t.includes("whiteboard"))) ||
-          (amenities.phoneBooths && spaceTags.some((t) => t.includes("video") || t.includes("conferencing"))) ||
-          (amenities.lounge && spaceTags.some((t) => t.includes("refreshments") || t.includes("coffee") || t.includes("snacks"))) ||
-          (amenities.parking && spaceTags.some((t) => t.includes("comfortable") || t.includes("seating")));
-      } else {
-        // corporate
-        hasMatchingAmenity =
-          (amenities.wifi && spaceTags.some((t) => t.includes("wifi"))) ||
-          (amenities.printing && spaceTags.some((t) => t.includes("av") || t.includes("stage") || t.includes("led"))) ||
-          (amenities.meetingRooms && spaceTags.some((t) => t.includes("catering"))) ||
-          (amenities.phoneBooths && spaceTags.some((t) => t.includes("bar"))) ||
-          (amenities.lounge && spaceTags.some((t) => t.includes("valet") || t.includes("parking"))) ||
-          (amenities.parking && spaceTags.some((t) => t.includes("green") || t.includes("room")));
-      }
-      
-      if (!hasMatchingAmenity) return false;
+      const matchesAllSelectedAmenities = (Object.keys(amenities) as (keyof typeof amenities)[]).every(
+        (key) => {
+          if (!amenities[key]) return true;
+          const tokens = amenityTokenMap[key] ?? [];
+          return tokens.some((tok) => spaceTags.some((t) => t.includes(tok)));
+        }
+      );
+
+      if (!matchesAllSelectedAmenities) return false;
     }
 
     // Quality/Room Type filter (filter by space type)
@@ -1247,7 +1351,7 @@ export default function SpaceXPage() {
         <MogzuCorporateScrollSurface>
           {/* Breadcrumb */}
           <div className="border-b border-slate-300/[0.1] bg-transparent">
-            <div className="max-w-7xl mx-auto px-6 py-2">
+            <div className="mx-auto w-full max-w-[1280px] px-5 md:px-6 py-2">
               <div className="inline-flex items-center gap-2 rounded-full border border-slate-400/10 bg-[#fffdf9]/[0.22] px-4 py-1 text-[14px] backdrop-blur-[2px]">
                 <button
                   onClick={() => navigate("/activitysuite")}
@@ -1263,7 +1367,7 @@ export default function SpaceXPage() {
 
           {/* D Space header with tabs */}
           <div className="border-b border-slate-300/[0.1] bg-transparent">
-            <div className="max-w-7xl mx-auto px-6 py-2">
+            <div className="mx-auto w-full max-w-[1280px] px-5 md:px-6 py-2">
               <div className="flex items-center gap-3">
               <h1 className="text-[22px] font-bold text-[#0e1e3f] leading-none">
                 D Space
@@ -1313,55 +1417,40 @@ export default function SpaceXPage() {
                   Meetings
                 </button>
                 <button
+                  type="button"
                   onClick={() => navigate("/activities")}
-                  className="h-9 flex items-center gap-2 px-4 rounded-full text-[14px] font-medium transition-all duration-200 border-[1.5px] border-slate-300/25 bg-white/[0.12] text-[#475569] backdrop-blur-sm hover:border-[#93c5fd] hover:-translate-y-0.5 active:scale-[0.98]"
+                  title="Go to Activities"
+                  className="h-9 flex items-center gap-1.5 px-3 text-[13px] font-medium text-[#475569] hover:text-[#2563EB] hover:underline underline-offset-4 transition-colors"
                 >
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 28 28"
-                    fill="none"
-                  >
-                    <path
-                      d={svgPaths.p9bd8700}
-                      fill="#FF5E00"
-                    />
+                  <svg width="16" height="16" viewBox="0 0 28 28" fill="none">
+                    <path d={svgPaths.p9bd8700} fill="#FF5E00" />
                   </svg>
                   Activities
+                  <ArrowUpRight className="h-3.5 w-3.5 opacity-70" />
                 </button>
                 <button
+                  type="button"
                   onClick={() => navigate("/stay")}
-                  className="h-9 flex items-center gap-2 px-4 rounded-full text-[14px] font-medium transition-all duration-200 border-[1.5px] border-slate-300/25 bg-white/[0.12] text-[#475569] backdrop-blur-sm hover:border-[#93c5fd] hover:-translate-y-0.5 active:scale-[0.98]"
+                  title="Go to Stay"
+                  className="h-9 flex items-center gap-1.5 px-3 text-[13px] font-medium text-[#475569] hover:text-[#2563EB] hover:underline underline-offset-4 transition-colors"
                 >
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 28 28"
-                    fill="none"
-                  >
-                    <path
-                      d={svgPaths.p30609c00}
-                      fill="#15D39D"
-                    />
+                  <svg width="16" height="16" viewBox="0 0 28 28" fill="none">
+                    <path d={svgPaths.p30609c00} fill="#15D39D" />
                   </svg>
                   Stay
+                  <ArrowUpRight className="h-3.5 w-3.5 opacity-70" />
                 </button>
                 <button
+                  type="button"
                   onClick={() => navigate("/promotions")}
-                  className="h-9 flex items-center gap-2 px-4 rounded-full text-[14px] font-medium transition-all duration-200 border-[1.5px] border-slate-300/25 bg-white/[0.12] text-[#475569] backdrop-blur-sm hover:border-[#93c5fd] hover:-translate-y-0.5 active:scale-[0.98]"
+                  title="Go to Promotions"
+                  className="h-9 flex items-center gap-1.5 px-3 text-[13px] font-medium text-[#475569] hover:text-[#2563EB] hover:underline underline-offset-4 transition-colors"
                 >
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 28 28"
-                    fill="none"
-                  >
-                    <path
-                      d={svgPaths.pd9fb4c0}
-                      fill="#9B51E0"
-                    />
+                  <svg width="16" height="16" viewBox="0 0 28 28" fill="none">
+                    <path d={svgPaths.pd9fb4c0} fill="#9B51E0" />
                   </svg>
                   Promotions
+                  <ArrowUpRight className="h-3.5 w-3.5 opacity-70" />
                 </button>
               </div>
             </div>
@@ -1369,7 +1458,7 @@ export default function SpaceXPage() {
           </div>
 
           {/* Banner Carousel */}
-          <div className="max-w-7xl mx-auto px-6 pt-6">
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-6 pt-6">
             <div className="group relative overflow-hidden rounded-3xl border border-white/60 h-[200px] mb-6 bg-white/45 backdrop-blur-xl shadow-[0_18px_40px_rgba(37,99,235,0.18)]">
               <div className="absolute inset-0 bg-[linear-gradient(120deg,#ebf1ff_0%,#f5f8ff_45%,#e9efff_100%)]" />
               <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(67,121,238,0.08)_0%,rgba(67,121,238,0)_65%)]" />
@@ -1479,7 +1568,7 @@ export default function SpaceXPage() {
           </div>
 
           {/* Category Tabs */}
-          <div className="max-w-7xl mx-auto px-6 py-1 mb-5">
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-6 py-1 mb-5">
             <div className="flex items-center gap-2 overflow-x-auto overflow-y-visible whitespace-nowrap py-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               {categories.map((category) => (
                 <button
@@ -1523,7 +1612,7 @@ export default function SpaceXPage() {
           </div>
 
           {/* Filters and Content */}
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-6 flex flex-col lg:flex-row gap-4">
+          <div className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 pb-6 flex flex-col lg:flex-row gap-4">
             {/* Left Sidebar - Filters */}
             <aside className="w-full lg:w-[240px] flex-shrink-0">
               <div className="bg-white/55 backdrop-blur-xl rounded-2xl p-5 border border-white/60 shadow-[0_16px_36px_rgba(37,99,235,0.16)]">
@@ -2182,7 +2271,16 @@ export default function SpaceXPage() {
 
               {/* Spaces Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 mb-6">
-                {isError ? (
+                {spacesLoading ? (
+                  <div className="col-span-full rounded-2xl border border-white/60 bg-white/65 py-16 text-center text-sm text-[#475569] backdrop-blur-md">
+                    Loading spaces…
+                  </div>
+                ) : spacesError ? (
+                  <div className="col-span-full rounded-2xl border border-rose-200 bg-rose-50 p-10 text-center">
+                    <p className="text-sm font-semibold text-rose-700">Couldn't load spaces</p>
+                    <p className="mt-1 text-xs text-rose-600">{spacesError}</p>
+                  </div>
+                ) : isError ? (
                   <div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
                     <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-4">
                       <AlertCircle className="w-10 h-10 text-destructive" />
@@ -2271,23 +2369,7 @@ export default function SpaceXPage() {
                       ) : null}
 
                       {/* Heart Button - Top Right */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setLikedSpaces((prev) => ({
-                            ...prev,
-                            [space.id]: !prev[space.id],
-                          }));
-                        }}
-                        className="absolute top-2 right-2 w-8 h-8 bg-white/90 backdrop-blur-sm flex items-center justify-center rounded-full hover:bg-white transition-all shadow-sm z-10"
-                      >
-                        <Heart
-                          className={`w-4 h-4 ${
-                            likedSpaces[space.id] ? 'text-[#ff6b35]' : 'text-[#878e9e]'
-                          }`}
-                        />
-                      </button>
+                      <WishlistHeart listingId={String(space.id)} />
 
                       {/* Compare Button - Top Left */}
                       <button

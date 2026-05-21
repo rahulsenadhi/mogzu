@@ -7,6 +7,8 @@ import { listPublicListings, PUBLIC_MODULES, type PublicListingCard } from '@/li
 import { storageService } from '@/lib/storage'
 import { t } from '@/lib/i18n'
 import type { ModuleId } from '@/lib/database.types'
+import { WishlistHeart } from './global/WishlistHeart'
+import { RatingBadge } from './global/RatingBadge'
 
 function imageUrl(path: string | null): string | undefined {
   if (!path) return undefined
@@ -16,7 +18,7 @@ function imageUrl(path: string | null): string | undefined {
 }
 
 function formatPrice(card: PublicListingCard): string {
-  if (card.pricing_mode === 'request_for_price') return t('catalogue.request_quote')
+  if (card.pricing_type === 'request_for_price') return t('catalogue.request_quote')
   if (card.base_price == null) return t('common.dash')
   return `₹${Number(card.base_price).toLocaleString('en-IN')}`
 }
@@ -132,7 +134,7 @@ export default function ExplorePage() {
             <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {rows.map((card) => (
                 <li key={card.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md">
-                  <div className="aspect-[4/3] bg-slate-100">
+                  <div className="relative aspect-[4/3] bg-slate-100">
                     {imageUrl(card.cover_image_path) ? (
                       <img
                         src={imageUrl(card.cover_image_path)}
@@ -144,6 +146,7 @@ export default function ExplorePage() {
                         {t('common.no_image')}
                       </div>
                     )}
+                    <WishlistHeart listingId={card.id} />
                   </div>
                   <div className="p-4">
                     <div className="flex items-start justify-between gap-2">
@@ -158,6 +161,7 @@ export default function ExplorePage() {
                       {card.vendor_name ?? t('common.dash')}
                       {card.category_name ? ` · ${card.category_name}` : ''}
                     </p>
+                    <RatingBadge listingId={card.id} className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-[#0e1e3f]" />
                     {card.description && (
                       <p className="mt-2 line-clamp-2 text-xs text-slate-600">{card.description}</p>
                     )}

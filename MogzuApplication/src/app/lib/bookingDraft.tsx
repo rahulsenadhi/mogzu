@@ -1,4 +1,4 @@
-import { createContext, createElement, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 
 export type BookingPricingType = 'transparent' | 'offer_price' | 'request_for_price'
 export type BookingStatus = 'draft' | 'submitted' | 'vendor_reviewing' | 'confirmed' | 'rejected' | 'completed'
@@ -140,18 +140,20 @@ export function BookingDraftProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const setDraftPartial = (patch: Partial<BookingDraft>) => {
+  // Stable refs — consumers list these in useEffect deps; without useCallback
+  // each render produces new refs and downstream effects loop.
+  const setDraftPartial = useCallback((patch: Partial<BookingDraft>) => {
     setBookingDraft((prev) => ({ ...prev, ...patch }))
-  }
+  }, [])
 
-  const setContactField = (key: keyof BookingDraft['contact'], value: string) => {
+  const setContactField = useCallback((key: keyof BookingDraft['contact'], value: string) => {
     setBookingDraft((prev) => ({ ...prev, contact: { ...prev.contact, [key]: value } }))
-  }
+  }, [])
 
-  const clearDraft = () => {
+  const clearDraft = useCallback(() => {
     setBookingDraft(defaultDraft())
     if (typeof window !== 'undefined') window.sessionStorage.removeItem(STORAGE_KEY)
-  }
+  }, [])
 
   const value = useMemo<Ctx>(
     () => ({ bookingDraft, setDraftPartial, clearDraft, setContactField }),
