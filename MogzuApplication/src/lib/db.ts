@@ -298,7 +298,7 @@ export const bookings = {
   getById: async (id: string) =>
     supabase
       .from('bookings')
-      .select('*, listings(*), vendors(*), booking_add_ons(*), user_profiles(*)')
+      .select('*, listings(*), vendors(*), booking_add_ons(*), user_profiles!user_id(*)')
       .eq('id', id)
       .single(),
 
@@ -319,14 +319,14 @@ export const bookings = {
   listByVendor: async (vendorId: string) =>
     supabase
       .from('bookings')
-      .select('*, listings(*), user_profiles(*), corporate_accounts(*)')
+      .select('*, listings(*), user_profiles!user_id(*), corporate_accounts(*)')
       .eq('vendor_id', vendorId)
       .order('created_at', { ascending: false }),
 
   listPendingApproval: async (corporateId: string) =>
     supabase
       .from('bookings')
-      .select('*, listings(*), user_profiles(*)')
+      .select('*, listings(*), user_profiles!user_id(*)')
       .eq('corporate_id', corporateId)
       .eq('status', 'pending_approval')
       .order('created_at'),
@@ -1521,6 +1521,13 @@ export const wishlists = {
       .delete()
       .eq('user_id', userId)
       .eq('listing_id', listingId),
+
+  isInWishlist: async (userId: string, listingId: string) =>
+    supabase
+      .from('wishlists')
+      .select('listing_id', { head: true, count: 'exact' })
+      .eq('user_id', userId)
+      .eq('listing_id', listingId),
 }
 
 // ─── Reviews (Stories 8.4, 8.5, 8.6) ──────────────────────────────────────────
@@ -1579,6 +1586,21 @@ export const reviews = {
         updated_at: new Date().toISOString(),
       })
       .eq('id', id),
+
+  // Aggregate (avg + count) for approved reviews on a listing.
+  // Client-side aggregation — fine for typical volumes; materialised view
+  // when scale demands it.
+  aggregate: async (listingId: string) => {
+    const { data, error } = await supabase
+      .from('reviews')
+      .select('rating')
+      .eq('listing_id', listingId)
+      .eq('status', 'approved')
+    if (error || !data) return { avg: null, count: 0, error }
+    if (data.length === 0) return { avg: null, count: 0, error: null }
+    const sum = data.reduce((acc: number, r: { rating: number }) => acc + (r.rating ?? 0), 0)
+    return { avg: sum / data.length, count: data.length, error: null }
+  },
 }
 
 export const reviewInvites = {

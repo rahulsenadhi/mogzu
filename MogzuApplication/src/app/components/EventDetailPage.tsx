@@ -11,6 +11,7 @@ import type { ListingBuyerDetailBlock } from '@/app/lib/mogzuDomain';
 import { formatBuyerPaymentSummary } from '@/app/lib/mogzuDomain';
 import { getWishlistIds, toggleWishlistId } from '@/app/lib/listingSessionState';
 import { useBookingDraft } from '@/app/lib/bookingDraft';
+import { ListingReviewsPanel } from './global/ListingReviewsPanel';
 
 interface ResponseStatusBannerProps {
   status: 'awaiting' | 'best_offer' | 'accepted' | 'declined';
@@ -87,8 +88,9 @@ function ResponseStatusBanner({ status, comment, eventId }: ResponseStatusBanner
           type="button"
           onClick={() => {
             if (status === 'best_offer') {
-              navigate('/booking-flow', {
-                state: { source: 'event-detail', eventId, acceptedOffer: true },
+              const targetId = eventId ?? 0;
+              navigate(`/book/event/${targetId}`, {
+                state: { acceptedOffer: true },
               });
               return;
             }
@@ -686,6 +688,10 @@ export default function EventDetailPage() {
                       </div>
                     )}
                   </div>
+                </div>
+
+                <div className="mt-6">
+                  <ListingReviewsPanel listingId={listingId} />
                 </div>
 
                 <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm mt-6">

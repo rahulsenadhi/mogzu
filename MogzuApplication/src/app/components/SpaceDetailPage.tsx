@@ -5,6 +5,8 @@ import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
 import { PricingBlock, PricingMode } from './ui/PricingBlock';
+import { useAuth } from '@/lib/auth';
+import { ListingReviewsPanel } from './global/ListingReviewsPanel';
 
 interface ResponseStatusBannerProps {
   status: 'awaiting' | 'best_offer' | 'accepted' | 'declined';
@@ -80,10 +82,10 @@ function ResponseStatusBanner({ status, comment, spaceCategory }: ResponseStatus
           type="button"
           onClick={() => {
             if (status === 'best_offer') {
-              navigate('/booking-flow', {
+              navigate('/request-to-book', {
                 state: {
-                  source: 'space-detail',
-                  category: spaceCategory,
+                  from: 'space-detail',
+                  category: spaceCategory ?? 'conference',
                   acceptedOffer: true,
                 },
               });
@@ -144,6 +146,8 @@ function inferSpaceCategoryFromRouteId(id: string | undefined): 'conference' | '
 export default function SpaceDetailPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { profile } = useAuth();
+  const isVendorOrAdmin = profile?.role === 'vendor' || profile?.role === 'mogzu_admin';
   const { id: routeSpaceId } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const navState = location.state as { category?: string; space?: SpaceListingNavSnapshot } | undefined;
@@ -164,7 +168,7 @@ export default function SpaceDetailPage() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [vendorPricingMode, setVendorPricingMode] = useState<PricingMode>('negotiable');
+  const [vendorPricingMode, setVendorPricingMode] = useState<PricingMode>('fixed');
   const [draftPricingMode, setDraftPricingMode] = useState<PricingMode>('negotiable');
   const [draftPaymentMode, setDraftPaymentMode] = useState<'wallet' | 'net_banking' | 'neft_rtgs' | 'gateway'>('gateway');
   const [draftPaymentTerm, setDraftPaymentTerm] = useState<'advance_100' | 'partial_50' | 'net_30'>('advance_100');
@@ -611,7 +615,7 @@ export default function SpaceDetailPage() {
         {/* Content Area */}
         <MogzuCorporateScrollSurface>
           {isLoading && (
-            <div className="max-w-[1400px] mx-auto px-8 py-6">
+            <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
               <div className="bg-white rounded-lg border border-[#e5e7eb] p-6">
                 <p className="text-sm text-[#878e9e]">Loading listing details...</p>
               </div>
@@ -619,7 +623,7 @@ export default function SpaceDetailPage() {
           )}
 
           {!isLoading && loadError && (
-            <div className="max-w-[1400px] mx-auto px-8 py-6">
+            <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
               <div className="bg-white rounded-lg border border-[#e5e7eb] p-6">
                 <p className="text-sm text-[#475569] mb-4">{loadError}</p>
                 <div className="flex items-center gap-3">
@@ -643,7 +647,7 @@ export default function SpaceDetailPage() {
           )}
 
           {!isLoading && !loadError && (
-          <div className="max-w-[1400px] mx-auto px-8 py-6">
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
             {/* Breadcrumb */}
             <div className="flex flex-wrap items-center gap-2 text-xs mb-4 min-w-0">
               <button
@@ -892,22 +896,11 @@ export default function SpaceDetailPage() {
                       </div>
                     )}
 
-                    {selectedTab === 'reviews' && (
-                      <div>
-                        <h2 className="text-lg font-semibold text-[#0e1e3f] mb-5">Reviews</h2>
-                        <div className="space-y-4">
-                          {content.reviewMetrics.map((metric) => (
-                            <div
-                              key={metric.label}
-                              className="flex items-center justify-between gap-4 border-b border-gray-200 pb-4 last:border-0 last:pb-0"
-                            >
-                              <span className="text-sm text-slate-600">{metric.label}</span>
-                              <span className="text-sm font-semibold text-slate-900 tabular-nums">{metric.rating}</span>
-                            </div>
-                          ))}
-                        </div>
-                        <p className="text-sm text-slate-500 mt-6">Based on 234 reviews</p>
-                      </div>
+                    {selectedTab === 'reviews' && routeSpaceId && (
+                      <ListingReviewsPanel
+                        listingId={routeSpaceId}
+                        className="bg-transparent border-0 shadow-none p-0"
+                      />
                     )}
 
                     {selectedTab === 'portfolio' && (
@@ -1086,6 +1079,8 @@ export default function SpaceDetailPage() {
               {/* Right Sidebar - Booking Card */}
               <div>
                 <div className="bg-white rounded-lg p-4 sticky top-6">
+                  {/* Vendor-only pricing controls — hidden for corporate employees */}
+                  {isVendorOrAdmin && (
                   <div className="mb-4 p-3 border border-slate-200 rounded-lg bg-slate-50">
                     <p className="text-[11px] font-semibold text-slate-700 mb-2">Vendor Pricing Publish Controls</p>
                     <div className="grid grid-cols-1 gap-2 mb-2">
@@ -1153,6 +1148,7 @@ export default function SpaceDetailPage() {
                     </button>
                     {publishFeedback && <p className="mt-2 text-[10px] text-slate-600">{publishFeedback}</p>}
                   </div>
+                  )}
 
                   {/* Variant B: On Request Pricing */}
                   {vendorPricingMode === 'on_request' && (
@@ -1470,12 +1466,14 @@ export default function SpaceDetailPage() {
                     </div>
                   )}
 
-                  {/* Shared Vendor Response Banner (Rendered below ALL variants) */}
-                  <ResponseStatusBanner
-                    status="best_offer"
-                    spaceCategory={category}
-                    comment="Thank you for your interest! We have evaluated your request and provided our best terms below. Let us know if you have any questions."
-                  />
+                  {/* Vendor response banner — only shown after user submits an offer */}
+                  {pricingSidebarNotice && vendorPricingMode === 'negotiable' && (
+                    <ResponseStatusBanner
+                      status="best_offer"
+                      spaceCategory={category}
+                      comment="Thank you for your interest! We have evaluated your request and provided our best terms."
+                    />
+                  )}
                 </div>
               </div>
             </div>
