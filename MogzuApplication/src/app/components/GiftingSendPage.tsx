@@ -263,6 +263,19 @@ export default function GiftingSendPage() {
       return
     }
 
+    if (status === 'pending_approval' && corporateId) {
+      const { data: managers } = await db.userProfiles.listByRole(corporateId, 'l2_manager')
+      ;(managers ?? []).forEach((m) => {
+        db.notifications.notify({
+          userId: m.id,
+          type: 'approval_required',
+          title: 'New gift awaiting your approval',
+          body: `${selectedProduct.title} — ₹${total.toLocaleString('en-IN')} for ${recipientLabel}.`,
+          linkUrl: `/corporate/approvals/${data.id}`,
+        })
+      })
+    }
+
     setConfirmedBookingId(data.id)
     setConfirmedStatus(status)
     setStep('done')
@@ -290,7 +303,7 @@ export default function GiftingSendPage() {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <SharedHeader onMobileMenuToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
         <MogzuCorporateScrollSurface>
-          <div className="mx-auto max-w-5xl px-8 py-6">
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
             <button
               type="button"
               onClick={() => navigate(-1)}

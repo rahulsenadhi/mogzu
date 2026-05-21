@@ -1,12 +1,26 @@
 import { useNavigate, useParams, useLocation, useSearchParams } from 'react-router';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
-import { ChevronLeft, MapPin, Users, Edit } from 'lucide-react';
+import { ChevronLeft, MapPin, Users, Edit, Flag, Loader2 } from 'lucide-react';
 import svgPaths from '@/imports/svg-camfkj9vq4';
 import imgImage25005 from 'figma:asset/f6108faddc403caf1eea34c754f31b43ab0fb55b.png';
 import { isInvoiceEligibleStatus } from '@/app/lib/bookingStatus';
+import { BookingMessagesPanel } from './global/BookingMessagesPanel';
+import { useAuth } from '@/lib/auth';
+import { db } from '@/lib/db';
+import type { Booking, Listing } from '@/lib/database.types';
+
+type RealBooking = Booking & { listings: Listing | null };
+
+const DISPUTE_CATEGORIES: Array<{ value: string; label: string }> = [
+  { value: 'service_quality', label: 'Service quality' },
+  { value: 'refund', label: 'Refund issue' },
+  { value: 'vendor_no_show', label: 'Vendor no-show' },
+  { value: 'payment', label: 'Payment issue' },
+  { value: 'other', label: 'Other' },
+];
 
 interface BookingDetail {
   id: string;
@@ -130,8 +144,65 @@ export default function BookingDetailPage() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { id } = useParams();
+  const { profile } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  
+
+  const [realBooking, setRealBooking] = useState<RealBooking | null>(null);
+  const [realLoading, setRealLoading] = useState(false);
+
+  const [raiseOpen, setRaiseOpen] = useState(false);
+  const [raiseCategory, setRaiseCategory] = useState<string>('service_quality');
+  const [raiseBody, setRaiseBody] = useState('');
+  const [raiseSubmitting, setRaiseSubmitting] = useState(false);
+  const [raiseError, setRaiseError] = useState('');
+  const [raiseSuccess, setRaiseSuccess] = useState(false);
+
+  const loadReal = useCallback(async () => {
+    if (!id) return;
+    setRealLoading(true);
+    const { data, error } = await db.bookings.getById(id);
+    if (!error && data) setRealBooking(data as RealBooking);
+    setRealLoading(false);
+  }, [id]);
+
+  useEffect(() => {
+    loadReal();
+  }, [loadReal]);
+
+  const handleRaiseDispute = async () => {
+    if (!realBooking || !profile) return;
+    const body = raiseBody.trim();
+    if (body.length < 20) {
+      setRaiseError('At least 20 characters of context.');
+      return;
+    }
+    setRaiseSubmitting(true);
+    setRaiseError('');
+    const { error } = await db.bookingDisputes.raise({
+      booking_id: realBooking.id,
+      raised_by: profile.id,
+      reason_category: raiseCategory,
+      reason_body: body,
+      status: 'open',
+      evidence_urls: [],
+      resolution: null,
+      resolution_note: null,
+      resolved_by: null,
+      resolved_at: null,
+    });
+    setRaiseSubmitting(false);
+    if (error) {
+      setRaiseError(error.message);
+      return;
+    }
+    setRaiseSuccess(true);
+    setRaiseBody('');
+    setTimeout(() => {
+      setRaiseOpen(false);
+      setRaiseSuccess(false);
+    }, 1500);
+  };
+
   const passedBooking = location.state?.booking;
 
   const booking = useMemo(() => {
@@ -261,19 +332,21 @@ export default function BookingDetailPage() {
   };
 
   const handleRespondWithQuote = () => {
-    navigate('/booking-review', { state: { category: 'conference', bookingId: booking.bookingId } });
+    const cat = (passedBooking?.category as string | undefined) ?? booking.venue.description.toLowerCase().includes('event') ? 'event' : 'conference';
+    navigate('/booking-review', { state: { category: cat, bookingId: booking.bookingId } });
   };
 
   const handleMarkUnavailable = () => {
-    navigate('/spacex', { state: { bookingId: booking.bookingId, reason: 'unavailable' } });
+    navigate('/bookings', { state: { bookingId: booking.bookingId, reason: 'unavailable' } });
   };
 
   const handleApproveRequest = () => {
-    navigate('/booking-payment', { state: { category: 'conference', bookingId: booking.bookingId } });
+    const cat = (passedBooking?.category as string | undefined) ?? 'conference';
+    navigate('/booking-payment', { state: { category: cat, bookingId: booking.bookingId } });
   };
 
   const handleDeclineRequest = () => {
-    navigate('/spacex', { state: { bookingId: booking.bookingId, reason: 'declined' } });
+    navigate('/bookings', { state: { bookingId: booking.bookingId, reason: 'declined' } });
   };
 
   const handleFollowUpWithVendor = () => {
@@ -360,6 +433,15 @@ export default function BookingDetailPage() {
                 >
                   {isInvoiceView ? 'Pay Invoice' : 'Contact Support'}
                 </button>
+                {realBooking && (
+                  <button
+                    onClick={() => setRaiseOpen(true)}
+                    className="px-4 py-2 bg-white border border-rose-300 text-rose-700 rounded-lg text-sm font-medium hover:bg-rose-50 transition-colors flex items-center gap-2 shadow-sm"
+                  >
+                    <Flag className="w-4 h-4" />
+                    Raise a dispute
+                  </button>
+                )}
               </div>
             </div>
 
@@ -415,7 +497,7 @@ export default function BookingDetailPage() {
                           This listing was withdrawn by the vendor after your enquiry.
                         </p>
                         <button
-                          onClick={() => navigate('/spacex')}
+                          onClick={handleMarkUnavailable}
                           className="px-4 py-2 bg-[#2563eb] text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
                         >
                           View alternatives
@@ -437,7 +519,7 @@ export default function BookingDetailPage() {
                           The vendor offer has expired. Request a refreshed quote to continue.
                         </p>
                         <button
-                          onClick={() => navigate('/spacex')}
+                          onClick={handleDeclineRequest}
                           className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors"
                         >
                           Request new offer
@@ -731,11 +813,93 @@ export default function BookingDetailPage() {
                 </div>
               </div>
             </div>
+
+            {realBooking && (
+              <div className="mt-6">
+                <BookingMessagesPanel
+                  bookingId={realBooking.id}
+                  vendorId={realBooking.vendor_id}
+                />
+              </div>
+            )}
           </div>
             );
           })()}
         </MogzuCorporateScrollSurface>
       </div>
+
+      {raiseOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <div className="mb-4 flex items-center gap-2">
+              <Flag className="size-5 text-rose-600" />
+              <h3 className="text-lg font-bold text-slate-900">Raise a dispute</h3>
+            </div>
+
+            {raiseSuccess ? (
+              <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                Dispute submitted. Support will reach out shortly.
+              </p>
+            ) : (
+              <>
+                <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Category
+                </label>
+                <select
+                  value={raiseCategory}
+                  onChange={(e) => setRaiseCategory(e.target.value)}
+                  className="mb-4 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+                >
+                  {DISPUTE_CATEGORIES.map((c) => (
+                    <option key={c.value} value={c.value}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+
+                <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                  What went wrong?
+                </label>
+                <textarea
+                  value={raiseBody}
+                  onChange={(e) => setRaiseBody(e.target.value)}
+                  rows={4}
+                  placeholder="Describe the issue in at least 20 characters."
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+                />
+
+                {raiseError && (
+                  <p className="mt-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                    {raiseError}
+                  </p>
+                )}
+
+                <div className="mt-4 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRaiseOpen(false);
+                      setRaiseError('');
+                    }}
+                    className="rounded-md border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRaiseDispute}
+                    disabled={raiseSubmitting}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-60"
+                  >
+                    {raiseSubmitting && <Loader2 className="size-4 animate-spin" />}
+                    Submit dispute
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

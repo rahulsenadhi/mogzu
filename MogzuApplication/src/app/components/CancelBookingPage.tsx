@@ -97,6 +97,18 @@ export default function CancelBookingPage() {
       setSubmitError(error.message)
       return
     }
+
+    const { data: vendor } = await db.vendors.getById(booking.vendor_id)
+    if (vendor?.user_id) {
+      db.notifications.notify({
+        userId: vendor.user_id,
+        type: 'booking_cancelled',
+        title: 'Booking cancelled by booker',
+        body: `${booking.listings?.title ?? 'Booking'} — ${text}`,
+        linkUrl: `/vendor/booking-requests/${booking.id}`,
+      })
+    }
+
     setCancelledRefundId(refundId)
   }
 

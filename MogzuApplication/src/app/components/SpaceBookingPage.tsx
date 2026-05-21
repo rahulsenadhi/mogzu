@@ -449,6 +449,19 @@ export default function SpaceBookingPage() {
       await db.bookings.addAddOns(addOnRows)
     }
 
+    if (status === 'pending_approval' && corporateId) {
+      const { data: managers } = await db.userProfiles.listByRole(corporateId, 'l2_manager')
+      ;(managers ?? []).forEach((m) => {
+        db.notifications.notify({
+          userId: m.id,
+          type: 'approval_required',
+          title: 'New space booking awaiting your approval',
+          body: `${listing.title} — ₹${totalAmount.toLocaleString('en-IN')} for ${profile.full_name ?? 'a teammate'}.`,
+          linkUrl: `/corporate/approvals/${data.id}`,
+        })
+      })
+    }
+
     setConfirmedBookingId(data.id)
     setConfirmedStatus(status)
     setStep('done')
