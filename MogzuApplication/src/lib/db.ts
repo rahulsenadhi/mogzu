@@ -307,7 +307,7 @@ export const bookings = {
   listByCorporate: async (corporateId: string) =>
     supabase
       .from('bookings')
-      .select('*, listings(*), vendors(*)')
+      .select('*, listings(*), vendors(*), user_profiles!user_id(*)')
       .eq('corporate_id', corporateId)
       .order('created_at', { ascending: false }),
 

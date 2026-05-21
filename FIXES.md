@@ -2,6 +2,20 @@
 
 > One line per file touched. Newest at top.
 
+## 2026-05-21 — Batch 4: Approvals queue requester name embed
+
+- `MogzuApplication/src/lib/db.ts` — `bookings.listByCorporate` select extended from `*, listings(*), vendors(*)` to `*, listings(*), vendors(*), user_profiles!user_id(*)`. Symmetry with `listPendingApproval` (line 328) which already embeds user_profiles.
+- `MogzuApplication/src/app/components/CorporateApprovalsPage.tsx` (no change) — already destructures `b.user_profiles?.full_name` + `b.user_profiles?.department`; was falling back to id-slice because the embed was missing. Now renders real requester name + department.
+
+Why: glitch #4 "Approvals queue partial wiring" — queue UI was wired but lookup query was missing the requester join. CorporateApprovalsPage row type already declared `user_profiles: UserProfile | null` on `BookingWithRefs`; only the query layer was short.
+
+Carry-over (separate batch — out of glitch #4 scope):
+- `ApprovalWorkflowPage` still 100% hardcoded local `rules` state; Save button writes nothing. Either repurpose `budget_rules` (no L1/L2/L3 levels) or add `approval_workflow_rules` migration. Per FRONTEND_COMPLETION_PLAN §4 row 30, P0 gap, M-sized.
+- `ApprovalRequestPage` employee-side fallback values + setTimeout fake submit; needs `db.bookings.update(id, { status: 'pending_approval', revision_comment })` on resubmit.
+- `db.bookings.cancel` on manager-reject does not credit wallet/budget back. Probably fine for demo (most flows are invoice-billed).
+
+Verified: `npm run build` exit 0, `built in 26.36s`.
+
 ## 2026-05-21 — Batch 3c: Image + vendor contact + add-ons overlay
 
 - `MogzuApplication/src/lib/db.ts` — `bookings.getById` select extended: `listings(*, listing_images(*)), vendors(*, user_profiles!user_id(full_name,phone)), booking_add_ons(*), user_profiles!user_id(*)`. One round-trip pulls everything the detail page renders.
