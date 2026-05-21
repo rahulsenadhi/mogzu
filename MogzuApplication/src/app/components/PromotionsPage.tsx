@@ -30,7 +30,8 @@ interface Promotion {
   image: string;
 }
 
-const promotions: Promotion[] = [
+// DEMO DATA — swap for Supabase query when real data exists
+const DEMO_DATA_PROMOTIONS: Promotion[] = [
   { id: 1, title: 'Phoenix mall advertising', description: 'Get eyeballs with distinctly noticeable flex and', location: 'Goregaon (Ravi) Mumbai', dimensions: '7 days x 4 hrs/day', footfall: '4000+', rating: 4.5, price: '₹7,000/hr', category: 'Mall', image: 'https://images.unsplash.com/photo-1519567241046-7f570eee3ce6?w=400&h=300&fit=crop&q=80' },
   { id: 2, title: 'Phoenix mall advertising', description: 'Get eyeballs with distinctly noticeable flex and', location: 'Goregaon (Ravi) Mumbai', dimensions: '7 days x 4 hrs/day', footfall: '4000+', rating: 4.7, price: '₹7,000/hr', category: 'Mall', image: 'https://images.unsplash.com/photo-1555636222-cae831e670b3?w=400&h=300&fit=crop&q=80' },
   { id: 3, title: 'Phoenix mall advertising', description: 'Get eyeballs with distinctly noticeable flex and', location: 'Goregaon (Ravi) Mumbai', dimensions: '7 days x 4 hrs/day', footfall: '4000+', rating: 4.6, price: '₹7,000/hr', category: 'Mall', image: 'https://images.unsplash.com/photo-1567958451986-2de427a4a0be?w=400&h=300&fit=crop&q=80' },
@@ -76,9 +77,9 @@ export default function PromotionsPage() {
     };
   }, []);
 
-  const filteredPromotions = selectedCategory === 'All' 
-    ? promotions 
-    : promotions.filter(p => p.category === selectedCategory);
+  const filteredPromotions = selectedCategory === 'All'
+    ? DEMO_DATA_PROMOTIONS
+    : DEMO_DATA_PROMOTIONS.filter(p => p.category === selectedCategory);
 
   const toggleAdType = (type: string) => {
     setSelectedAdTypes(prev =>
@@ -163,7 +164,7 @@ export default function PromotionsPage() {
         <MogzuCorporateScrollSurface>
           {adminPromos.length > 0 ? (
             <div className="border-b border-[#ececec] bg-gradient-to-r from-[#eef2ff] to-white">
-              <div className="max-w-7xl mx-auto px-6 py-4">
+              <div className="max-w-[1280px] mx-auto px-6 py-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-[#2563eb]">
                   Featured by Mogzu (admin)
                 </p>
@@ -196,7 +197,7 @@ export default function PromotionsPage() {
           ) : null}
           {/* Breadcrumb */}
           <div className="border-b border-slate-300/[0.1] bg-transparent">
-            <div className="max-w-7xl mx-auto px-6 py-3">
+            <div className="max-w-[1280px] mx-auto px-6 py-3">
               <div className="inline-flex items-center gap-2 rounded-full border border-slate-400/10 bg-[#fffdf9]/[0.22] px-4 py-1 text-[14px] backdrop-blur-[2px]">
                 <button
                   onClick={() => navigate("/activitysuite")}
@@ -214,7 +215,7 @@ export default function PromotionsPage() {
 
           {/* Page Title and Tabs */}
           <div className="border-b border-slate-300/[0.1] bg-transparent">
-            <div className="max-w-7xl mx-auto px-6 py-2">
+            <div className="max-w-[1280px] mx-auto px-6 py-2">
               <div className="flex items-center gap-4">
                 <h1 className="text-[22px] font-bold leading-none text-[#0e1e3f]">
                   D Space
@@ -307,7 +308,7 @@ export default function PromotionsPage() {
           </div>
 
           {/* Banner */}
-          <div className="max-w-7xl mx-auto px-6 pt-5">
+          <div className="max-w-[1280px] mx-auto px-6 pt-5">
             <div className="group relative mb-6 h-[200px] overflow-hidden rounded-3xl border border-white/60 bg-white/45 shadow-[0_18px_40px_rgba(37,99,235,0.18)] backdrop-blur-xl">
               <div
                 className="relative min-w-full h-[200px]"
@@ -377,7 +378,7 @@ export default function PromotionsPage() {
           </div>
 
           {/* Category Pills */}
-          <div className="max-w-7xl mx-auto mb-5 px-6 py-1">
+          <div className="max-w-[1280px] mx-auto mb-5 px-6 py-1">
             <div className="flex items-center gap-2 overflow-x-auto overflow-y-visible whitespace-nowrap py-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               {(['All', 'Mall', 'Theatres', 'Retail', 'Ads', 'Social Media', 'OTT', 'Gated Community'] as const).map((category) => (
                 <button
@@ -414,7 +415,7 @@ export default function PromotionsPage() {
           </div>
 
           {/* Main Content - Filters and Listings */}
-          <div className="max-w-7xl mx-auto flex flex-col gap-4 px-4 pb-6 sm:px-6 lg:flex-row">
+          <div className="max-w-[1280px] mx-auto flex flex-col gap-4 px-4 pb-6 sm:px-6 lg:flex-row">
             {/* Left Sidebar - Filters */}
             <aside className="w-full flex-shrink-0 lg:w-[240px] lg:sticky lg:top-4 lg:self-start">
               <div className="rounded-2xl border border-white/60 bg-white/55 p-5 shadow-[0_16px_36px_rgba(37,99,235,0.16)] backdrop-blur-xl">
@@ -699,6 +700,11 @@ export default function PromotionsPage() {
                 </p>
               </div>
 
+              {filteredPromotions.length === 0 && adminPromos.length === 0 && (
+                <p className="mb-4 rounded-xl border border-dashed border-[#ececec] bg-white p-10 text-center text-sm text-[#878e9e]">
+                  No promotion inventory available yet. Check back soon.
+                </p>
+              )}
               <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 xl:gap-5">
                 {filteredPromotions.map((promo) => {
                   const cardId = String(promo.id)

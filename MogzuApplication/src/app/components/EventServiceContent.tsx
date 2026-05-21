@@ -13,6 +13,69 @@ import { BudgetRangeSlider } from './ui/BudgetRangeSlider';
 import { ListingCardImageGallery } from './ui/ListingCardImageGallery';
 import { getListingSlideImagesFromRecord } from './dspaceCardUtils';
 import { useListingCardImageScroller } from '@/app/hooks/useListingCardImageScroller';
+import { db } from '@/lib/db';
+import { storageService } from '@/lib/storage';
+import type { Listing, ListingImage } from '@/lib/database.types';
+
+function listingToServiceListing(
+  l: Listing & { listing_images?: ListingImage[]; vendors?: { business_name: string } | null },
+): {
+  id: string;
+  title: string;
+  category: ServiceCategory;
+  city: string;
+  capacity: number;
+  vendorName: string;
+  vendorRating: number;
+  pricingType: PricingType;
+  priceType: 'per_person' | 'flat' | 'per_hour' | 'package';
+  basePrice?: number;
+  startingPrice?: number;
+  featured: boolean;
+  createdAt: string;
+  image: string;
+  images: string[];
+  insured: boolean;
+} {
+  const meta = (l.metadata ?? {}) as Record<string, unknown>;
+  const imgs = (l.listing_images ?? []).map((img) =>
+    storageService.listingImages.getUrl(img.storage_path),
+  );
+  const fallback = imgs[0] ?? QA_IMAGES.eventCard[0] ?? '';
+  const category = (typeof meta.category === 'string' ? meta.category : 'Catering') as ServiceCategory;
+  const pricingType: PricingType =
+    l.pricing_type === 'offer'
+      ? 'offer_price'
+      : l.pricing_type === 'request_for_price'
+        ? 'request_for_price'
+        : 'transparent';
+  const priceType: 'per_person' | 'flat' | 'per_hour' | 'package' =
+    l.price_unit === 'per_person'
+      ? 'per_person'
+      : l.price_unit === 'per_hour'
+        ? 'per_hour'
+        : l.price_unit === 'per_day'
+          ? 'package'
+          : 'flat';
+  return {
+    id: l.id,
+    title: l.title,
+    category,
+    city: l.location_city ?? '',
+    capacity: l.max_capacity ?? 0,
+    vendorName: l.vendors?.business_name ?? 'Vendor',
+    vendorRating: typeof meta.rating === 'number' ? meta.rating : 4.5,
+    pricingType,
+    priceType,
+    basePrice: pricingType === 'transparent' ? (l.base_price ?? undefined) : undefined,
+    startingPrice: pricingType === 'offer_price' ? (l.base_price ?? undefined) : undefined,
+    featured: meta.featured === true,
+    createdAt: l.created_at,
+    image: fallback,
+    images: imgs.length > 0 ? imgs : [fallback],
+    insured: meta.insured === true,
+  };
+}
 
 type PricingType = 'transparent' | 'offer_price' | 'request_for_price';
 type ServiceCategory =
@@ -102,7 +165,9 @@ const SERVICE_SUBCATEGORIES: Record<ServiceCategory, { id: string; name: string;
   ],
 };
 
-const SEEDED_SERVICES: ServiceListing[] = [
+// DEMO FALLBACK — shows when Supabase returns 0 rows
+// Remove this fallback once real listings exist in Supabase
+const DEMO_DATA_SERVICES: ServiceListing[] = [
   { id: 'svc-1', title: 'Executive Buffet Program', category: 'Catering', city: 'Mumbai', capacity: 220, vendorName: 'RoyalPlatter Caterers', vendorRating: 4.8, pricingType: 'transparent', priceType: 'per_person', basePrice: 950, featured: true, createdAt: '2026-03-01', image: CARD_IMAGES[0]!, images: buildSlideImages(0), insured: true },
   { id: 'svc-2', title: 'Townhall AV Production Kit', category: 'Audio Visuals', city: 'Bangalore', capacity: 500, vendorName: 'PrismWave Technologies', vendorRating: 4.6, pricingType: 'offer_price', priceType: 'flat', startingPrice: 138000, featured: true, createdAt: '2026-03-15', image: CARD_IMAGES[1]!, images: buildSlideImages(1), insured: true },
   { id: 'svc-3', title: 'Brand Experience Decor Build', category: 'Design & Decor', city: 'Delhi', capacity: 350, vendorName: 'AuraDecor Events', vendorRating: 4.5, pricingType: 'request_for_price', priceType: 'flat', featured: false, createdAt: '2026-02-25', image: CARD_IMAGES[2]!, images: buildSlideImages(2), insured: false },
@@ -119,7 +184,29 @@ const activePillStyle = {
 export default function EventServiceContent() {
   const navigate = useNavigate();
   const { activeRole } = useDemoRole();
-  const [services] = useState<ServiceListing[]>(SEEDED_SERVICES);
+  const [services, setServices] = useState<ServiceListing[]>([]);
+  const [servicesLoading, setServicesLoading] = useState(true);
+  const [servicesError, setServicesError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setServicesLoading(true);
+      setServicesError(null);
+      const { data, error } = await db.listings.listByModule('events', 'active');
+      if (cancelled) return;
+      if (error) {
+        setServicesError(error.message);
+        setServices([]);
+      } else {
+        setServices((data ?? []).map(listingToServiceListing));
+      }
+      setServicesLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [selectedCategory, setSelectedCategory] = useState<ServiceCategory | 'all'>('all');
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>('all');
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
@@ -172,7 +259,8 @@ export default function EventServiceContent() {
   };
 
   const filtered = useMemo(() => {
-    const base = services.filter((row) => {
+    const finalData = services.length > 0 ? services : DEMO_DATA_SERVICES;
+    const base = finalData.filter((row) => {
       if (selectedCategory !== 'all' && row.category !== selectedCategory) return false;
       if (selectedCities.length > 0 && !selectedCities.includes(row.city)) return false;
       if (insuredOnly && !row.insured) return false;
@@ -533,7 +621,16 @@ export default function EventServiceContent() {
           </p>
 
           {/* Cards grid */}
-          {filtered.length === 0 ? (
+          {servicesLoading ? (
+            <div className="rounded-2xl border border-white/50 bg-white/65 backdrop-blur-md p-12 text-center text-sm text-[#475569]">
+              Loading services…
+            </div>
+          ) : servicesError ? (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-10 text-center">
+              <p className="text-sm font-semibold text-rose-700">Couldn't load services</p>
+              <p className="mt-1 text-xs text-rose-600">{servicesError}</p>
+            </div>
+          ) : filtered.length === 0 ? (
             <div className="rounded-2xl border border-white/50 bg-white/65 backdrop-blur-md p-12 text-center">
               <Search className="mx-auto h-8 w-8 text-slate-300" />
               <h3 className="mt-2 text-base font-semibold text-slate-900">No listings match your filters</h3>

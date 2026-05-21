@@ -43,7 +43,8 @@ const navItems = [
   { id: 'settings', label: 'Settings', icon: 'pde1bb00', path: '/settings/workflow' },
 ];
 
-const initialThreads: Thread[] = [
+// DEMO DATA — swap for Supabase query when real data exists
+const DEMO_DATA_THREADS: Thread[] = [
   {
     id: 'a1',
     name: 'Abhishek Tripathi',
@@ -114,7 +115,8 @@ const initialThreads: Thread[] = [
   },
 ];
 
-const initialMessages: Record<string, Msg[]> = {
+// DEMO DATA — swap for Supabase query when real data exists
+const DEMO_DATA_MESSAGES: Record<string, Msg[]> = {
   a1: [
     { id: 'm1', sender: 'other', text: 'Hi looking for the T-Shirt for new year party for my team of 75.', time: '18:10' },
     { id: 'm2', sender: 'admin', text: 'Sure, sharing options and MOQ details now.', time: '18:12' },
@@ -146,9 +148,9 @@ export default function CommunicationPage() {
   const [filterTab, setFilterTab] = useState<FilterTab>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [headerSearch, setHeaderSearch] = useState('');
-  const [threads, setThreads] = useState<Thread[]>(initialThreads);
-  const [activeThreadId, setActiveThreadId] = useState(initialThreads[0].id);
-  const [messagesByThread, setMessagesByThread] = useState<Record<string, Msg[]>>(initialMessages);
+  const [threads, setThreads] = useState<Thread[]>(DEMO_DATA_THREADS);
+  const [activeThreadId, setActiveThreadId] = useState(DEMO_DATA_THREADS[0].id);
+  const [messagesByThread, setMessagesByThread] = useState<Record<string, Msg[]>>(DEMO_DATA_MESSAGES);
   const [composer, setComposer] = useState('');
   const [internalNotesByThread, setInternalNotesByThread] = useState<Record<string, string>>({});
   const [actionInfo, setActionInfo] = useState('');
@@ -344,6 +346,9 @@ export default function CommunicationPage() {
                   </div>
                 </div>
                 <div className="min-h-0 flex-1 overflow-y-auto">
+                  {filteredThreads.length === 0 && (
+                    <p className="p-8 text-center text-xs text-slate-500">No conversations yet.</p>
+                  )}
                   {filteredThreads.map((t) => (
                     <button key={t.id} type="button" onClick={() => selectThread(t.id)} className={`w-full border-b border-slate-100 px-4 py-3 text-left hover:bg-slate-50 ${activeThread?.id === t.id ? 'bg-blue-50/50' : ''}`}>
                       <div className="flex items-start gap-3">

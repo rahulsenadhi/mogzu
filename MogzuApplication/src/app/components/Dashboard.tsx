@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { CalendarDays, Gift, Package, RefreshCw, Truck, Building2 } from 'lucide-react';
 import { SharedHeader } from '@/app/components/layouts/SharedHeader';
@@ -14,6 +14,39 @@ import {
 } from '@/app/lib/platformMarketplaceSettings';
 import { usePlatformMarketplaceSettings } from '@/app/lib/usePlatformMarketplaceSettings';
 import { useCorporateDashboardPreferences } from '@/app/lib/useCorporateDashboardPreferences';
+import { useAuth } from '@/lib/auth';
+import { db } from '@/lib/db';
+import type { FulfilmentStage, ModuleId } from '@/lib/database.types';
+
+const MODULE_BADGE_LABEL: Record<ModuleId, string> = {
+  events: 'Event',
+  gifting: 'Gifting',
+  spacex_coworking: 'D Space',
+  spacex_stay: 'Stay',
+};
+
+const MODULE_BADGE_COLOR: Record<ModuleId, string> = {
+  events: '#fa8d40',
+  gifting: '#34c5dc',
+  spacex_coworking: '#ef4444',
+  spacex_stay: '#9b51e0',
+};
+
+const FULFILMENT_STAGE_LABEL: Record<FulfilmentStage, string> = {
+  ordered: 'Processing',
+  packed: 'Processing',
+  dispatched: 'In transit',
+  out_for_delivery: 'In transit',
+  delivered: 'Delivered',
+  returned: 'Returned',
+};
+
+const dateFmt = new Intl.DateTimeFormat('en-IN', {
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+});
+const shortDateFmt = new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short' });
 
 interface StatCard {
   id: string;
@@ -43,121 +76,287 @@ interface BookingItem {
   badgeColor: string;
 }
 
-const orderHubShipments = [
-  { id: 's1', name: 'Diwali kits — Engineering', status: 'In transit', eta: 'Apr 8', carrier: 'BlueDart' },
-  { id: 's2', name: 'Welcome boxes — Sales', status: 'Delivered', eta: 'Apr 2', carrier: 'Delhivery' },
-  { id: 's3', name: 'Wellness hamper — HR', status: 'Processing', eta: 'Apr 12', carrier: '—' },
-];
+interface ShipmentRow {
+  id: string;
+  name: string;
+  status: string;
+  eta: string;
+  carrier: string;
+}
 
 export default function Dashboard() {
   usePlatformMarketplaceSettings();
   const dashPrefs = useCorporateDashboardPreferences();
+  const { corporateId, profile, corporateAccount } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedNav, setSelectedNav] = useState('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const navigate = useNavigate();
 
-  // Retrieve selected plan from storage or default to 'free-trial'
-  const currentPlan = localStorage.getItem('selectedPlan') || 'free-trial';
+  const [statsData, setStatsData] = useState({
+    totalBookings: 0,
+    pendingRequests: 0,
+    totalEmployees: 0,
+    totalSpend: 0,
+  });
+  const [recentBookings, setRecentBookings] = useState<BookingItem[]>([]);
+  const [userRequests, setUserRequests] = useState<
+    Array<{ id: string; name: string; description: string }>
+  >([]);
+  const [upcomingEvents, setUpcomingEvents] = useState<
+    Array<{ id: string; date: string; title: string; leadBy: string }>
+  >([]);
+  const [orderHubShipments, setOrderHubShipments] = useState<ShipmentRow[]>([]);
+  const [shipmentCounts, setShipmentCounts] = useState({ delivered: 0, inTransit: 0, processing: 0 });
+  const [retryTick, setRetryTick] = useState(0);
+
+  useEffect(() => {
+    if (!corporateId) return;
+    let cancelled = false;
+    (async () => {
+      setIsBudgetLoading(true);
+      setBudgetLoadError('');
+      const [bookingsRes, pendingRes, employeesRes, profilesRes, budgetsRes] = await Promise.all([
+        db.bookings.listByCorporate(corporateId),
+        db.bookings.listPendingApproval(corporateId),
+        db.employees.listByCorporate(corporateId),
+        db.userProfiles.listByCorporate(corporateId),
+        db.budgets.listByCorporate(corporateId),
+      ]);
+      if (cancelled) return;
+
+      const firstErr =
+        bookingsRes.error ?? pendingRes.error ?? employeesRes.error ?? profilesRes.error ?? budgetsRes.error;
+      if (firstErr) {
+        setBudgetLoadError(firstErr.message);
+        setIsBudgetLoading(false);
+        return;
+      }
+
+      const allBookings = bookingsRes.data ?? [];
+      const pending = pendingRes.data ?? [];
+      const employees = employeesRes.data ?? [];
+      const profiles = profilesRes.data ?? [];
+      const budgetRules = budgetsRes.data ?? [];
+      const nameByUserId = new Map<string, string>(
+        profiles.map((p) => [p.id, p.full_name ?? '—']),
+      );
+      const deptByUserId = new Map<string, string | null>(
+        profiles.map((p) => [p.id, p.department]),
+      );
+
+      const billable = allBookings.filter(
+        (b) => b.status === 'confirmed' || b.status === 'completed',
+      );
+      const totalSpend = billable.reduce((sum, b) => sum + (b.total_amount ?? 0), 0);
+
+      setStatsData({
+        totalBookings: allBookings.length,
+        pendingRequests: pending.length,
+        totalEmployees: employees.length,
+        totalSpend,
+      });
+
+      setRecentBookings(
+        allBookings.slice(0, 5).map((b) => ({
+          id: b.id,
+          date: dateFmt.format(new Date(b.created_at)),
+          title: b.listings?.title ?? 'Booking',
+          description: b.purpose_note ?? '',
+          leadBy: nameByUserId.get(b.user_id) ?? '—',
+          badge: MODULE_BADGE_LABEL[b.module] ?? 'Booking',
+          badgeColor: MODULE_BADGE_COLOR[b.module] ?? '#4379ee',
+        })),
+      );
+
+      setUserRequests(
+        pending.slice(0, 5).map((b) => {
+          const name =
+            (b as { user_profiles?: { full_name?: string | null } | null }).user_profiles
+              ?.full_name ?? nameByUserId.get(b.user_id) ?? 'Pending user';
+          const amount =
+            typeof b.total_amount === 'number'
+              ? ` of ₹${b.total_amount.toLocaleString('en-IN')}`
+              : '';
+          return {
+            id: b.id,
+            name,
+            description: `Approval needed for ${b.listings?.title ?? 'booking'}${amount}`,
+          };
+        }),
+      );
+
+      const nowIso = new Date().toISOString();
+      setUpcomingEvents(
+        allBookings
+          .filter(
+            (b) =>
+              b.module === 'events' &&
+              b.start_time &&
+              b.start_time > nowIso &&
+              (b.status === 'confirmed' || b.status === 'pending_vendor'),
+          )
+          .sort((a, b) => (a.start_time ?? '').localeCompare(b.start_time ?? ''))
+          .slice(0, 5)
+          .map((b) => ({
+            id: b.id,
+            date: dateFmt.format(new Date(b.start_time!)),
+            title: b.listings?.title ?? 'Event',
+            leadBy: nameByUserId.get(b.user_id) ?? '—',
+          })),
+      );
+
+      const gifting = allBookings.filter((b) => b.module === 'gifting');
+      const delivered = gifting.filter((b) => b.fulfilment_stage === 'delivered').length;
+      const inTransit = gifting.filter(
+        (b) =>
+          b.fulfilment_stage === 'dispatched' || b.fulfilment_stage === 'out_for_delivery',
+      ).length;
+      const processing = gifting.filter(
+        (b) => b.fulfilment_stage === 'ordered' || b.fulfilment_stage === 'packed',
+      ).length;
+      setShipmentCounts({ delivered, inTransit, processing });
+
+      setOrderHubShipments(
+        gifting
+          .filter((b) => b.fulfilment_stage && b.fulfilment_stage !== 'delivered')
+          .slice(0, 5)
+          .map((b) => ({
+            id: b.id,
+            name: b.listings?.title ?? 'Order',
+            status: FULFILMENT_STAGE_LABEL[b.fulfilment_stage!] ?? 'Processing',
+            eta: b.start_time ? shortDateFmt.format(new Date(b.start_time)) : '—',
+            carrier: b.carrier ?? '—',
+          })),
+      );
+
+      const billableForBudget = billable;
+      const currentUserId = profile?.id ?? null;
+      const currentDept = profile?.department ?? null;
+
+      const personalRule = budgetRules.find(
+        (r) => r.scope === 'individual' && currentUserId !== null && r.scope_value === currentUserId,
+      );
+      const personalSpent = personalRule
+        ? billableForBudget
+            .filter((b) => b.user_id === currentUserId)
+            .reduce((sum, b) => sum + (b.total_amount ?? 0), 0)
+        : 0;
+      const personalAllocated = personalRule?.amount ?? 0;
+      setPersonalBudget({
+        allocated: personalAllocated,
+        spent: personalSpent,
+        remaining: Math.max(0, personalAllocated - personalSpent),
+      });
+
+      const departmentRule = budgetRules.find(
+        (r) => r.scope === 'department' && currentDept !== null && r.scope_value === currentDept,
+      );
+      const departmentSpent = departmentRule
+        ? billableForBudget
+            .filter((b) => deptByUserId.get(b.user_id) === currentDept)
+            .reduce((sum, b) => sum + (b.total_amount ?? 0), 0)
+        : 0;
+      const departmentAllocated = departmentRule?.amount ?? 0;
+      setDepartmentBudget({
+        allocated: departmentAllocated,
+        spent: departmentSpent,
+        remaining: Math.max(0, departmentAllocated - departmentSpent),
+      });
+
+      const moduleColorClass: Record<ModuleId, string> = {
+        events: 'bg-[#9B51E0]',
+        gifting: 'bg-[#15D39D]',
+        spacex_coworking: 'bg-[#4379ee]',
+        spacex_stay: 'bg-[#FA8D40]',
+      };
+      const moduleRules = budgetRules.filter((r) => r.module !== null);
+      const spendByModule = new Map<ModuleId, number>();
+      for (const b of billableForBudget) {
+        if (b.module) spendByModule.set(b.module, (spendByModule.get(b.module) ?? 0) + (b.total_amount ?? 0));
+      }
+      setCategoryBudgets(
+        moduleRules.slice(0, 4).map((r) => ({
+          name: MODULE_BADGE_LABEL[r.module as ModuleId] ?? 'Module',
+          allocated: r.amount,
+          spent: spendByModule.get(r.module as ModuleId) ?? 0,
+          colorClass: moduleColorClass[r.module as ModuleId] ?? 'bg-[#4379ee]',
+        })),
+      );
+
+      setHasBudgetSetup(budgetRules.length > 0);
+      setIsBudgetLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [corporateId, profile?.id, profile?.department, retryTick]);
+
+  const currentPlan = corporateAccount?.plan ?? 'starter';
 
   const [isBudgetLoading, setIsBudgetLoading] = useState(true);
   const [budgetLoadError, setBudgetLoadError] = useState('');
-  const [hasBudgetSetup, setHasBudgetSetup] = useState(true);
+  const [hasBudgetSetup, setHasBudgetSetup] = useState(false);
   const [personalBudget, setPersonalBudget] = useState({ allocated: 0, spent: 0, remaining: 0 });
   const [departmentBudget, setDepartmentBudget] = useState({ allocated: 0, spent: 0, remaining: 0 });
   const [categoryBudgets, setCategoryBudgets] = useState<
     Array<{ name: string; allocated: number; spent: number; colorClass: string }>
   >([]);
-  const budgetLoadTimerRef = useRef<number | null>(null);
 
-  const loadBudgetVisibility = () => {
-    setIsBudgetLoading(true);
-    setBudgetLoadError('');
-
-    const plan = localStorage.getItem('selectedPlan') || 'free-trial';
-
-    if (budgetLoadTimerRef.current) window.clearTimeout(budgetLoadTimerRef.current);
-    budgetLoadTimerRef.current = window.setTimeout(() => {
-      if (Math.random() < 0.12) {
-        setBudgetLoadError('Unable to load budget visibility right now. Please retry.');
-        setIsBudgetLoading(false);
-        return;
-      }
-
-      if (plan === 'free-trial') {
-        setHasBudgetSetup(false);
-        setPersonalBudget({ allocated: 0, spent: 0, remaining: 0 });
-        setDepartmentBudget({ allocated: 0, spent: 0, remaining: 0 });
-        setCategoryBudgets([]);
-        setIsBudgetLoading(false);
-        return;
-      }
-
-      setHasBudgetSetup(true);
-      setPersonalBudget({ allocated: 250000, spent: 60000, remaining: 190000 });
-      setDepartmentBudget({ allocated: 5000000, spent: 2500000, remaining: 2500000 });
-      setCategoryBudgets([
-        { name: 'Venues', allocated: 1500000, spent: 720000, colorClass: 'bg-[#4379ee]' },
-        { name: 'Gifting', allocated: 1200000, spent: 500000, colorClass: 'bg-[#15D39D]' },
-        { name: 'Events', allocated: 1800000, spent: 1100000, colorClass: 'bg-[#9B51E0]' },
-      ]);
-      setIsBudgetLoading(false);
-    }, 650);
-  };
-
-  useEffect(() => {
-    loadBudgetVisibility();
-    return () => {
-      if (budgetLoadTimerRef.current) window.clearTimeout(budgetLoadTimerRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPlan]);
-  
-  const getPlanBadge = () => {
-    switch(currentPlan) {
-      case 'enterprise': return { label: 'Enterprise', color: 'bg-[#F59E0B] text-white' };
-      case 'business-plus': return { label: 'Business+', color: 'bg-[#7C3AED] text-white' };
-      case 'professional': return { label: 'Professional', color: 'bg-[#2563EB] text-white' };
-      default: return { label: 'Starter Trial', color: 'bg-[#FA8D40] text-white' };
+  const planBadge = useMemo(() => {
+    switch (currentPlan) {
+      case 'enterprise':
+        return { label: 'Enterprise', color: 'bg-[#F59E0B] text-white' };
+      case 'growth':
+        return { label: 'Growth', color: 'bg-[#2563EB] text-white' };
+      default:
+        return { label: 'Starter', color: 'bg-[#FA8D40] text-white' };
     }
-  };
-  const planBadge = getPlanBadge();
+  }, [currentPlan]);
 
-  // Stats adjust based on selected plan
-  const stats: StatCard[] = [
-    {
-      id: 'booking',
-      title: 'Total bookings',
-      value: currentPlan === 'free-trial' ? '0' : '250',
-      change: currentPlan === 'free-trial' ? '0%' : '+11.01%',
-      color: '#4379ee',
-      bgColor: '#ebf1ff',
-    },
-    {
-      id: 'request',
-      title: 'Total requests',
-      value: currentPlan === 'free-trial' ? '0' : '20',
-      change: currentPlan === 'free-trial' ? '0%' : '+5.20%',
-      color: '#fa8d40',
-      bgColor: '#fff7ed',
-    },
-    {
-      id: 'employees',
-      title: currentPlan === 'free-trial' ? 'Seats Available' : 'Total employees',
-      value: currentPlan === 'free-trial' ? '1' : (currentPlan === 'business-plus' ? '20' : '120'),
-      change: currentPlan === 'free-trial' ? 'Upgrade to add more' : '+12.5%',
-      color: '#4bd17c',
-      bgColor: '#f0fdf4',
-    },
-    {
-      id: 'savings',
-      title: 'Total Savings',
-      value: currentPlan === 'free-trial' ? '₹0' : '₹7,50,011',
-      change: currentPlan === 'free-trial' ? 'Start booking to save' : '+22.4%',
-      color: '#34c5dc',
-      bgColor: '#ecfeff',
-    },
-  ];
+  const firstName = useMemo(() => {
+    const full = profile?.full_name?.trim();
+    if (!full) return null;
+    return full.split(/\s+/)[0];
+  }, [profile?.full_name]);
+
+  const stats: StatCard[] = useMemo(
+    () => [
+      {
+        id: 'booking',
+        title: 'Total bookings',
+        value: statsData.totalBookings.toLocaleString('en-IN'),
+        change: 'All-time',
+        color: '#4379ee',
+        bgColor: '#ebf1ff',
+      },
+      {
+        id: 'request',
+        title: 'Pending approvals',
+        value: statsData.pendingRequests.toLocaleString('en-IN'),
+        change: 'Awaiting manager',
+        color: '#fa8d40',
+        bgColor: '#fff7ed',
+      },
+      {
+        id: 'employees',
+        title: 'Total employees',
+        value: statsData.totalEmployees.toLocaleString('en-IN'),
+        change: 'Active in directory',
+        color: '#4bd17c',
+        bgColor: '#f0fdf4',
+      },
+      {
+        id: 'spend',
+        title: 'Total spend',
+        value: `₹${Math.round(statsData.totalSpend).toLocaleString('en-IN')}`,
+        change: 'Confirmed + completed',
+        color: '#34c5dc',
+        bgColor: '#ecfeff',
+      },
+    ],
+    [statsData],
+  );
 
   const activities: ActivityCard[] = [
     {
@@ -187,69 +386,6 @@ export default function Dashboard() {
       image: QA_IMAGES.activitySuite.heygenie,
       color: '#22c55e',
       bgColor: '#f0fdf4',
-    },
-  ];
-
-  const recentBookings: BookingItem[] = currentPlan === 'free-trial' ? [] : [
-    {
-      id: '1',
-      date: '11 Jul 2024',
-      title: 'Business Party',
-      description: 'Request for budget of 50k for their team event',
-      leadBy: 'Jaideep Ahlawat',
-      badge: 'Event',
-      badgeColor: '#fa8d40',
-    },
-    {
-      id: '2',
-      date: '11 Jul 2024',
-      title: 'Monthly Offsite',
-      description: 'D Space coworking booking for 20 members',
-      leadBy: 'Priya Sharma',
-      badge: 'D Space',
-      badgeColor: '#ef4444',
-    },
-    {
-      id: '3',
-      date: '10 Jul 2024',
-      title: 'Diwali Hampers',
-      description: 'Corporate gifting for engineering team',
-      leadBy: 'Rahul Verma',
-      badge: 'Gifting',
-      badgeColor: '#34c5dc',
-    },
-  ];
-
-  const userRequests = currentPlan === 'free-trial' ? [] : [
-    {
-      id: '1',
-      name: 'Rohit Gupta',
-      description: 'Request for budget of 50k',
-    },
-    {
-      id: '2',
-      name: 'Anjali Desai',
-      description: 'Approval needed for Hey Genie concierge',
-    },
-    {
-      id: '3',
-      name: 'Karan Singh',
-      description: 'Team dinner expense approval',
-    },
-  ];
-
-  const upcomingEvents = currentPlan === 'free-trial' ? [] : [
-    {
-      id: '1',
-      date: '15 Jul 2024',
-      title: 'Q3 Townhall',
-      leadBy: 'Jaideep Ahlawat',
-    },
-    {
-      id: '2',
-      date: '18 Jul 2024',
-      title: 'Design Sprint',
-      leadBy: 'Priya Sharma',
     },
   ];
 
@@ -290,10 +426,10 @@ export default function Dashboard() {
             <MogzuCorporateScrollSurface className="antialiased font-['Plus_Jakarta_Sans',ui-sans-serif,system-ui,sans-serif]">
           {/* Welcome Section with decorative background */}
           <div className="relative overflow-hidden border-b border-white/60 bg-white/60 backdrop-blur-xl shadow-[0_8px_24px_rgba(37,99,235,0.08)]">
-            <div className="mx-auto max-w-7xl px-6 py-8">
+            <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-8">
               <div className="mb-2 flex flex-wrap items-center gap-3">
                 <h1 className="text-3xl font-semibold tracking-tight text-[#0e1e3f] sm:text-4xl">
-                  Hi James, let&apos;s get started!
+                  {firstName ? `Hi ${firstName}, let’s get started!` : 'Welcome back!'}
                 </h1>
                 <span className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wider ${planBadge.color}`}>
                   {planBadge.label} Plan
@@ -311,15 +447,15 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="mx-auto max-w-7xl px-6 py-6">
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
             {/* Conditional Plan Banners */}
-            {dashPrefs.planBanners && currentPlan === 'free-trial' && (
+            {dashPrefs.planBanners && currentPlan === 'starter' && (
               <div className="mb-6 bg-gradient-to-r from-orange-50 to-orange-100 border border-orange-200 rounded-xl p-5 flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-bold text-orange-900 mb-1">Your Starter Trial is Active</h3>
-                  <p className="text-sm text-orange-800">You have 1 free booking available. Upgrade to unlock unlimited bookings and team features.</p>
+                  <h3 className="text-lg font-bold text-orange-900 mb-1">Your Starter plan is active</h3>
+                  <p className="text-sm text-orange-800">Upgrade to Growth or Enterprise to unlock budget rules, approvals, and HRMS sync.</p>
                 </div>
-                <button 
+                <button
                   onClick={() => navigate('/signup/corporate/access')}
                   className="px-5 py-2.5 bg-[#FA8D40] text-white text-sm font-semibold rounded-lg hover:bg-[#e67c2d] transition-colors whitespace-nowrap"
                 >
@@ -482,7 +618,7 @@ export default function Dashboard() {
                   <p className="text-sm text-red-700 mb-3">{budgetLoadError}</p>
                   <button
                     type="button"
-                    onClick={loadBudgetVisibility}
+                    onClick={() => setRetryTick((n) => n + 1)}
                     className="px-4 py-2 border border-red-200 rounded-md text-sm text-red-700 hover:bg-red-50"
                   >
                     Retry
@@ -628,9 +764,9 @@ export default function Dashboard() {
                 </div>
                 <div className="mb-5 grid grid-cols-3 gap-3 sm:gap-4">
                   {[
-                    { label: 'Delivered', value: '12', icon: Package, tone: 'text-emerald-700 bg-emerald-50' },
-                    { label: 'In transit', value: '3', icon: Truck, tone: 'text-[#4379ee] bg-[#ebf1ff]' },
-                    { label: 'Processing', value: '2', icon: RefreshCw, tone: 'text-amber-800 bg-amber-50' },
+                    { label: 'Delivered', value: shipmentCounts.delivered.toString(), icon: Package, tone: 'text-emerald-700 bg-emerald-50' },
+                    { label: 'In transit', value: shipmentCounts.inTransit.toString(), icon: Truck, tone: 'text-[#4379ee] bg-[#ebf1ff]' },
+                    { label: 'Processing', value: shipmentCounts.processing.toString(), icon: RefreshCw, tone: 'text-amber-800 bg-amber-50' },
                   ].map(({ label, value, icon: Icon, tone }) => (
                     <div
                       key={label}
@@ -644,24 +780,28 @@ export default function Dashboard() {
                 </div>
                 <div className="border-t border-slate-200/50 pt-4">
                   <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">Recent shipments</p>
-                  <ul className="space-y-3">
-                    {orderHubShipments.map((row) => (
-                      <li
-                        key={row.id}
-                        className="flex flex-col gap-1 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
-                      >
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-[#0e1e3f]">{row.name}</p>
-                          <p className="text-xs text-slate-500">
-                            {row.carrier} · ETA {row.eta}
-                          </p>
-                        </div>
-                        <span className="shrink-0 rounded-md bg-white px-2 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200/80">
-                          {row.status}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
+                  {orderHubShipments.length > 0 ? (
+                    <ul className="space-y-3">
+                      {orderHubShipments.map((row) => (
+                        <li
+                          key={row.id}
+                          className="flex flex-col gap-1 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-[#0e1e3f]">{row.name}</p>
+                            <p className="text-xs text-slate-500">
+                              {row.carrier} · ETA {row.eta}
+                            </p>
+                          </div>
+                          <span className="shrink-0 rounded-md bg-white px-2 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200/80">
+                            {row.status}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-slate-500">No active shipments.</p>
+                  )}
                 </div>
               </div>
             ) : null}

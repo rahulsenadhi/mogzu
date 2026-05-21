@@ -9,9 +9,55 @@ import {
   ListOrdered,
 } from 'lucide-react';
 import {
-  INITIAL_SENT_NOTIFICATIONS,
   type SentNotificationRow,
 } from '@/app/lib/adminNotificationsMock';
+
+// DEMO DATA — swap for Supabase query when real data exists
+const DEMO_DATA_NOTIFICATIONS: SentNotificationRow[] = [
+  {
+    id: 'demo-1',
+    title: 'Diwali gifting catalogue is live',
+    meta: 'Added by Marketing · All clients',
+    time: '14 May 2026 09:15',
+    initials: 'MK',
+  },
+  {
+    id: 'demo-2',
+    title: 'Vendor payout cycle 15 May processed',
+    meta: 'Added by Finance · All vendors',
+    time: '15 May 2026 17:30',
+    initials: 'FN',
+  },
+  {
+    id: 'demo-3',
+    title: 'New SpaceX listings awaiting approval',
+    meta: 'To Mogzu admin team',
+    time: '13 May 2026 11:08',
+    initials: 'AD',
+  },
+  {
+    id: 'demo-4',
+    title: 'Q2 wellness stipend reminder',
+    meta: 'To Acme Corp employees',
+    time: '12 May 2026 08:00',
+    initials: 'HR',
+  },
+  {
+    id: 'demo-5',
+    title: 'Maintenance window — 18 May 02:00 IST',
+    meta: 'Added by Ops · All clients + vendors',
+    time: '11 May 2026 16:45',
+    initials: 'OP',
+  },
+  {
+    id: 'demo-6',
+    title: 'Townhall AV vendors onboarded — 6 new partners',
+    meta: 'To Account Managers',
+    time: '10 May 2026 14:22',
+    initials: 'AM',
+  },
+];
+const INITIAL_SENT_NOTIFICATIONS = DEMO_DATA_NOTIFICATIONS;
 import { CORP } from '@/app/lib/adminTheme';
 
 function formatSentTime() {

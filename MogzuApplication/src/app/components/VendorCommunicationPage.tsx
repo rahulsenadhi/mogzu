@@ -73,7 +73,8 @@ type PickerProduct = {
   rating: string;
 };
 
-const initialThreads: ChatThread[] = [
+// DEMO DATA — swap for Supabase query when real data exists
+const DEMO_DATA_VENDOR_THREADS: ChatThread[] = [
   {
     id: 't1',
     scope: 'client',
@@ -155,7 +156,8 @@ const initialThreads: ChatThread[] = [
   },
 ];
 
-const initialMessages: Record<string, ChatMessage[]> = {
+// DEMO DATA — swap for Supabase query when real data exists
+const DEMO_DATA_VENDOR_MESSAGES: Record<string, ChatMessage[]> = {
   t1: [
     {
       id: 'm1',
@@ -329,10 +331,10 @@ export default function VendorCommunicationPage() {
   const [headerSearch, setHeaderSearch] = useState('');
   const [uiNotice, setUiNotice] = useState<string | null>(null);
   const [commScope, setCommScope] = useState<VendorCommScope>('client');
-  const [threads, setThreads] = useState<ChatThread[]>(initialThreads);
+  const [threads, setThreads] = useState<ChatThread[]>(DEMO_DATA_VENDOR_THREADS);
   const [listSearch, setListSearch] = useState('');
   const [activeThreadId, setActiveThreadId] = useState('t1');
-  const [messagesByThread, setMessagesByThread] = useState<Record<string, ChatMessage[]>>(initialMessages);
+  const [messagesByThread, setMessagesByThread] = useState<Record<string, ChatMessage[]>>(DEMO_DATA_VENDOR_MESSAGES);
   const [composer, setComposer] = useState('');
   const [productModalOpen, setProductModalOpen] = useState(false);
   const [pickerSearch, setPickerSearch] = useState('');
@@ -358,7 +360,7 @@ export default function VendorCommunicationPage() {
   useEffect(() => {
     const state = location.state as { channel?: string } | null;
     if (state?.channel !== 'notifications') return;
-    const notifThread = initialThreads.find((t) => t.scope === 'mogzu');
+    const notifThread = DEMO_DATA_VENDOR_THREADS.find((t) => t.scope === 'mogzu');
     setCommScope('mogzu');
     setListSearch('');
     if (notifThread) setActiveThreadId(notifThread.id);
@@ -627,6 +629,9 @@ export default function VendorCommunicationPage() {
               </div>
 
               <div className="min-h-0 flex-1 overflow-y-auto">
+                {filteredThreads.length === 0 && (
+                  <p className="p-8 text-center text-xs text-slate-500">No conversations yet.</p>
+                )}
                 {filteredThreads.map((t) => (
                   <button
                     key={t.id}

@@ -18,6 +18,7 @@ import {
   CorporateOnboardingStepper,
   CorporateOnboardingFooterLinks,
 } from '@/app/components/corporate/CorporateOnboardingChrome';
+import { saveCorporateOnboardingDraft } from '@/app/lib/corporateOnboarding';
 
 interface Interest {
   id: string;
@@ -80,15 +81,13 @@ export default function CorporateInterests() {
       setSelectionError('Select at least one interest or use "I\'ll add it later".');
       return;
     }
-    console.log('Selected interests:', selectedInterests);
-    // Navigate to next step (choose your access)
+    saveCorporateOnboardingDraft({ step: 'access', interests: selectedInterests });
     navigate('/signup/corporate/access');
   };
 
   const handleSkip = () => {
     setSelectionError('');
-    console.log('Skipped interests selection');
-    // Navigate to next step
+    saveCorporateOnboardingDraft({ step: 'access', interests: [] });
     navigate('/signup/corporate/access');
   };
 

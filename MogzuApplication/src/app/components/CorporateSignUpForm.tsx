@@ -7,6 +7,10 @@ import imgGoogleIcon from 'figma:asset/623e1bc74569caceb0c89f1e0be048c9a6e5221f.
 import { MogzuLogo } from '@/app/components/branding/MogzuLogo';
 import { authActions } from '@/lib/authActions';
 import { db } from '@/lib/db';
+import {
+  saveCorporateOnboardingDraft,
+  validateCorporateEmailDomain,
+} from '@/app/lib/corporateOnboarding';
 
 export default function CorporateSignUpForm() {
   const navigate = useNavigate();
@@ -87,6 +91,12 @@ export default function CorporateSignUpForm() {
       return;
     }
 
+    const domainCheck = await validateCorporateEmailDomain(formData.email.trim());
+    if (!domainCheck.ok) {
+      setError(domainCheck.message ?? 'This email domain is not registered.');
+      return;
+    }
+
     setIsSubmitting(true);
     const { error: signUpError, data } = await authActions.signUp(
       formData.email.trim(),
@@ -102,8 +112,16 @@ export default function CorporateSignUpForm() {
 
     // Email confirmations off — user is signed in immediately (no email sent).
     if (data?.session) {
+      saveCorporateOnboardingDraft({ step: 'company-details' });
+      if (data.user?.id && domainCheck.corporateId) {
+        await db.userProfiles.upsertPartial({
+          id: data.user.id,
+          corporate_id: domainCheck.corporateId,
+          full_name: formData.fullName.trim(),
+        });
+      }
       setIsSubmitting(false);
-      navigate('/dashboard', { replace: true });
+      navigate('/signup/corporate/company-details', { replace: true });
       return;
     }
 

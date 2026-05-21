@@ -82,8 +82,12 @@ function ResponseStatusBanner({ status, comment, activityId }: ResponseStatusBan
           type="button"
           onClick={() => {
             if (status === 'best_offer') {
-              navigate('/booking-flow', {
-                state: { source: 'activity-detail', activityId, acceptedOffer: true },
+              navigate('/request-to-book', {
+                state: {
+                  from: 'activity-detail',
+                  category: 'activity',
+                  acceptedOffer: true,
+                },
               });
               return;
             }

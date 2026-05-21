@@ -1,13 +1,23 @@
 import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useNavigate, useSearchParams, useLocation } from 'react-router';
 import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
 import { AlertTriangle, CheckCircle2, Clock, Send } from 'lucide-react';
 
+interface ApprovalPageState {
+  category?: string
+  venueName?: string
+  venueLocation?: string
+  bookingDate?: string
+  totalAmount?: number
+}
+
 export default function ApprovalRequestPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const bookingState = location.state as ApprovalPageState | undefined;
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [revisionComment, setRevisionComment] = useState('');
   const [error, setError] = useState('');
@@ -18,6 +28,21 @@ export default function ApprovalRequestPage() {
   const reasonParam = searchParams.get('reason') || '';
   const rejectionReason =
     reasonParam || 'Budget threshold exceeded for current approval policy.';
+
+  const categoryMap: Record<string, string> = {
+    conference: 'D Space',
+    coworking: 'D Space',
+    event: 'Events',
+    activity: 'Activities',
+    meeting: 'D Space',
+    default: 'D Space',
+  }
+  const moduleLabel = categoryMap[bookingState?.category ?? 'default'] ?? 'D Space'
+  const displayVenueName = bookingState?.venueName ?? 'Grand Event Venue BKC'
+  const displayDate = bookingState?.bookingDate ?? 'Oct 20, 2024 • 10:00 am'
+  const displayAmount = bookingState?.totalAmount
+    ? `₹${bookingState.totalAmount.toLocaleString('en-IN')}`
+    : '₹1,20,000'
 
   const handleWithdraw = () => {
     navigate('/bookings');
@@ -77,13 +102,13 @@ export default function ApprovalRequestPage() {
               <div className="bg-gray-50 border border-gray-100 rounded-xl p-5 mb-8 text-left">
                 <div className="flex justify-between items-start mb-4 pb-4 border-b border-gray-200">
                   <div>
-                    <span className="text-[10px] font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded uppercase tracking-wider mb-2 inline-block">D Space</span>
-                    <h3 className="font-bold text-gray-900">Grand Event Venue BKC</h3>
-                    <p className="text-sm text-gray-500">Oct 20, 2024 • 10:00 am</p>
+                    <span className="text-[10px] font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded uppercase tracking-wider mb-2 inline-block">{moduleLabel}</span>
+                    <h3 className="font-bold text-gray-900">{displayVenueName}</h3>
+                    <p className="text-sm text-gray-500">{displayDate}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-xs text-gray-500 mb-1">Total Amount</p>
-                    <p className="text-xl font-bold text-gray-900">₹1,20,000</p>
+                    <p className="text-xl font-bold text-gray-900">{displayAmount}</p>
                   </div>
                 </div>
 

@@ -22,6 +22,8 @@ import {
   CORPORATE_ADMIN_PROMOTIONS_UPDATED_EVENT,
   loadActiveCorporatePromotionsForSector,
 } from '@/app/lib/corporateAdminPromotionsStorage';
+import { db } from '@/lib/db';
+import type { Listing, ListingImage } from '@/lib/database.types';
 
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: 'p1d971400', path: '/dashboard' },
@@ -49,7 +51,45 @@ interface Activity {
   price: string;
 }
 
-const seedActivities: Activity[] = [
+function uuidToNumber(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = ((h << 5) - h + id.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+function listingToActivity(l: Listing & { listing_images?: ListingImage[] }): Activity {
+  const meta = (l.metadata ?? {}) as Record<string, unknown>;
+  const rawTags = meta.tags;
+  const tags = Array.isArray(rawTags) ? rawTags.filter((t): t is string => typeof t === 'string') : [];
+  const category = typeof meta.category === 'string' ? meta.category : 'Activity';
+  const teamSize =
+    l.min_capacity != null && l.max_capacity != null
+      ? `${l.min_capacity}-${l.max_capacity} people`
+      : l.max_capacity != null
+        ? `Up to ${l.max_capacity} people`
+        : 'Any team size';
+  const rating = typeof meta.rating === 'number' ? meta.rating : 4.5;
+  const priceLabel =
+    l.base_price != null
+      ? `₹${l.base_price.toLocaleString('en-IN')}${l.price_unit ? `/${l.price_unit.replace('_', ' ')}` : ''}`
+      : 'On request';
+  return {
+    id: uuidToNumber(l.id),
+    category,
+    subcategory: l.title,
+    description: l.description ?? '',
+    tags,
+    teamSize,
+    location: l.location_city ?? l.location_address ?? '',
+    rating,
+    price: priceLabel,
+    image: l.title.toLowerCase(),
+  };
+}
+
+// DEMO FALLBACK — shows when Supabase returns 0 rows
+// Remove this fallback once real listings exist in Supabase
+const DEMO_DATA_ACTIVITIES: Activity[] = [
   // Indoor Fun
   { id: 1, category: 'Indoor Fun', subcategory: 'Bowling Alley', description: 'Corporate-friendly bowling lanes for fun team competitions', tags: ['bowling', 'indoor', 'games'], teamSize: '2-50 people', location: 'Andheri West, Mumbai', rating: 4.7, price: '₹2,500/hr', image: 'bowling alley indoor corporate' },
   { id: 2, category: 'Indoor Fun', subcategory: 'Trampoline Park', description: 'High-energy trampoline activities for team bonding', tags: ['trampoline', 'fitness', 'fun'], teamSize: '5-80 people', location: 'Bandra, Mumbai', rating: 4.6, price: '₹3,000/hr', image: 'trampoline park indoor' },
@@ -156,6 +196,30 @@ export default function ActivitiesPage() {
     };
   }, []);
 
+  const [supabaseActivities, setSupabaseActivities] = useState<Activity[]>([]);
+  const [activitiesLoading, setActivitiesLoading] = useState(true);
+  const [activitiesError, setActivitiesError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setActivitiesLoading(true);
+      setActivitiesError(null);
+      const { data, error } = await db.listings.listByModule('events', 'active');
+      if (cancelled) return;
+      if (error) {
+        setActivitiesError(error.message);
+        setSupabaseActivities([]);
+      } else {
+        setSupabaseActivities((data ?? []).map(listingToActivity));
+      }
+      setActivitiesLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const activities = useMemo((): Activity[] => {
     const partner = loadCorporateApprovedListings()
       .filter(
@@ -164,8 +228,9 @@ export default function ActivitiesPage() {
           listingProfileIncludes(l.listingProfileIds, 'event')
       )
       .map(approvedActivityListingToActivityRow);
-    return [...partner, ...seedActivities];
-  }, [listingCatalogTick]);
+    const finalData = supabaseActivities.length > 0 ? supabaseActivities : DEMO_DATA_ACTIVITIES;
+    return [...partner, ...finalData];
+  }, [listingCatalogTick, supabaseActivities]);
 
   const eventsPromos = useMemo(
     () => loadActiveCorporatePromotionsForSector('Events'),
@@ -243,15 +308,54 @@ export default function ActivitiesPage() {
     }, 5000);
   };
 
+  const parsePrice = (price: string): number => {
+    const match = price.replace(/,/g, '').match(/(\d+)/);
+    return match ? parseInt(match[1], 10) : 0;
+  };
+
+  const parseTeamSize = (teamSize: string): { min: number; max: number } => {
+    const match = teamSize.match(/(\d+)\s*-\s*(\d+)/);
+    if (match) return { min: parseInt(match[1], 10), max: parseInt(match[2], 10) };
+    const single = teamSize.match(/(\d+)/);
+    const n = single ? parseInt(single[1], 10) : 0;
+    return { min: n, max: n };
+  };
+
   const filteredActivities = activities.filter(activity => {
     const matchesCategory = selectedCategory === 'All' || activity.category === selectedCategory;
-    const matchesSearch = 
+    const matchesSearch =
+      !searchQuery ||
       activity.subcategory.toLowerCase().includes(searchQuery.toLowerCase()) ||
       activity.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
       activity.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesLocation = !searchLocation || activity.location.toLowerCase().includes(searchLocation.toLowerCase());
-    
-    return matchesCategory && matchesSearch && matchesLocation;
+
+    const attendees = searchAttendees ? parseInt(searchAttendees, 10) : NaN;
+    const ts = parseTeamSize(activity.teamSize);
+    const matchesAttendees = !Number.isFinite(attendees) || (attendees >= ts.min && attendees <= ts.max);
+
+    const priceNum = parsePrice(activity.price);
+    const minP = priceRange.min ? parseInt(priceRange.min, 10) : NaN;
+    const maxP = priceRange.max ? parseInt(priceRange.max, 10) : NaN;
+    const matchesMin = !Number.isFinite(minP) || priceNum >= minP;
+    const matchesMax = !Number.isFinite(maxP) || priceNum <= maxP;
+
+    const matchesRating = selectedRating == null || activity.rating >= selectedRating;
+
+    const haystack = `${activity.category} ${activity.subcategory} ${activity.tags.join(' ')}`.toLowerCase();
+    const matchesFeatures =
+      selectedFeatures.length === 0 || selectedFeatures.every(f => haystack.includes(f));
+
+    return (
+      matchesCategory &&
+      matchesSearch &&
+      matchesLocation &&
+      matchesAttendees &&
+      matchesMin &&
+      matchesMax &&
+      matchesRating &&
+      matchesFeatures
+    );
   });
 
   const totalPages = Math.ceil(filteredActivities.length / itemsPerPage);
@@ -417,7 +521,7 @@ export default function ActivitiesPage() {
         <MogzuCorporateScrollSurface>
           {/* Breadcrumb */}
           <div className="border-b border-slate-300/[0.1] bg-transparent">
-            <div className="max-w-7xl mx-auto px-6 py-3">
+            <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-3">
               <div className="inline-flex items-center gap-2 rounded-full border border-slate-400/10 bg-[#fffdf9]/[0.22] px-4 py-1 text-[14px] backdrop-blur-[2px]">
                 <button
                   onClick={() => navigate("/dashboard")}
@@ -433,7 +537,7 @@ export default function ActivitiesPage() {
 
           {eventsPromos.length > 0 ? (
             <div className="border-b border-violet-100 bg-violet-50/80">
-              <div className="max-w-7xl mx-auto px-6 py-3">
+              <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-3">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-violet-800 mb-2">
                   Featured — from Mogzu admin
                 </p>
@@ -460,7 +564,7 @@ export default function ActivitiesPage() {
 
           {/* Page Title */}
           <div className="border-b border-slate-300/[0.1] bg-transparent">
-            <div className="max-w-7xl mx-auto px-6 py-2">
+            <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-2">
               <div className="flex items-center gap-4">
                 <h1 className="text-[22px] font-bold leading-none text-[#0e1e3f]">
                   D Space
@@ -553,7 +657,7 @@ export default function ActivitiesPage() {
           </div>
 
           {/* Banner Carousel */}
-          <div className="max-w-7xl mx-auto px-6 pt-5">
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 pt-5">
             <div className="group relative mb-6 h-[200px] overflow-hidden rounded-3xl border border-white/60 bg-white/45 shadow-[0_18px_40px_rgba(37,99,235,0.18)] backdrop-blur-xl">
               <div
                 className="flex transition-transform duration-500 ease-in-out"
@@ -667,7 +771,7 @@ export default function ActivitiesPage() {
           </div>
 
           {/* Category Tabs */}
-          <div className="max-w-7xl mx-auto mb-5 px-6 py-1">
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 mb-5 py-1">
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -728,7 +832,7 @@ export default function ActivitiesPage() {
           </div>
 
           {/* Filters and Content */}
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-6 flex flex-col gap-4 lg:flex-row">
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 pb-6 flex flex-col gap-4 lg:flex-row">
             {/* Left Sidebar - Filters */}
             <aside className="w-full flex-shrink-0 lg:w-[240px] lg:sticky lg:top-4 lg:self-start">
               <div className="rounded-2xl border border-white/60 bg-white/55 p-5 shadow-[0_16px_36px_rgba(37,99,235,0.16)] backdrop-blur-xl">
@@ -989,7 +1093,16 @@ export default function ActivitiesPage() {
 
               {/* Activities Grid */}
               <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 xl:gap-5">
-                {isError ? (
+                {activitiesLoading ? (
+                  <div className="col-span-full rounded-2xl border border-white/60 bg-white/65 py-16 text-center text-sm text-[#475569] backdrop-blur-md">
+                    Loading activities…
+                  </div>
+                ) : activitiesError ? (
+                  <div className="col-span-full flex flex-col items-center justify-center rounded-2xl border border-rose-100 bg-rose-50 py-12 text-center">
+                    <p className="text-sm font-medium text-rose-700">Couldn't load activities</p>
+                    <p className="mt-1 text-xs text-rose-600">{activitiesError}</p>
+                  </div>
+                ) : isError ? (
                   <div className="col-span-full flex flex-col items-center justify-center rounded-2xl border border-white/60 bg-white/65 py-16 text-center backdrop-blur-md">
                     <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-4">
                       <AlertCircle className="w-10 h-10 text-destructive" />

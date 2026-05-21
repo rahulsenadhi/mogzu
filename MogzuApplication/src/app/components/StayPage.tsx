@@ -118,7 +118,7 @@ export default function StayPage() {
         <MogzuCorporateScrollSurface>
           {/* Breadcrumb */}
           <div className="border-b border-slate-300/[0.1] bg-transparent">
-            <div className="max-w-7xl mx-auto px-6 py-3">
+            <div className="max-w-[1280px] mx-auto px-6 py-3">
               <div className="inline-flex items-center gap-2 rounded-full border border-slate-400/10 bg-[#fffdf9]/[0.22] px-4 py-1 text-[14px] backdrop-blur-[2px]">
                 <button
                   onClick={() => navigate("/activitysuite")}
@@ -136,7 +136,7 @@ export default function StayPage() {
 
           {/* Page Title and Tabs */}
           <div className="border-b border-slate-300/[0.1] bg-transparent">
-            <div className="max-w-7xl mx-auto px-6 py-2">
+            <div className="max-w-[1280px] mx-auto px-6 py-2">
               <div className="flex items-center gap-4">
                 <h1 className="text-[22px] font-bold leading-none text-[#0e1e3f]">
                 D Space
@@ -229,7 +229,7 @@ export default function StayPage() {
           </div>
 
           {/* Banner */}
-          <div className="max-w-7xl mx-auto px-6 pt-5">
+          <div className="max-w-[1280px] mx-auto px-6 pt-5">
             <div className="group relative mb-6 h-[200px] overflow-hidden rounded-3xl border border-white/60 bg-white/45 shadow-[0_18px_40px_rgba(37,99,235,0.18)] backdrop-blur-xl">
               <div
                 className="relative min-w-full h-[200px]"
@@ -305,7 +305,7 @@ export default function StayPage() {
           </div>
 
           {/* Category Pills */}
-          <div className="max-w-7xl mx-auto mb-5 px-6 py-1">
+          <div className="max-w-[1280px] mx-auto mb-5 px-6 py-1">
             <div className="flex items-center gap-2 overflow-x-auto overflow-y-visible whitespace-nowrap py-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               <button
                 onClick={() => setSelectedCategory('Bedrooms')}
@@ -387,7 +387,7 @@ export default function StayPage() {
           </div>
 
           {/* Main Content - Filters and Listings */}
-          <div className="max-w-7xl mx-auto flex flex-col gap-4 px-4 pb-6 sm:px-6 lg:flex-row">
+          <div className="max-w-[1280px] mx-auto flex flex-col gap-4 px-4 pb-6 sm:px-6 lg:flex-row">
             {/* Left Sidebar - Filters */}
             <aside className="w-full flex-shrink-0 lg:w-[240px] lg:sticky lg:top-4 lg:self-start">
               <div className="rounded-2xl border border-white/60 bg-white/55 p-5 shadow-[0_16px_36px_rgba(37,99,235,0.16)] backdrop-blur-xl">

@@ -240,7 +240,7 @@ export default function EventsHomePage() {
         <SharedHeader variant="blended" onMobileMenuToggle={() => setSidebarCollapsed(!sidebarCollapsed)} searchPlaceholder="Search Events" />
         <MogzuCorporateScrollSurface>
           <div className="border-b border-slate-300/[0.1] bg-transparent">
-            <div className="mx-auto max-w-7xl space-y-2 px-6 py-2">
+            <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-2 space-y-2">
               <div className="inline-flex items-center gap-2 rounded-full border border-slate-400/10 bg-[#fffdf9]/[0.22] px-4 py-1 text-[14px] backdrop-blur-[2px]">
                 <button onClick={() => navigate('/dashboard')} className="font-medium text-[#7b879a] transition-colors hover:text-[#2563eb]">Dashboard</button>
                 <ChevronDown className="h-4 w-4 rotate-[-90deg] text-[#a0aec0]" />
@@ -268,7 +268,7 @@ export default function EventsHomePage() {
             </div>
           </div>
 
-          <div className="mx-auto max-w-7xl space-y-7 px-6 py-6">
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6 space-y-7">
             <div className="group relative min-h-[200px] overflow-hidden rounded-3xl border border-white/60 bg-white/45 shadow-[0_18px_40px_rgba(37,99,235,0.18)] backdrop-blur-xl" onMouseEnter={() => setIsHeroHovered(true)} onMouseLeave={() => setIsHeroHovered(false)}>
               {heroSlides.map((b, idx) => (
                 <div key={b.title} className={`absolute inset-0 transition-opacity duration-400 ${slide === idx ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>

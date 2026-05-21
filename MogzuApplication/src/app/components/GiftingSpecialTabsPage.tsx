@@ -521,7 +521,7 @@ export default function GiftingSpecialTabsPage() {
         <SharedHeader variant="blended" onMobileMenuToggle={() => setSidebarCollapsed(!sidebarCollapsed)} searchPlaceholder="Search gifting" />
         <MogzuCorporateScrollSurface>
           <div className="border-b border-slate-300/[0.1] bg-transparent">
-            <div className="max-w-7xl mx-auto px-6 py-2 space-y-2">
+            <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-2 space-y-2">
               <div className="inline-flex items-center gap-2 rounded-full border border-slate-400/10 bg-[#fffdf9]/[0.22] px-4 py-1 text-[14px] backdrop-blur-[2px]">
                 <button onClick={() => navigate('/dashboard')} className="text-[#7b879a] font-medium hover:text-[#2563eb] transition-colors">Dashboard</button>
                 <ChevronDown className="w-4 h-4 text-[#a0aec0] rotate-[-90deg]" />
@@ -649,7 +649,7 @@ export default function GiftingSpecialTabsPage() {
             </div>
           </div>
 
-          <div className="max-w-7xl mx-auto px-6 pt-6">
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 pt-6">
             <div className="group relative overflow-hidden rounded-3xl border border-white/60 h-[200px] mb-6 bg-white/45 backdrop-blur-xl shadow-[0_18px_40px_rgba(37,99,235,0.18)]">
               <div className="absolute inset-0 bg-[linear-gradient(120deg,#ebf1ff_0%,#f5f8ff_45%,#e9efff_100%)]" />
               <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(67,121,238,0.08)_0%,rgba(67,121,238,0)_65%)]" />
@@ -712,7 +712,7 @@ export default function GiftingSpecialTabsPage() {
             }
           </div>
 
-          <div className="max-w-7xl mx-auto px-6 pb-6 flex gap-4">
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 pb-6 flex gap-4">
             <aside className="w-[240px] flex-shrink-0">
               <div className="bg-white/55 backdrop-blur-xl rounded-2xl p-5 border border-white/60 shadow-[0_16px_36px_rgba(37,99,235,0.16)]">
                       <div className="flex items-center justify-between mb-4">
@@ -1905,7 +1905,7 @@ export default function GiftingSpecialTabsPage() {
 
       {basketBuilderOpen && (
         <div className="fixed inset-0 z-[95] bg-white overflow-auto">
-          <div className="max-w-7xl mx-auto p-6">
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
             <div className="flex justify-between items-center mb-5"><h2 className="text-2xl font-semibold">🎁 Build Your Own Basket</h2><button onClick={() => setBasketBuilderOpen(false)}><X /></button></div>
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
               <div className="lg:col-span-3 space-y-2">

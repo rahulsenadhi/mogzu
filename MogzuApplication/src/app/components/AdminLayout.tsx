@@ -203,31 +203,22 @@ export default function AdminLayout() {
             onClick={navLink('/admin/mogzu-direct')}
           />
           <NavButton
-            active={false}
+            active={location.pathname.startsWith('/admin/vendors')}
             icon={Store}
             label="Vendors"
-            onClick={() => {
-              toast.info('Vendors section coming soon.')
-              setMobileOpen(false)
-            }}
+            onClick={navLink('/admin/vendors')}
           />
           <NavButton
-            active={false}
+            active={location.pathname.startsWith('/admin/bookings')}
             icon={Calendar}
             label="Bookings"
-            onClick={() => {
-              toast.info('Bookings section coming soon.');
-              setMobileOpen(false);
-            }}
+            onClick={navLink('/admin/bookings')}
           />
           <NavButton
-            active={false}
+            active={location.pathname.startsWith('/admin/reports')}
             icon={FileBarChart}
             label="Reports"
-            onClick={() => {
-              toast.info('Reports are coming soon.');
-              setMobileOpen(false);
-            }}
+            onClick={navLink('/admin/reports')}
           />
           <NavButton
             active={isPlatformModulesRoute}
@@ -332,12 +323,10 @@ export default function AdminLayout() {
             }}
           />
           <NavButton
+            active={location.pathname.startsWith('/admin/settings')}
             icon={Settings}
             label="Settings"
-            onClick={() => {
-              setLayoutNotice('Admin console settings are coming soon — not available in this build yet.');
-              setMobileOpen(false);
-            }}
+            onClick={navLink('/admin/settings')}
           />
         </nav>
       </aside>

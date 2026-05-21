@@ -29,6 +29,130 @@ type ProductWithImages = Listing & { listing_images: ListingImage[] }
 
 type StepKey = 'occasion' | 'gift' | 'recipients' | 'review' | 'done'
 
+// DEMO FALLBACK — import real employees via /corporate/employees/import
+const DEMO_DATA_EMPLOYEES: Employee[] = [
+  {
+    id: 'demo-emp-1',
+    corporate_id: 'demo-corporate',
+    email: 'aarav.mehta@example.com',
+    full_name: 'Aarav Mehta',
+    department: 'Engineering',
+    role_hint: 'Senior Engineer',
+    dob: null,
+    join_date: null,
+    phone: null,
+    is_active: true,
+    imported_at: '2026-01-15T00:00:00Z',
+    created_at: '2026-01-15T00:00:00Z',
+    updated_at: '2026-01-15T00:00:00Z',
+  },
+  {
+    id: 'demo-emp-2',
+    corporate_id: 'demo-corporate',
+    email: 'priya.iyer@example.com',
+    full_name: 'Priya Iyer',
+    department: 'Engineering',
+    role_hint: 'Engineering Manager',
+    dob: null,
+    join_date: null,
+    phone: null,
+    is_active: true,
+    imported_at: '2026-01-15T00:00:00Z',
+    created_at: '2026-01-15T00:00:00Z',
+    updated_at: '2026-01-15T00:00:00Z',
+  },
+  {
+    id: 'demo-emp-3',
+    corporate_id: 'demo-corporate',
+    email: 'rohan.deshpande@example.com',
+    full_name: 'Rohan Deshpande',
+    department: 'Marketing',
+    role_hint: 'Marketing Lead',
+    dob: null,
+    join_date: null,
+    phone: null,
+    is_active: true,
+    imported_at: '2026-01-15T00:00:00Z',
+    created_at: '2026-01-15T00:00:00Z',
+    updated_at: '2026-01-15T00:00:00Z',
+  },
+  {
+    id: 'demo-emp-4',
+    corporate_id: 'demo-corporate',
+    email: 'ananya.rao@example.com',
+    full_name: 'Ananya Rao',
+    department: 'Marketing',
+    role_hint: 'Content Strategist',
+    dob: null,
+    join_date: null,
+    phone: null,
+    is_active: true,
+    imported_at: '2026-01-15T00:00:00Z',
+    created_at: '2026-01-15T00:00:00Z',
+    updated_at: '2026-01-15T00:00:00Z',
+  },
+  {
+    id: 'demo-emp-5',
+    corporate_id: 'demo-corporate',
+    email: 'kavya.nair@example.com',
+    full_name: 'Kavya Nair',
+    department: 'HR',
+    role_hint: 'HR Business Partner',
+    dob: null,
+    join_date: null,
+    phone: null,
+    is_active: true,
+    imported_at: '2026-01-15T00:00:00Z',
+    created_at: '2026-01-15T00:00:00Z',
+    updated_at: '2026-01-15T00:00:00Z',
+  },
+  {
+    id: 'demo-emp-6',
+    corporate_id: 'demo-corporate',
+    email: 'siddharth.kulkarni@example.com',
+    full_name: 'Siddharth Kulkarni',
+    department: 'Finance',
+    role_hint: 'Finance Manager',
+    dob: null,
+    join_date: null,
+    phone: null,
+    is_active: true,
+    imported_at: '2026-01-15T00:00:00Z',
+    created_at: '2026-01-15T00:00:00Z',
+    updated_at: '2026-01-15T00:00:00Z',
+  },
+  {
+    id: 'demo-emp-7',
+    corporate_id: 'demo-corporate',
+    email: 'meera.shah@example.com',
+    full_name: 'Meera Shah',
+    department: 'Finance',
+    role_hint: 'Senior Accountant',
+    dob: null,
+    join_date: null,
+    phone: null,
+    is_active: true,
+    imported_at: '2026-01-15T00:00:00Z',
+    created_at: '2026-01-15T00:00:00Z',
+    updated_at: '2026-01-15T00:00:00Z',
+  },
+  {
+    id: 'demo-emp-8',
+    corporate_id: 'demo-corporate',
+    email: 'vikram.reddy@example.com',
+    full_name: 'Vikram Reddy',
+    department: 'Operations',
+    role_hint: 'Operations Lead',
+    dob: null,
+    join_date: null,
+    phone: null,
+    is_active: true,
+    imported_at: '2026-01-15T00:00:00Z',
+    created_at: '2026-01-15T00:00:00Z',
+    updated_at: '2026-01-15T00:00:00Z',
+  },
+]
+
 const STEPS: { key: StepKey; label: string }[] = [
   { key: 'occasion', label: 'Occasion' },
   { key: 'gift', label: 'Gift' },
@@ -78,7 +202,10 @@ function Wizard() {
       db.giftingCampaigns.listByCorporate(corporateId),
     ])
     setProducts((pRes.data ?? []) as ProductWithImages[])
-    setEmployees((eRes.data ?? []) as Employee[])
+    const supabaseEmployees = (eRes.data ?? []) as Employee[]
+    const finalEmployees =
+      supabaseEmployees.length > 0 ? supabaseEmployees : DEMO_DATA_EMPLOYEES
+    setEmployees(finalEmployees)
     setUsers((uRes.data ?? []) as UserProfile[])
     setHistory(hRes.data ?? [])
     setLoading(false)
@@ -268,7 +395,7 @@ function Wizard() {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <SharedHeader onMobileMenuToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
         <MogzuCorporateScrollSurface className="py-8">
-          <div className="mx-auto max-w-5xl px-8">
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12">
             <button
               type="button"
               onClick={() => navigate(-1)}
@@ -694,7 +821,7 @@ function CampaignDetail({ campaignId }: { campaignId: string }) {
 
   return (
     <div className="min-h-screen bg-[#FFFDF9]">
-      <div className="mx-auto max-w-5xl px-6 py-6">
+      <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
         <button
           type="button"
           onClick={() => navigate('/corporate/bulk-gifting')}

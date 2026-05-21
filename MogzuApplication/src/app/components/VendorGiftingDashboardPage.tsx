@@ -153,7 +153,7 @@ export default function VendorGiftingDashboardPage() {
   )
 
   return (
-    <div className="min-h-screen bg-[#FFFDF9] p-6">
+    <div className="min-h-screen bg-[#FFFDF9] px-5 md:px-8 lg:px-12 py-6">
       <h1 className="mb-4 text-2xl font-bold text-[#0e1e3f]">Vendor Gifting Dashboard</h1>
 
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">

@@ -167,7 +167,7 @@ export default function CorporateApprovalsPage() {
           searchPlaceholder="Search approvals..."
         />
 
-        <MogzuCorporateScrollSurface>
+        <MogzuCorporateScrollSurface className="px-6 py-6 sm:px-8 sm:py-8">
           <div className="mx-auto max-w-[1400px] px-8 py-6">
             <div className="mb-8 flex items-center justify-between">
               <div>

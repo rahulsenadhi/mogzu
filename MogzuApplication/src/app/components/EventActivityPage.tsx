@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Calendar, ChevronDown, Heart, MapPin, Search, Star, Users } from 'lucide-react'
 import { SharedHeader } from './layouts/SharedHeader'
@@ -10,7 +10,57 @@ import { EventsListingHero } from './events/EventsListingHero'
 import { HorizontalScrollRow } from './events/HorizontalScrollRow'
 import { BudgetRangeSlider } from './ui/BudgetRangeSlider'
 import { QA_IMAGES } from '../lib/qaImagery'
-import { EVENT_ACTIVITY_LISTINGS } from '@/app/lib/eventsServicesData'
+import { type EventActivityListing } from '@/app/lib/eventsServicesData'
+import { db } from '@/lib/db'
+import { storageService } from '@/lib/storage'
+import type { Listing, ListingImage } from '@/lib/database.types'
+
+function uuidToNumber(id: string): number {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = ((h << 5) - h + id.charCodeAt(i)) | 0
+  return Math.abs(h)
+}
+
+function listingToEventActivityListing(
+  l: Listing & { listing_images?: ListingImage[] },
+): EventActivityListing {
+  const meta = (l.metadata ?? {}) as Record<string, unknown>
+  const imgs = (l.listing_images ?? []).map((img) =>
+    storageService.listingImages.getUrl(img.storage_path),
+  )
+  const fallbackImg = imgs[0] ?? QA_IMAGES.eventCard[0] ?? ''
+  const pricingType: EventActivityListing['pricingType'] =
+    l.pricing_type === 'offer'
+      ? 'offer_price'
+      : l.pricing_type === 'request_for_price'
+        ? 'request_for_price'
+        : 'transparent'
+  const rawDates = Array.isArray(meta.availabilityDates) ? meta.availabilityDates : []
+  const availabilityDates = rawDates.filter((d): d is string => typeof d === 'string')
+  const rawTypes = Array.isArray(meta.supportedEventTypes) ? meta.supportedEventTypes : []
+  const supportedEventTypes = rawTypes.filter(
+    (t): t is EventActivityListing['supportedEventTypes'][number] => typeof t === 'string',
+  ) as EventActivityListing['supportedEventTypes']
+  const category =
+    typeof meta.category === 'string'
+      ? (meta.category as EventActivityListing['category'])
+      : 'Activities'
+  return {
+    id: uuidToNumber(l.id),
+    name: l.title,
+    city: l.location_city ?? '',
+    category,
+    pricingType,
+    price: l.base_price ?? undefined,
+    originalPrice: typeof meta.originalPrice === 'number' ? meta.originalPrice : undefined,
+    rating: typeof meta.rating === 'number' ? meta.rating : 4.5,
+    ratingCount: typeof meta.ratingCount === 'number' ? meta.ratingCount : 0,
+    image: fallbackImg,
+    images: imgs.length > 0 ? imgs : [fallbackImg],
+    availabilityDates,
+    supportedEventTypes,
+  }
+}
 import { getPricingBadgeConfig } from './ui/PriceBlock'
 import {
   EVENT_ACTIVITY_SUBCATEGORIES,
@@ -24,6 +74,96 @@ import { ListingCardImageGallery } from './ui/ListingCardImageGallery'
 type RatingMin = 0 | 3 | 4 | 4.5
 
 const CITIES = ['Mumbai', 'Bengaluru', 'Delhi', 'Hyderabad', 'Pune', 'Chennai'] as const
+
+// DEMO FALLBACK — shows when Supabase returns 0 rows
+// Remove this fallback once real listings exist in Supabase
+const DEMO_DATA_EVENT_ACTIVITIES: EventActivityListing[] = [
+  {
+    id: 9001,
+    name: 'Corporate Team Building Workshop',
+    city: 'Mumbai',
+    category: 'Activities',
+    pricingType: 'transparent',
+    price: 32000,
+    rating: 4.7,
+    ratingCount: 128,
+    image: QA_IMAGES.eventCard[0],
+    images: QA_IMAGES.eventCard.slice(0, 5),
+    availabilityDates: ['2026-06-10', '2026-06-15', '2026-06-20'],
+    supportedEventTypes: ['Team Outing', 'Conference', 'Networking'],
+  },
+  {
+    id: 9002,
+    name: 'Pro AV & Stage Production Services',
+    city: 'Bengaluru',
+    category: 'AV & Tech',
+    pricingType: 'request_for_price',
+    rating: 4.6,
+    ratingCount: 84,
+    image: QA_IMAGES.eventCard[1],
+    images: QA_IMAGES.eventCard.slice(0, 5),
+    availabilityDates: ['2026-06-05', '2026-06-12', '2026-06-22'],
+    supportedEventTypes: ['Conference', 'Product Launch'],
+  },
+  {
+    id: 9003,
+    name: 'Event Photography & Videography',
+    city: 'Mumbai',
+    category: 'Photography',
+    pricingType: 'offer_price',
+    originalPrice: 48000,
+    price: 38000,
+    rating: 4.8,
+    ratingCount: 211,
+    image: QA_IMAGES.eventCard[2],
+    images: QA_IMAGES.eventCard.slice(0, 5),
+    availabilityDates: ['2026-06-08', '2026-06-18', '2026-06-25'],
+    supportedEventTypes: ['Conference', 'Product Launch', 'Networking', 'Birthday'],
+  },
+  {
+    id: 9004,
+    name: 'Premium Corporate Catering',
+    city: 'Bengaluru',
+    category: 'Catering',
+    pricingType: 'transparent',
+    price: 1200,
+    rating: 4.5,
+    ratingCount: 156,
+    image: QA_IMAGES.eventCard[3],
+    images: QA_IMAGES.eventCard.slice(0, 5),
+    availabilityDates: ['2026-06-07', '2026-06-14', '2026-06-21'],
+    supportedEventTypes: ['Conference', 'Team Outing', 'Product Launch'],
+  },
+  {
+    id: 9005,
+    name: 'Wellness & Yoga Retreat Program',
+    city: 'Mumbai',
+    category: 'Activities',
+    pricingType: 'transparent',
+    price: 22000,
+    rating: 4.6,
+    ratingCount: 92,
+    image: QA_IMAGES.eventCard[4],
+    images: QA_IMAGES.eventCard.slice(0, 5),
+    availabilityDates: ['2026-06-11', '2026-06-19', '2026-06-26'],
+    supportedEventTypes: ['Team Outing', 'Other'],
+  },
+  {
+    id: 9006,
+    name: 'Live Entertainment & DJ Acts',
+    city: 'Bengaluru',
+    category: 'Entertainment',
+    pricingType: 'offer_price',
+    originalPrice: 55000,
+    price: 45000,
+    rating: 4.7,
+    ratingCount: 174,
+    image: QA_IMAGES.eventCard[0],
+    images: QA_IMAGES.eventCard.slice(0, 5),
+    availabilityDates: ['2026-06-09', '2026-06-16', '2026-06-23'],
+    supportedEventTypes: ['Product Launch', 'Networking', 'Birthday', 'Other'],
+  },
+]
 
 const activePillStyle = {
   backgroundImage: 'linear-gradient(-9.24736deg, rgb(228, 235, 255) 9.7419%, rgb(255, 255, 255) 85.097%)',
@@ -64,10 +204,34 @@ export default function EventActivityPage() {
     setSortBy('recommended')
   }
 
+  const [supabaseListings, setSupabaseListings] = useState<EventActivityListing[]>([])
+  const [listingsLoading, setListingsLoading] = useState(true)
+  const [listingsError, setListingsError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      setListingsLoading(true)
+      setListingsError(null)
+      const { data, error } = await db.listings.listByModule('events', 'active')
+      if (cancelled) return
+      if (error) {
+        setListingsError(error.message)
+        setSupabaseListings([])
+      } else {
+        setSupabaseListings((data ?? []).map(listingToEventActivityListing))
+      }
+      setListingsLoading(false)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const filteredActivities = useMemo(() => {
     const q = searchKeyword.toLowerCase().trim()
-    const guestCount = Number(attendees)
-    let results = EVENT_ACTIVITY_LISTINGS.filter((item) => {
+    const finalData = supabaseListings.length > 0 ? supabaseListings : DEMO_DATA_EVENT_ACTIVITIES
+    let results = finalData.filter((item) => {
       if (selectedCities.length > 0 && !selectedCities.includes(item.city)) return false
       if (ratingMin > 0 && item.rating < ratingMin) return false
       if (typeof item.price === 'number' && item.price > budgetMax) return false
@@ -90,14 +254,13 @@ export default function EventActivityPage() {
         if (!hay.includes(q)) return false
       }
       if (date && !item.availabilityDates.some((d) => d >= date)) return false
-      if (!Number.isNaN(guestCount) && guestCount > 0 && !item.supportedEventTypes.includes('Conference')) return false
       return true
     })
     if (sortBy === 'price_low') results = [...results].sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0))
     if (sortBy === 'price_high') results = [...results].sort((a, b) => (Number(b.price) || 0) - (Number(a.price) || 0))
     if (sortBy === 'rating') results = [...results].sort((a, b) => b.rating - a.rating)
     return results
-  }, [attendees, budgetMax, selectedCities, date, ratingMin, searchKeyword, selectedCategory, sortBy])
+  }, [budgetMax, selectedCities, date, ratingMin, searchKeyword, selectedCategory, sortBy, supabaseListings])
 
   const goToPrevCardImage = (cardId: string, total: number) => {
     setCardImageIndexById((prev) => {
@@ -159,7 +322,7 @@ export default function EventActivityPage() {
         <MogzuCorporateScrollSurface>
           <EventsDiscoveryNav activeTab="event-activity" />
 
-          <div className="max-w-7xl mx-auto px-6 pt-6">
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 pt-6">
             <EventsListingHero slides={heroSlides} />
 
             <HorizontalScrollRow className="mb-4">
@@ -240,7 +403,7 @@ export default function EventActivityPage() {
           </div>
 
           {/* Grid + Sidebar */}
-          <div className="max-w-7xl mx-auto px-6 pb-6 flex gap-4">
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 pb-6 flex gap-4">
             {/* Filter aside */}
             <aside className="w-[240px] flex-shrink-0 lg:sticky lg:top-4 lg:self-start">
               <div className="bg-white/55 backdrop-blur-xl rounded-2xl p-5 border border-white/60 shadow-[0_16px_36px_rgba(37,99,235,0.16)]">
@@ -398,7 +561,16 @@ export default function EventActivityPage() {
 
               {/* Cards grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-                {filteredActivities.length === 0 ? (
+                {listingsLoading ? (
+                  <div className="col-span-full rounded-2xl border border-[#dbe3f2] bg-white/70 p-10 text-center text-sm text-[#475569]">
+                    Loading event activities…
+                  </div>
+                ) : listingsError ? (
+                  <div className="col-span-full rounded-2xl border border-rose-200 bg-rose-50 p-10 text-center">
+                    <p className="text-sm font-semibold text-rose-700">Couldn't load activities</p>
+                    <p className="mt-1 text-xs text-rose-600">{listingsError}</p>
+                  </div>
+                ) : filteredActivities.length === 0 ? (
                   <div className="col-span-full rounded-2xl border border-[#dbe3f2] bg-white/70 p-10 text-center">
                     <p className="text-[16px] font-semibold text-[#0e1e3f]">No event activities found</p>
                     <p className="text-[13px] text-[#64748b] mt-1">Try updating the filters to see more results.</p>

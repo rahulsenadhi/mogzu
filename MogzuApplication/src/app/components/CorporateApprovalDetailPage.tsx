@@ -201,7 +201,7 @@ export default function CorporateApprovalDetailPage() {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <SharedHeader onMobileMenuToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
         <MogzuCorporateScrollSurface>
-          <div className="mx-auto max-w-4xl px-8 py-6">
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
             <button
               type="button"
               onClick={() => navigate('/corporate/approvals')}

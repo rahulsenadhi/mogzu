@@ -151,7 +151,7 @@ export default function VendorBookingRequestsPage() {
   return (
     <VendorAppShell activeNav="orders" routeSource="vendor-booking-requests">
       <main className="min-h-full w-full bg-transparent">
-        <section className="p-4 sm:p-6">
+        <section className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h1 className="text-2xl font-semibold text-slate-900">Booking requests</h1>
@@ -420,7 +420,7 @@ function BookingDetailScreen({
   return (
     <VendorAppShell activeNav="orders" routeSource="vendor-booking-request-detail">
       <main className="min-h-full w-full bg-transparent">
-        <section className="p-4 sm:p-6">
+        <section className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
           <button
             type="button"
             onClick={() => navigate('/vendor/booking-requests')}

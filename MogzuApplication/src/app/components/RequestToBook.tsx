@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router';
 import { ChevronLeft, ChevronDown, Star, MapPin, Users, AlertCircle } from 'lucide-react';
 import { SharedHeader } from './layouts/SharedHeader';
-import svgPaths from '@/imports/svg-xho44kfymu';
+import { SharedSidebar } from './layouts/SharedSidebar';
+import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
 import imgAvatar from 'figma:asset/e67667939a12621af070c82a05583b9248a7c28e.png';
 import imgImage25005 from 'figma:asset/f6108faddc403caf1eea34c754f31b43ab0fb55b.png';
 import { appendCorpVendorEnquiry, getCorporateCompanyDisplayName } from '@/app/lib/corpVendorEnquiryStorage';
@@ -274,116 +275,68 @@ export default function RequestToBook() {
 
   if (isFailed) {
     return (
-      <div className="flex h-screen bg-[#f5f7fa] overflow-hidden">
-        {/* Left Sidebar */}
-        <aside className="hidden lg:flex bg-white w-16 flex-shrink-0 border-r border-[#ececec] flex-col">
-          <div className="h-20 flex items-center justify-center border-b border-[#ececec]">
-            <div className="w-6 h-6 bg-[#fa8d40] rounded flex items-center justify-center">
-              <span className="text-white font-bold text-sm">m</span>
-            </div>
-          </div>
-        </aside>
-
-        {/* Main Content */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Header */}
-          <SharedHeader searchPlaceholder="Search" brandInHeader="always" />
-
-          {/* Page Content */}
-          <div className="flex-1 overflow-y-auto bg-[#f5f7fa] flex items-center justify-center">
-            <div className="max-w-2xl w-full mx-auto px-6">
-              <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
-                {/* Failure Icon */}
+      <div className="flex h-screen bg-[#FFFDF9] overflow-hidden">
+        <SharedSidebar
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        />
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <SharedHeader
+            onMobileMenuToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+            searchPlaceholder="Search"
+          />
+          <MogzuCorporateScrollSurface className="flex items-center justify-center">
+            <div className="max-w-2xl w-full mx-auto px-5 md:px-8 py-8">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-10 text-center">
                 <div className="flex justify-center mb-6">
-                  <div className="w-24 h-24 bg-red-100 rounded-full flex items-center justify-center">
-                    <AlertCircle className="w-16 h-16 text-destructive" />
+                  <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center">
+                    <AlertCircle className="w-12 h-12 text-destructive" />
                   </div>
                 </div>
-
-                {/* Failure Message */}
-                <h1 className="text-3xl font-bold text-gray-900 mb-3">
+                <h1 className="text-2xl font-bold text-gray-900 mb-3">
                   Booking unsuccessful
                 </h1>
-                <p className="text-lg text-gray-600 mb-8">
+                <p className="text-base text-gray-600 mb-8">
                   Something went wrong while processing your request. Your payment has not been charged.
                 </p>
-
-                {/* Action Buttons */}
-                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
                   <button
                     type="button"
                     onClick={() => setIsFailed(false)}
-                    className="px-8 py-3 bg-blue-600 text-white rounded-lg font-medium text-base hover:bg-blue-700 transition-colors"
+                    className="px-8 py-3 bg-blue-600 text-white rounded-xl font-medium text-sm hover:bg-blue-700 transition-colors"
                   >
                     Try again
                   </button>
                   <button
                     type="button"
                     onClick={() => navigate('/communication')}
-                    className="px-8 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-medium text-base hover:bg-gray-50 transition-colors"
+                    className="px-8 py-3 border border-gray-300 text-gray-700 rounded-xl font-medium text-sm hover:bg-gray-50 transition-colors"
                   >
                     Contact support
                   </button>
                 </div>
               </div>
             </div>
-          </div>
+          </MogzuCorporateScrollSurface>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen bg-white overflow-hidden">
-      {/* Left Sidebar - Hidden on mobile */}
-      <aside className="hidden lg:flex bg-white w-16 flex-shrink-0 border-r border-[#ececec] flex-col">
-        {/* Logo */}
-        <div className="h-20 flex items-center justify-center border-b border-[#ececec]">
-          <div className="w-6 h-6 bg-[#fa8d40] rounded flex items-center justify-center">
-            <span className="text-white font-bold text-sm">m</span>
-          </div>
-        </div>
+    <div className="flex h-screen bg-[#FFFDF9] overflow-hidden">
+      <SharedSidebar
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+      />
 
-        {/* Nav Icons */}
-        <nav className="flex-1 py-4">
-          <button
-            type="button"
-            onClick={() => navigate('/dashboard')}
-            className="w-full h-12 flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-          >
-            <svg width="20" height="20" viewBox="0 0 28 28" fill="none">
-              <path d={svgPaths.p2ab88b80} fill="currentColor" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/request-to-book')}
-            className="w-full h-12 flex items-center justify-center text-white bg-[#4379ee] transition-colors"
-          >
-            <svg width="20" height="20" viewBox="0 0 28 28" fill="none">
-              <path d={svgPaths.p414b380} fill="currentColor" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/bookings')}
-            className="w-full h-12 flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-          >
-            <svg width="20" height="20" viewBox="0 0 28 28" fill="none">
-              <path d={svgPaths.paf72c00} fill="currentColor" />
-            </svg>
-          </button>
-        </nav>
-      </aside>
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Header */}
-        <SharedHeader searchPlaceholder="Search" brandInHeader="always" />
-
-        {/* Content Area */}
-        <div className="flex-1 overflow-y-auto bg-[#fafafa]">
-          <div className="max-w-[1400px] mx-auto px-4 md:px-6 lg:px-8 py-4 lg:py-6">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <SharedHeader
+          onMobileMenuToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+          searchPlaceholder="Search"
+        />
+        <MogzuCorporateScrollSurface>
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
             {/* Back Button and Title */}
             <div className="mb-4 lg:mb-5">
               <button 
@@ -744,7 +697,7 @@ export default function RequestToBook() {
               </div>
             </div>
           </div>
-        </div>
+        </MogzuCorporateScrollSurface>
       </div>
     </div>
   );

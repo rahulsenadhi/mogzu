@@ -38,7 +38,7 @@ export default function ApprovalWorkflowPage() {
         <SharedHeader onMobileMenuToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
         
         <MogzuCorporateScrollSurface>
-          <div className="max-w-5xl mx-auto px-8 py-8">
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-8">
             <div className="flex items-center justify-between mb-8">
               <div>
                 <button 

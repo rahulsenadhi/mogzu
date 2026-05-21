@@ -570,7 +570,7 @@ export default function VendorSpaceXServicesPage() {
         }
       >
         <main className="min-h-full w-full bg-transparent">
-          <div className="p-4 sm:p-6">
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h1 className="text-lg font-semibold text-slate-900">Space listings</h1>
@@ -662,6 +662,10 @@ export default function VendorSpaceXServicesPage() {
                 {filtered.map((l) => {
                   const badge = statusBadge(l.status)
                   const cover = l.listing_images?.[0]
+                  const rejectionReason =
+                    l.status === 'rejected' && l.metadata && typeof (l.metadata as Record<string, unknown>).rejection_reason === 'string'
+                      ? ((l.metadata as Record<string, unknown>).rejection_reason as string)
+                      : null
                   return (
                     <li
                       key={l.id}
@@ -721,6 +725,27 @@ export default function VendorSpaceXServicesPage() {
                             Submit for review
                           </button>
                         )}
+                        {l.status === 'pending_approval' && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await db.listings.update(l.id, { status: 'draft' })
+                              loadListings()
+                            }}
+                            className="rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                          >
+                            Withdraw
+                          </button>
+                        )}
+                        {l.status === 'rejected' && (
+                          <button
+                            type="button"
+                            onClick={() => handleSubmitForReview(l)}
+                            className="rounded-md bg-[#2563EB] px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                          >
+                            Resubmit for review
+                          </button>
+                        )}
                         {(l.status === 'active' || l.status === 'paused') && (
                           <button
                             type="button"
@@ -730,7 +755,7 @@ export default function VendorSpaceXServicesPage() {
                             {l.status === 'active' ? 'Pause' : 'Activate'}
                           </button>
                         )}
-                        {l.status === 'draft' && (
+                        {(l.status === 'draft' || l.status === 'rejected') && (
                           <button
                             type="button"
                             onClick={() => handleDelete(l)}
@@ -742,6 +767,21 @@ export default function VendorSpaceXServicesPage() {
                           </button>
                         )}
                       </div>
+                      {l.status === 'rejected' && (
+                        <div className="basis-full rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+                          <p className="font-medium">Rejected by Mogzu review</p>
+                          {rejectionReason ? (
+                            <p className="mt-0.5 whitespace-pre-wrap">{rejectionReason}</p>
+                          ) : (
+                            <p className="mt-0.5">No reason provided. Edit the listing and resubmit.</p>
+                          )}
+                        </div>
+                      )}
+                      {l.status === 'pending_approval' && (
+                        <div className="basis-full rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                          Awaiting Mogzu review. You can withdraw to keep editing.
+                        </div>
+                      )}
                     </li>
                   )
                 })}

@@ -97,7 +97,9 @@ export default function VendorVerifyEmailPage() {
               ? `Enter the 6-digit code sent to ${emailDisplay}.`
               : 'Enter the 6-digit code we sent to your work email.'}
           </p>
-          <p className="mt-1 text-xs text-slate-500">Demo: use code 123456</p>
+          {import.meta.env.DEV && (
+            <p className="mt-1 text-xs text-amber-700">Development only: verification code is 123456 until email OTP is wired.</p>
+          )}
 
           <form onSubmit={handleSubmit} className="mt-8 space-y-4">
             <div>

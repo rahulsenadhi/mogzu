@@ -188,7 +188,7 @@ export default function VendorOrderDetailsPage() {
         }
       >
         <main className="min-h-full w-full bg-transparent">
-          <div className="mx-auto max-w-[1200px] space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          <div className="mx-auto w-full max-w-[1280px] space-y-6 px-5 md:px-8 lg:px-12 py-6">
             {uiNotice ? (
                 <p className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium leading-normal text-blue-800">
                 {uiNotice}

@@ -11,6 +11,10 @@ import {
   CorporateOnboardingStepper,
   CorporateOnboardingFooterLinks,
 } from '@/app/components/corporate/CorporateOnboardingChrome';
+import {
+  saveCorporateOnboardingDraft,
+  setCorporateOnboardingComplete,
+} from '@/app/lib/corporateOnboarding';
 
 interface Package {
   id: string;
@@ -107,10 +111,10 @@ export default function ChooseAccess() {
       setAccessError('Please select a package to continue.');
       return;
     }
-    console.log('Selected package:', selectedPackage);
     localStorage.setItem('selectedPlan', selectedPackage);
-    // Navigate to welcome screen
-    navigate('/welcome');
+    saveCorporateOnboardingDraft({ step: 'complete', accessLevel: selectedPackage });
+    setCorporateOnboardingComplete(true);
+    navigate('/dashboard', { replace: true });
   };
 
   const handleBack = () => {

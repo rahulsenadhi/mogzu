@@ -416,7 +416,7 @@ export default function VendorCalendarPage() {
     <>
       <VendorAppShell activeNav="calendar" routeSource="vendor-calendar">
         <main className="min-h-full w-full bg-transparent">
-          <section className="p-4 sm:p-6">
+          <section className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
             {/* Header */}
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h1 className="text-2xl font-semibold text-slate-900">Calendar</h1>

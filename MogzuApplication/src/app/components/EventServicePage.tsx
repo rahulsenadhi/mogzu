@@ -16,7 +16,7 @@ export default function EventServicePage() {
         <MogzuCorporateScrollSurface>
           <EventsDiscoveryNav activeTab="event-service" />
 
-          <div className="max-w-7xl mx-auto px-6 pt-6 pb-6">
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 pt-6 pb-6">
             <EventServiceContent />
           </div>
         </MogzuCorporateScrollSurface>

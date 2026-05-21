@@ -232,8 +232,8 @@ export default function ActivitySuite() {
     { label: 'Create event requirement', path: '/events' },
     { label: 'Start gifting campaign', path: '/gifting' },
     { label: 'Check venue availability', path: '/spacex' },
-    { label: 'Ask Mogzu Assistant', path: '/assistance' },
-    { label: 'View pending approvals', path: '/events' },
+    { label: 'Ask Mogzu Assistant', path: '/heygenie' },
+    { label: 'View pending approvals', path: '/corporate/approvals' },
     { label: 'View recent bookings', path: '/bookings' },
   ]
 
@@ -681,7 +681,7 @@ export default function ActivitySuite() {
               <button
                 type="button"
                 className="h-12 min-h-[44px] w-full rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-left hover:bg-blue-100/60 transition-colors"
-                onClick={() => navigate('/assistance')}
+                onClick={() => navigate('/heygenie')}
               >
                 <div className="flex items-center gap-3">
                   <Sparkles className="size-5 text-[#2563eb]" />

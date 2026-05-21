@@ -43,52 +43,105 @@ type BannerRow = {
   status: boolean;
 };
 
-const AD_ROWS: AdRow[] = [
-  { id: 'a1', promoId: '0080', headline: 'Special offer on Meeting space', module: 'SpaceX', budget: '₹4500', paidBy: 'Kapil Dev', period: 'Start: Jun 21, 2024 18:10:32\nEnd: Jun 21, 2024 18:10:32', status: true },
-  { id: 'a2', promoId: '0080', headline: 'Special offer on Meeting space', module: 'Event', budget: '₹4500', paidBy: 'Kapil Dev', period: 'Start: Jun 21, 2024 18:10:32\nEnd: Jun 21, 2024 18:10:32', status: false },
-  { id: 'a3', promoId: '0080', headline: 'Special offer on Meeting space', module: 'Gifting', budget: '₹4500', paidBy: 'Kapil Dev', period: 'Start: Jun 21, 2024 18:10:32\nEnd: Jun 21, 2024 18:10:32', status: true },
-];
-
-const DISCOUNT_ROWS: DiscountRow[] = [
-  { id: 'd1', coupon: 'SUMMERSALE40', couponName: 'SUMMER SALE', discount: '50%', startDate: 'Jun 21, 2024 18:10:32', endDate: 'Jun 24, 2024 18:10:32', clientName: 'Kapil Dev', sector: 'Gifting', status: true },
-  { id: 'd2', coupon: 'SUMMERSALE40', couponName: 'SUMMER SALE', discount: '50%', startDate: 'Jun 21, 2024 18:10:32', endDate: 'Jun 24, 2024 18:10:32', clientName: 'Kapil Dev', sector: 'Gifting', status: false },
-];
-
-const BANNER_ROWS: BannerRow[] = [
+// DEMO DATA — swap for Supabase query when real data exists
+const DEMO_DATA_ADS: AdRow[] = [
   {
-    id: 'b1',
-    image: 'https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=120&h=80&fit=crop',
-    subCategory: 'Meeting space',
-    type: 'Offer',
-    dateLabel: 'End date',
-    dateValue: 'Jun 24, 2024 18:10:32',
-    vendorName: 'Kapil Dev',
-    sector: 'SpaceX',
+    id: 'ad-1',
+    promoId: '0102',
+    headline: 'Featured: Executive Boardroom BKC',
+    module: 'SpaceX',
+    budget: '₹12,500',
+    paidBy: 'Smartworks Mumbai',
+    period: 'Start: 10 May 2026 09:00\nEnd: 24 May 2026 23:59',
     status: true,
   },
   {
-    id: 'b2',
-    image: 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=120&h=80&fit=crop',
-    subCategory: 'Activity space',
-    type: 'Offer',
-    dateLabel: 'Create on',
-    dateValue: 'Jun 24, 2024 18:10:32',
-    vendorName: 'Kapil Dev',
-    sector: 'SpaceX',
+    id: 'ad-2',
+    promoId: '0103',
+    headline: 'Townhall AV Production Kit — 20% off',
+    module: 'Event',
+    budget: '₹8,000',
+    paidBy: 'PrismWave Technologies',
+    period: 'Start: 12 May 2026 00:00\nEnd: 31 May 2026 23:59',
+    status: true,
+  },
+  {
+    id: 'ad-3',
+    promoId: '0104',
+    headline: 'Diwali Premium Gift Hampers',
+    module: 'Gifting',
+    budget: '₹18,000',
+    paidBy: 'GiftBasket Co.',
+    period: 'Start: 15 May 2026 00:00\nEnd: 30 Jun 2026 23:59',
     status: false,
   },
+];
+const AD_ROWS = DEMO_DATA_ADS;
+
+// DEMO DATA — swap for Supabase query when real data exists
+const DEMO_DATA_DISCOUNTS: DiscountRow[] = [
   {
-    id: 'b3',
-    image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=120&h=80&fit=crop',
-    subCategory: 'Meeting space',
-    type: 'Offer',
-    dateLabel: 'End date',
-    dateValue: 'Jun 24, 2024 18:10:32',
-    vendorName: 'Kapil Dev',
+    id: 'd-1',
+    coupon: 'DIWALI25',
+    couponName: 'Diwali Hamper Sale',
+    discount: '25%',
+    startDate: '15 May 2026 00:00',
+    endDate: '30 Jun 2026 23:59',
+    clientName: 'Acme Corp',
+    sector: 'Gifting',
+    status: true,
+  },
+  {
+    id: 'd-2',
+    coupon: 'TEAMOFFSITE15',
+    couponName: 'Q2 Team Offsite',
+    discount: '15%',
+    startDate: '12 May 2026 00:00',
+    endDate: '15 Jun 2026 23:59',
+    clientName: 'Tata Digital',
+    sector: 'Event',
+    status: true,
+  },
+  {
+    id: 'd-3',
+    coupon: 'WELCOMEKIT40',
+    couponName: 'New Hire Welcome Kits',
+    discount: '40%',
+    startDate: '01 May 2026 00:00',
+    endDate: '31 May 2026 23:59',
+    clientName: 'Razorpay',
+    sector: 'Gifting',
+    status: false,
+  },
+];
+const DISCOUNT_ROWS = DEMO_DATA_DISCOUNTS;
+
+// DEMO DATA — swap for Supabase query when real data exists
+const DEMO_DATA_BANNERS: BannerRow[] = [
+  {
+    id: 'b-1',
+    image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=120&h=80&fit=crop&q=80',
+    subCategory: 'Conference Rooms',
+    type: 'Hero banner',
+    dateLabel: 'Live until',
+    dateValue: '31 May 2026',
+    vendorName: 'Smartworks Mumbai',
     sector: 'SpaceX',
     status: true,
   },
+  {
+    id: 'b-2',
+    image: 'https://images.unsplash.com/photo-1607083206968-13611e3d76db?w=120&h=80&fit=crop&q=80',
+    subCategory: 'Festival Gifting',
+    type: 'Sidebar banner',
+    dateLabel: 'Live until',
+    dateValue: '30 Jun 2026',
+    vendorName: 'GiftBasket Co.',
+    sector: 'Gifting',
+    status: true,
+  },
 ];
+const BANNER_ROWS = DEMO_DATA_BANNERS;
 
 function moduleClass(module: AdRow['module']) {
   if (module === 'SpaceX') return 'bg-orange-50 text-orange-600 border-orange-200';
@@ -397,7 +450,10 @@ export default function AdminPaidPromotionsPage() {
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search" className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20" />
         </div>
 
-        {tab === 'ads' && (
+        {tab === 'ads' && filteredAds.length === 0 && (
+          <p className="rounded-md border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500">No paid ad promotions yet.</p>
+        )}
+        {tab === 'ads' && filteredAds.length > 0 && (
           <div className="space-y-2">
             {filteredAds.map((row) => (
               <div key={row.id} className="grid grid-cols-12 items-center gap-2 rounded-md bg-white px-3 py-2 text-xs text-slate-600">
@@ -439,7 +495,10 @@ export default function AdminPaidPromotionsPage() {
           </div>
         )}
 
-        {tab === 'discount' && (
+        {tab === 'discount' && filteredDiscounts.length === 0 && (
+          <p className="rounded-md border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500">No discount coupons yet.</p>
+        )}
+        {tab === 'discount' && filteredDiscounts.length > 0 && (
           <div className="space-y-2">
             {filteredDiscounts.map((row) => (
               <div key={row.id} className="grid grid-cols-12 items-center gap-2 rounded-md bg-white px-3 py-2 text-xs text-slate-600">
@@ -501,6 +560,9 @@ export default function AdminPaidPromotionsPage() {
               ))}
             </div>
 
+            {banners.length === 0 && (
+              <p className="rounded-md border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500">No banners yet.</p>
+            )}
             <div className="space-y-2">
               {banners.map((row) => (
                 <div key={row.id} className="grid grid-cols-12 items-center gap-2 rounded-md bg-white px-3 py-2 text-xs text-slate-600">

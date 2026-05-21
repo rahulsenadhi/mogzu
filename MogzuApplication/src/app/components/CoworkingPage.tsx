@@ -314,7 +314,7 @@ export default function CoworkingPage() {
         <MogzuCorporateScrollSurface>
           {/* Breadcrumb */}
           <div className="border-b border-slate-300/[0.1] bg-transparent">
-            <div className="max-w-7xl mx-auto px-6 py-3">
+            <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-3">
               <div className="inline-flex items-center gap-2 rounded-full border border-slate-400/10 bg-[#fffdf9]/[0.22] px-4 py-1 text-[14px] backdrop-blur-[2px]">
                 <button
                   onClick={() => navigate("/activitysuite")}
@@ -332,7 +332,7 @@ export default function CoworkingPage() {
 
           {/* Page Title and Tabs */}
           <div className="border-b border-slate-300/[0.1] bg-transparent">
-            <div className="max-w-7xl mx-auto px-6 py-2">
+            <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-2">
               <div className="flex items-center gap-4">
                 <h1 className="text-[22px] font-bold leading-none text-[#0e1e3f]">
                   D Space
@@ -393,7 +393,7 @@ export default function CoworkingPage() {
             </div>
           </div>
 
-          <div className="max-w-7xl mx-auto px-6 py-6">
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
             {/* Hero Banner */}
             <div className="group relative mb-6 h-[200px] overflow-hidden rounded-3xl border border-white/60 bg-white/45 shadow-[0_18px_40px_rgba(37,99,235,0.18)] backdrop-blur-xl">
               <div className="absolute inset-0 bg-[linear-gradient(120deg,#ebf1ff_0%,#f5f8ff_45%,#e9efff_100%)]" />

@@ -341,7 +341,7 @@ export default function BookingPayment() {
 
         {/* Page Content */}
         <MogzuCorporateScrollSurface>
-          <div className="max-w-[1400px] mx-auto p-4 md:p-6">
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
             {/* Back Button and Title */}
             <div className="mb-6">
               <button 
@@ -1052,7 +1052,15 @@ export default function BookingPayment() {
                     }
 
                     const query = reason ? `?reason=${encodeURIComponent(reason)}` : '';
-                    navigate(`/booking-approval-request${query}`, { state: { category } });
+                    navigate(`/booking-approval-request${query}`, {
+                      state: {
+                        category,
+                        venueName: bookingFlow.spaceName || content.title,
+                        venueLocation: bookingFlow.location,
+                        bookingDate: bookingFlow.bookingStartDate || content.dateVal1,
+                        totalAmount: grandTotal,
+                      },
+                    });
                   }}
                   className="px-6 py-3 bg-white border border-blue-600 text-blue-600 rounded-lg font-medium text-base hover:bg-blue-50 transition-colors"
                 >
@@ -1081,7 +1089,7 @@ export default function BookingPayment() {
                     setIsProcessing(true);
 
                     setLastPaymentFingerprint(fingerprint);
-                    navigate('/booking-confirmation', {
+                    navigate('/booking-success', {
                       state: {
                         category,
                         bookingFlow,

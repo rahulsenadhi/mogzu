@@ -220,7 +220,7 @@ export default function PartnerDashboardPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
+    <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-10">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <MogzuLogo className="h-9" />

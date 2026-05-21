@@ -177,7 +177,7 @@ export default function CorporateTransactionsPage() {
         <SharedHeader onMobileMenuToggle={() => setSidebarOpen(!sidebarOpen)} searchPlaceholder="Search transactions, invoices..." />
 
         <MogzuCorporateScrollSurface>
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
             
             {/* Page Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">

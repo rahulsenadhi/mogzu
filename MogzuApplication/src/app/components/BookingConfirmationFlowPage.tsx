@@ -62,7 +62,7 @@ export default function BookingConfirmationFlowPage() {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <SharedHeader onMobileMenuToggle={() => setSidebarCollapsed(!sidebarCollapsed)} searchPlaceholder="Search" />
         <MogzuCorporateScrollSurface>
-          <div className="max-w-[1280px] mx-auto px-5 md:px-8 lg:px-12 py-8 corp-page-enter">
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-8 corp-page-enter">
             <div className="max-w-3xl mx-auto rounded-2xl border border-slate-200 bg-white p-6 md:p-8 corp-soft-shadow">
               <div className="flex items-center gap-3 mb-4">
                 <div className="size-12 rounded-full bg-emerald-100 flex items-center justify-center">

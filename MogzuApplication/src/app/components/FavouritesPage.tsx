@@ -13,12 +13,49 @@ export default function FavouritesPage({}: FavouritesPageProps) {
     setIsSidebarCollapsed(!isSidebarCollapsed);
   };
 
-  const favouriteItems = [
-    { id: 1, title: 'Mountain Retreat Venue', category: 'SpaceX', rating: 4.8, price: '$500/day', image: 'https://images.unsplash.com/photo-1510798831971-661eb04b3739?q=80&w=400&auto=format&fit=crop' },
-    { id: 2, title: 'Corporate Workshop Package', category: 'Activity', rating: 4.9, price: '$150/person', image: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?q=80&w=400&auto=format&fit=crop' },
-    { id: 3, title: 'Premium Welcome Kit', category: 'Gifting', rating: 4.7, price: '$75/kit', image: 'https://images.unsplash.com/photo-1607083206968-13611e3d76db?q=80&w=400&auto=format&fit=crop' },
-    { id: 4, title: 'Downtown Tech Hub Desk', category: 'Coworking', rating: 4.6, price: '$40/day', image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=400&auto=format&fit=crop' },
+  // DEMO DATA — swap for Supabase query when real data exists
+  const DEMO_DATA_FAVOURITES: Array<{
+    id: number;
+    title: string;
+    category: string;
+    rating: number;
+    price: string;
+    image: string;
+  }> = [
+    {
+      id: 1,
+      title: 'Executive Boardroom — BKC',
+      category: 'SpaceX',
+      rating: 4.8,
+      price: '₹4,500/hr',
+      image: 'https://images.unsplash.com/photo-1497366754035-f200968a6e72?q=80&w=400&auto=format&fit=crop',
+    },
+    {
+      id: 2,
+      title: 'Townhall AV Production Kit',
+      category: 'Event',
+      rating: 4.6,
+      price: '₹1,38,000 flat',
+      image: 'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?q=80&w=400&auto=format&fit=crop',
+    },
+    {
+      id: 3,
+      title: 'Pottery Workshop — Bandra',
+      category: 'Activity',
+      rating: 4.7,
+      price: '₹2,800/hr',
+      image: 'https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?q=80&w=400&auto=format&fit=crop',
+    },
+    {
+      id: 4,
+      title: 'Diwali Premium Gift Hamper',
+      category: 'Gifting',
+      rating: 4.9,
+      price: '₹2,499/kit',
+      image: 'https://images.unsplash.com/photo-1607083206968-13611e3d76db?q=80&w=400&auto=format&fit=crop',
+    },
   ];
+  const favouriteItems = DEMO_DATA_FAVOURITES;
 
   return (
     <div className="flex h-screen bg-[#FFFDF9] font-['Inter'] overflow-hidden">
@@ -28,7 +65,7 @@ export default function FavouritesPage({}: FavouritesPageProps) {
         <SharedHeader onMobileMenuToggle={toggleSidebar} />
         
         <MogzuCorporateScrollSurface>
-          <div className="p-8 max-w-7xl mx-auto w-full">
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
             <div className="flex justify-between items-end mb-8">
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">

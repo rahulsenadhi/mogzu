@@ -89,7 +89,7 @@ export default function EventServiceDetailPage() {
         <SharedHeader onMobileMenuToggle={() => setSidebarCollapsed(!sidebarCollapsed)} searchPlaceholder="Search events..." />
 
         <MogzuCorporateScrollSurface>
-          <div className="max-w-7xl mx-auto px-6 py-6">
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
             <div className="flex items-center gap-2 text-[12px] mb-4">
               <button type="button" onClick={() => navigate('/events')} className="text-[#2563eb] hover:underline">
                 Events

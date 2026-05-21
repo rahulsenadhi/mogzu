@@ -109,7 +109,7 @@ export default function VendorPayoutsPage() {
   return (
     <VendorAppShell activeNav="orders" routeSource="vendor-payouts">
       <main className="min-h-full w-full bg-transparent">
-        <section className="p-4 sm:p-6">
+        <section className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
           <div className="mb-4">
             <h1 className="text-2xl font-semibold text-slate-900">Payouts</h1>
             <p className="text-sm text-slate-500">

@@ -125,7 +125,7 @@ export default function EventsCorporateListingPage() {
 
         <MogzuCorporateScrollSurface>
           <div className="border-b border-slate-300/[0.1] bg-transparent">
-            <div className="max-w-7xl mx-auto px-6 py-4">
+            <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-4">
               <div className="inline-flex items-center gap-2 rounded-full border border-slate-400/10 bg-[#fffdf9]/[0.22] px-4 py-1 text-[12px] backdrop-blur-[2px] mb-3">
                 <button type="button" onClick={() => navigate('/dashboard')} className="text-[#7b879a] font-medium hover:text-[#2563eb]">
                   Dashboard
@@ -330,7 +330,7 @@ export default function EventsCorporateListingPage() {
             </div>
           </div>
 
-          <div className="max-w-7xl mx-auto px-6 py-6">
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
             <div className="flex gap-4">
               {/* Sidebar filters (desktop only) */}
               <aside className="hidden lg:block w-[240px] shrink-0">

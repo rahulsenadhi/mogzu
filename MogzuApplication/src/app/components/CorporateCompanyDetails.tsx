@@ -16,9 +16,16 @@ import {
   CorporateOnboardingStepper,
   CorporateOnboardingFooterLinks,
 } from '@/app/components/corporate/CorporateOnboardingChrome';
+import {
+  linkProfileToCorporate,
+  saveCorporateOnboardingDraft,
+  validateCorporateEmailDomain,
+} from '@/app/lib/corporateOnboarding';
+import { useAuth } from '@/lib/auth';
 
 export default function CorporateCompanyDetails() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState({
     email: '',
@@ -109,18 +116,35 @@ export default function CorporateCompanyDetails() {
       return;
     }
 
-    try {
-      console.log('Company details:', formData);
-      // Navigate to interests step
+    const persist = async () => {
+      const domainCheck = await validateCorporateEmailDomain(formData.email);
+      if (!domainCheck.ok) {
+        setError(domainCheck.message ?? 'Unrecognized corporate email domain.');
+        return;
+      }
+      if (user?.id && domainCheck.corporateId) {
+        const { error: linkError } = await linkProfileToCorporate(
+          user.id,
+          domainCheck.corporateId,
+          formData.fullName.trim(),
+        );
+        if (linkError) {
+          setError(linkError);
+          return;
+        }
+      }
+      saveCorporateOnboardingDraft({
+        step: 'interests',
+        companyDetails: { ...formData },
+      });
       navigate('/signup/corporate/interests');
-    } catch (err) {
-      setError('Something went wrong. Please try again or contact support.');
-    }
+    };
+
+    void persist();
   };
 
   const handleSkipDocuments = () => {
-    // Skip document uploads and proceed
-    console.log('Skipping documents');
+    saveCorporateOnboardingDraft({ step: 'interests' });
     navigate('/signup/corporate/interests');
   };
 

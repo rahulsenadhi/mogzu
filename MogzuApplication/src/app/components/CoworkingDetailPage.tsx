@@ -183,7 +183,7 @@ export default function CoworkingDetailPage() {
         <SharedHeader onMobileMenuToggle={() => setSidebarCollapsed(!sidebarCollapsed)} searchPlaceholder="Search" />
 
         <MogzuCorporateScrollSurface>
-          <div className="max-w-[1400px] mx-auto px-6 py-6">
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
             <div className="flex flex-wrap items-center gap-2 text-xs mb-4 min-w-0">
               <button
                 type="button"
@@ -407,7 +407,7 @@ export default function CoworkingDetailPage() {
 
               {/* Right Section - Booking Card */}
               <div className="lg:col-span-1">
-                <div className="bg-white rounded-xl shadow-sm border border-[#ececec] p-6 sticky top-6">
+                <div className="bg-white rounded-xl shadow-sm border border-[#ececec] p-6 sticky top-6 max-h-[calc(100vh-5rem)] overflow-y-auto">
                   <div className="mb-6">
                     <p className="text-sm text-[#878e9e] mb-1">Starting at</p>
                     <p className="text-3xl font-bold text-[#0e1e3f]">₹{space.price.toLocaleString()}<span className="text-lg text-[#878e9e] font-normal">/{space.priceUnit}</span></p>

@@ -127,7 +127,7 @@ export default function AccountManagerPortfolioPage() {
 
   return (
     <div className="min-h-screen bg-[#FFFDF9]">
-      <div className="mx-auto max-w-6xl px-6 py-6">
+      <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
         <button
           type="button"
           onClick={() => navigate(-1)}

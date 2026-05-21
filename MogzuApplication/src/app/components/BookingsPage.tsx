@@ -10,6 +10,7 @@ import { VendorStatusBadge } from '/components/ui/VendorStatusBadge.tsx';
 import { mapVendorStatusFromBookingStatus } from '/utils/vendorStatusMap.ts';
 import { loadUnifiedBookings, migrateLegacyGiftingBookings, type UnifiedBookingRecord } from '@/app/lib/bookingRecordsStorage';
 import { getBookingActionLabel } from '@/app/lib/bookingStatus';
+import { DevMockDataBanner } from '@/app/components/global/DevMockDataBanner';
 
 interface Booking {
   id: string;
@@ -393,6 +394,7 @@ export default function BookingsPage() {
           <div className="max-w-[1600px] mx-auto px-6 py-6">
             {/* Page Title */}
             <h1 className="text-2xl font-semibold text-gray-900 mb-6 font-['Montserrat']">Booking Overview</h1>
+            <DevMockDataBanner />
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">

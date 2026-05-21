@@ -69,7 +69,7 @@ export default function PartnerListingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8">
+    <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-8">
       <header className="mb-6 flex items-center gap-3">
         <button
           type="button"

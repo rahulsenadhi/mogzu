@@ -123,7 +123,7 @@ export default function VendorAnalyticsPage() {
   return (
     <VendorAppShell activeNav="orders" routeSource="vendor-analytics">
       <main className="min-h-full w-full bg-transparent">
-        <section className="p-4 sm:p-6">
+        <section className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900">

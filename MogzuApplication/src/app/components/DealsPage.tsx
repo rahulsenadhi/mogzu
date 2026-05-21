@@ -20,7 +20,8 @@ type Deal = {
   highlighted?: boolean
 }
 
-const ALL_DEALS: Deal[] = [
+// DEMO DATA — swap for Supabase query when real data exists
+const DEMO_DATA_DEALS: Deal[] = [
   {
     id: 1,
     category: 'D Space',
@@ -125,7 +126,7 @@ export default function DealsPage() {
 
   const filteredDeals = useMemo(() => {
     const normalizedQuery = searchTerm.trim().toLowerCase()
-    let list = [...ALL_DEALS]
+    let list = [...DEMO_DATA_DEALS]
 
     if (activeCategory !== 'All') {
       list = list.filter((deal) => deal.category === activeCategory)
@@ -159,7 +160,7 @@ export default function DealsPage() {
   }, [activeCategory, savedDeals, savedOnly, searchTerm, sortMode])
 
   const totalSavingsPotential = useMemo(() => {
-    return ALL_DEALS.reduce((acc, deal) => {
+    return DEMO_DATA_DEALS.reduce((acc, deal) => {
       const numeric = Number.parseInt(deal.discount.replace(/\D/g, ''), 10)
       return Number.isNaN(numeric) ? acc : acc + numeric
     }, 0)
@@ -171,7 +172,7 @@ export default function DealsPage() {
 
   const isQueryFiltered = Boolean(searchTerm.trim()) || activeCategory !== 'All' || savedOnly
   const stats = [
-    { label: 'Active deals', value: ALL_DEALS.length, icon: Tag },
+    { label: 'Active deals', value: DEMO_DATA_DEALS.length, icon: Tag },
     { label: 'Saved', value: savedDeals.length, icon: BookmarkCheck },
     { label: 'Potential discount', value: `${totalSavingsPotential}%+`, icon: Sparkles },
   ]
@@ -189,7 +190,7 @@ export default function DealsPage() {
         />
 
         <MogzuCorporateScrollSurface className="px-5 py-5 sm:px-7">
-          <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 text-sm">
+          <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-5 text-sm">
             <section className="relative overflow-hidden rounded-3xl border border-[#d8e4ff]/90 bg-gradient-to-r from-[#0e1e3f] via-[#1f3f8f] to-[#3568dd] px-5 py-6 shadow-[0_24px_60px_rgba(53,104,221,0.22)] sm:px-7">
               <div className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
               <div className="pointer-events-none absolute -bottom-16 -left-10 h-56 w-56 rounded-full bg-[#8cb5ff]/20 blur-3xl" />

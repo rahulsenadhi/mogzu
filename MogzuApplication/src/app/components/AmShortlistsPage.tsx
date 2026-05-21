@@ -104,7 +104,7 @@ function ShortlistList() {
 
   return (
     <div className="min-h-screen bg-[#FFFDF9]">
-      <div className="mx-auto max-w-5xl px-6 py-6">
+      <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
         <AdminPageTitleRow
           title="Client shortlists"
           subtitle="Curate listings for assigned clients. Share via tokenised link; track views + booking attribution."
@@ -307,7 +307,7 @@ function ShortlistEditor({ shortlistId }: { shortlistId: string }) {
 
   return (
     <div className="min-h-screen bg-[#FFFDF9]">
-      <div className="mx-auto max-w-4xl px-6 py-6">
+      <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
         <button
           type="button"
           onClick={() => navigate('/am/shortlists')}

@@ -16,7 +16,7 @@ type VendorEventActivity = {
   category: 'Indoor Fun' | 'Outdoor Adventure' | 'Sports' | 'Team Building' | 'Wellness';
   teamSize: number;
   pricePerUnitLabel: string;
-  status: 'Active' | 'Draft' | 'Paused' | 'Rejected';
+  status: 'Active' | 'Draft' | 'Paused' | 'Rejected' | 'Pending';
   createdAt: string;
   coverUrl: string;
   hasAddOns?: boolean;
@@ -438,6 +438,7 @@ export default function VendorEventActivityPage() {
                   <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)} className="h-9 rounded-md border border-slate-200 px-2 text-sm">
                     <option value="all">Status: All</option>
                     <option value="Draft">Draft</option>
+                    <option value="Pending">Pending</option>
                     <option value="Active">Active</option>
                     <option value="Paused">Paused</option>
                     <option value="Rejected">Rejected</option>
@@ -500,10 +501,12 @@ export default function VendorEventActivityPage() {
                                     ? 'bg-slate-50 text-slate-600'
                                     : a.status === 'Rejected'
                                       ? 'bg-red-50 text-red-800'
-                                      : 'bg-amber-50 text-amber-800'
+                                      : a.status === 'Pending'
+                                        ? 'bg-blue-50 text-blue-700'
+                                        : 'bg-amber-50 text-amber-800'
                               }`}
                             >
-                              {a.status}
+                              {a.status === 'Pending' ? 'Pending review' : a.status}
                             </span>
                           </div>
                           <p className="text-sm text-slate-500">
@@ -545,14 +548,58 @@ export default function VendorEventActivityPage() {
                           >
                             <Eye className="h-5 w-5" />
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => togglePauseActivate(a.id)}
-                            className="rounded p-2 text-slate-500 hover:bg-slate-100 hover:text-blue-600"
-                            title={a.status === 'Active' ? 'Pause' : 'Activate'}
-                          >
-                            {a.status === 'Active' ? 'Pause' : 'Activate'}
-                          </button>
+                          {(a.status === 'Active' || a.status === 'Paused') && (
+                            <button
+                              type="button"
+                              onClick={() => togglePauseActivate(a.id)}
+                              className="rounded p-2 text-slate-500 hover:bg-slate-100 hover:text-blue-600"
+                              title={a.status === 'Active' ? 'Pause' : 'Activate'}
+                            >
+                              {a.status === 'Active' ? 'Pause' : 'Activate'}
+                            </button>
+                          )}
+                          {a.status === 'Draft' && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setActivities((prev) =>
+                                  prev.map((x) => (x.id === a.id ? { ...x, status: 'Pending' } : x)),
+                                )
+                              }
+                              className="rounded-md bg-[#2563EB] px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                            >
+                              Submit for review
+                            </button>
+                          )}
+                          {a.status === 'Pending' && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setActivities((prev) =>
+                                  prev.map((x) => (x.id === a.id ? { ...x, status: 'Draft' } : x)),
+                                )
+                              }
+                              className="rounded p-2 text-slate-500 hover:bg-slate-100 hover:text-blue-600"
+                              title="Withdraw"
+                            >
+                              Withdraw
+                            </button>
+                          )}
+                          {a.status === 'Rejected' && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setActivities((prev) =>
+                                  prev.map((x) =>
+                                    x.id === a.id ? { ...x, status: 'Pending', rejection: undefined } : x,
+                                  ),
+                                )
+                              }
+                              className="rounded-md bg-[#2563EB] px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                            >
+                              Resubmit
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => duplicateActivity(a.id)}
@@ -563,7 +610,7 @@ export default function VendorEventActivityPage() {
                           </button>
                           <button
                             type="button"
-                            disabled={a.status !== 'Draft'}
+                            disabled={a.status !== 'Draft' && a.status !== 'Rejected'}
                             onClick={() => deleteActivity(a.id)}
                             className="rounded p-2 text-slate-500 hover:bg-slate-100 hover:text-red-600"
                             title="Remove (demo)"

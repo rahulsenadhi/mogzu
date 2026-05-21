@@ -10,8 +10,9 @@ type VendorSpaceListing = {
   category: 'conference' | 'corporate-events' | 'casual';
   capacity: number;
   pricingType: 'transparent' | 'offer' | 'on_request';
-  status: 'Active' | 'Draft' | 'Paused';
+  status: 'Active' | 'Draft' | 'Paused' | 'Pending' | 'Rejected';
   createdAt: string;
+  rejectionReason?: string;
 };
 
 type BookingRequest = {
@@ -222,7 +223,7 @@ export default function VendorSpaceXDetailsPage() {
           </p>
         ) : null}
 
-        <div className="p-4 sm:p-6">
+        <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
             {loading ? (
               <div className="rounded-lg border border-dashed border-slate-200 bg-white p-12 text-center">
                 <div className="mx-auto mb-3 h-10 w-10 rounded-full bg-slate-100" />
@@ -261,13 +262,43 @@ export default function VendorSpaceXDetailsPage() {
               <>
                 <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <h1 className="text-lg font-semibold text-slate-900">{space.title}</h1>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h1 className="text-lg font-semibold text-slate-900">{space.title}</h1>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                          space.status === 'Active'
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : space.status === 'Draft'
+                              ? 'bg-slate-100 text-slate-600'
+                              : space.status === 'Paused'
+                                ? 'bg-amber-50 text-amber-800'
+                                : space.status === 'Pending'
+                                  ? 'bg-blue-50 text-blue-700'
+                                  : 'bg-rose-50 text-rose-700'
+                        }`}
+                      >
+                        {space.status === 'Pending' ? 'Pending review' : space.status}
+                      </span>
+                    </div>
                     <p className="text-sm text-slate-500">
                       {space.category.replace('-', ' ')} • Capacity: {space.capacity}
                     </p>
                     <p className="mt-1 text-[11px] text-slate-400">{space.createdAt}</p>
+                    {space.status === 'Rejected' && (
+                      <div className="mt-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+                        <p className="font-medium">Rejected by Mogzu review</p>
+                        <p className="mt-0.5 whitespace-pre-wrap">
+                          {space.rejectionReason ?? 'No reason provided. Edit and resubmit.'}
+                        </p>
+                      </div>
+                    )}
+                    {space.status === 'Pending' && (
+                      <p className="mt-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                        Awaiting Mogzu review. You can withdraw to keep editing.
+                      </p>
+                    )}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => setResponseNotice('Pricing settings editing will be enabled in a future release.')}
@@ -275,6 +306,44 @@ export default function VendorSpaceXDetailsPage() {
                     >
                       Edit
                     </button>
+                    {space.status === 'Draft' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSpace((prev) => (prev ? { ...prev, status: 'Pending' } : prev));
+                          setResponseNotice('Listing submitted for Mogzu review.');
+                        }}
+                        className="rounded-md bg-[#2563EB] px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                      >
+                        Submit for review
+                      </button>
+                    )}
+                    {space.status === 'Pending' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSpace((prev) => (prev ? { ...prev, status: 'Draft' } : prev));
+                          setResponseNotice('Withdrawn back to draft.');
+                        }}
+                        className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                      >
+                        Withdraw
+                      </button>
+                    )}
+                    {space.status === 'Rejected' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSpace((prev) =>
+                            prev ? { ...prev, status: 'Pending', rejectionReason: undefined } : prev,
+                          );
+                          setResponseNotice('Resubmitted for Mogzu review.');
+                        }}
+                        className="rounded-md bg-[#2563EB] px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                      >
+                        Resubmit
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => navigate('/vendor/communication')}

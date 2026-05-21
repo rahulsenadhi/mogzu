@@ -143,7 +143,7 @@ export default function VendorDashboardPage() {
       }
     >
       <main className="min-h-full w-full bg-transparent">
-        <div className="mx-auto max-w-7xl space-y-3 px-4 py-3 sm:space-y-4 sm:px-6 sm:py-4 lg:px-8">
+        <div className="mx-auto w-full max-w-[1280px] space-y-4 px-5 md:px-8 lg:px-12 py-6">
               {uiNotice ? (
                 <p
                   className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800"
