@@ -2,6 +2,32 @@
 
 > One line per file touched. Newest at top.
 
+## 2026-05-21 — Batch 6: Admin dashboard real-data wiring
+
+- `MogzuApplication/src/app/components/AdminDashboardPage.tsx` — full rewrite of data layer. Drops hardcoded constants `revenueByMonth`, `commissionData`, `toReceiveRows`, `toPayRows`, `loginLog`, `pendingIssues`, `resolvedIssues`, plus the 6 KPI card literals (175 / 64 / 36 / 25 / 15 / 175). Renames to `DEMO_*` and gates behind empty-slice fallback per the demo-data convention. New `loadAdminStats()` fans out 11 parallel queries:
+  - `user_profiles` head count → Total Users
+  - `corporate_accounts` head count → Total Clients
+  - `vendors` status=active head count → Total Vendors
+  - `bookings` last-12-months in CHARGED statuses → Revenue (sum, /100k = lakhs) + monthly bucket chart
+  - `support_tickets` open/in_progress/waiting_user head count → Pending Issues KPI
+  - `db.promotions.listActive()` → Active Promotions
+  - `payouts` (all) → commission pie (gross_amount sum / scheduled+held commission_amount / processed commission_amount)
+  - `listInvoiceRuns()` filtered to finalised/sent/overdue → To Receive (top 3 by total, joined to contracts → corporate_accounts.name)
+  - `payouts` status=scheduled top 3 → To Pay (vendors.business_name + net_amount)
+  - `audit_events_unified` action in ['auth.signin','auth.login','login'] → Login Log (last 3, joined to user_profiles for name)
+  - `support_tickets` open+resolved top 3 each → issues tabs
+- "Mock data for layout preview" footer replaced with conditional `usingAnyDemo` banner ("Some panels rendered with demo fallback rows") that hides once every slice has real data.
+- Sparkline on Revenue KPI now points at real `revenueChartData` 12-month series instead of fixed `[12,18,14,22,19,28,24,32]` placeholder. Falls back to placeholder array when revenue series is empty.
+
+Why: glitch #8 — `/admin` rendered fake Jan-Dec values, fake clients (Acme/Globex/Stark), fake bills, fake login users (Kapil/Sarah/James), fake issue snippets. Top embarrassment vector for any internal-ops walkthrough.
+
+Carry-over:
+- Revenue dropdown ("This year" / "Last year" / "Last 6 months") still cosmetic — only "This year" is wired. Other ranges return same 12-month series.
+- Commission pie aggregate is lifetime, not period-filtered.
+- `audit_events_unified` action match-list assumed: `auth.signin`, `auth.login`, `login`. Verify with `auditLog.ts` once seed data lands.
+
+Verified: `npm run build` exit 0, `built in 27.04s`.
+
 ## 2026-05-21 — Batch 5: Spend report sidebar wiring
 
 - `MogzuApplication/src/app/components/layouts/SharedSidebar.tsx` — `report` nav item path: `/report` → `/corporate/spend-report`. Active matcher extended: `if (path.startsWith('/corporate/spend-report') || path.startsWith('/report')) return 'report'`. Old `/report` route preserved (ReportsPage hardcoded Jan-Dec demo charts still served if deep-linked) but no longer surfaced.

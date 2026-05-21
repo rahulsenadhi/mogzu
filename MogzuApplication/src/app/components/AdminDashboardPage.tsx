@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
-import { TrendingUp, Bell, Building2, Package, AlertCircle } from 'lucide-react';
+import { TrendingUp, Bell, Building2, Package, AlertCircle, Loader2 } from 'lucide-react';
 import {
   Area,
   AreaChart,
@@ -16,6 +16,9 @@ import {
 } from 'recharts';
 import { CORP } from '@/app/lib/adminTheme';
 import { getAdminSession } from '@/app/lib/adminSession';
+import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/db';
+import { listInvoiceRuns } from '@/lib/contracts';
 
 function adminDisplayName(): string {
   const s = getAdminSession();
@@ -35,7 +38,12 @@ function greetingPrefix(): string {
   return 'Good evening';
 }
 
-const revenueByMonth = [
+const CHARGED_STATUSES = ['pending_approval', 'pending_vendor', 'confirmed', 'completed'] as const;
+
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// DEMO FALLBACKS — shown when Supabase returns 0 rows for the respective slice
+const DEMO_REVENUE_BY_MONTH = [
   { month: 'Jan', value: 2.2 },
   { month: 'Feb', value: 3.1 },
   { month: 'Mar', value: 2.8 },
@@ -50,33 +58,27 @@ const revenueByMonth = [
   { month: 'Dec', value: 8.2 },
 ];
 
-const commissionData = [
-  { name: 'Total sales', value: 5000, fill: CORP.chartYellow },
-  { name: 'Pending commissions', value: 500, fill: CORP.chartOrange },
-  { name: 'Completed commissions', value: 100, fill: CORP.chartTeal },
-];
-
-const toReceiveRows = [
-  { name: 'Acme Corp', invoice: 'INV1', amount: '₹12,400' },
-  { name: 'Globex India', invoice: 'ENZOO4130', amount: '₹8,200' },
+const DEMO_TO_RECEIVE = [
+  { name: 'Acme Corp', invoice: 'INV-1240', amount: '₹12,400' },
+  { name: 'Globex India', invoice: 'INV-4130', amount: '₹8,200' },
   { name: 'Stark Labs', invoice: 'INV-8821', amount: '₹24,990' },
 ];
 
-const toPayRows = [
+const DEMO_TO_PAY = [
   { name: 'Fresh Catering Co.', bill: 'BL-0092', amount: '₹4,100' },
   { name: 'Urban Events', bill: 'BL-4410', amount: '₹11,500' },
   { name: 'PrintWorks', bill: 'BL-2201', amount: '₹2,850' },
 ];
 
-const loginLog = [
+const DEMO_LOGIN_LOG = [
   { user: 'Kapil Dev', time: '3:45 PM', ip: '106.221.181.179' },
   { user: 'Sarah Chen', time: '2:12 PM', ip: '103.45.12.88' },
   { user: 'James Brown', time: '11:03 AM', ip: '49.36.101.14' },
 ];
 
-const pendingIssues = [
+const DEMO_PENDING_ISSUES = [
   {
-    id: 1,
+    id: 'demo-i-1',
     name: 'Kapil Dev',
     role: 'Client' as const,
     category: 'Gifting',
@@ -84,7 +86,7 @@ const pendingIssues = [
     date: '12 Mar 2025',
   },
   {
-    id: 2,
+    id: 'demo-i-2',
     name: 'Priya Sharma',
     role: 'Vendor' as const,
     category: 'Event',
@@ -93,9 +95,9 @@ const pendingIssues = [
   },
 ];
 
-const resolvedIssues = [
+const DEMO_RESOLVED_ISSUES = [
   {
-    id: 3,
+    id: 'demo-i-3',
     name: 'Rahul Verma',
     role: 'Client' as const,
     category: 'Space',
@@ -104,8 +106,291 @@ const resolvedIssues = [
   },
 ];
 
-function MiniSparkline({ color }: { color: string }) {
-  const pts = [12, 18, 14, 22, 19, 28, 24, 32];
+type ReceivableRow = { id: string; name: string; invoice: string; amount: string };
+type PayableRow = { id: string; name: string; bill: string; amount: string };
+type LoginRow = { user: string; time: string; ip: string };
+type IssueRow = {
+  id: string;
+  name: string;
+  role: 'Client' | 'Vendor';
+  category: string;
+  snippet: string;
+  date: string;
+};
+
+type AdminStats = {
+  totalUsers: number;
+  totalCorporates: number;
+  totalVendors: number;
+  revenueLakhs: number;
+  pendingIssues: number;
+  activePromotions: number;
+  revenueByMonth: { month: string; value: number }[];
+  commissionTotalSales: number;
+  commissionPending: number;
+  commissionCompleted: number;
+  toReceive: ReceivableRow[];
+  toPay: PayableRow[];
+  loginLog: LoginRow[];
+  pendingIssueList: IssueRow[];
+  resolvedIssueList: IssueRow[];
+};
+
+const EMPTY_STATS: AdminStats = {
+  totalUsers: 0,
+  totalCorporates: 0,
+  totalVendors: 0,
+  revenueLakhs: 0,
+  pendingIssues: 0,
+  activePromotions: 0,
+  revenueByMonth: [],
+  commissionTotalSales: 0,
+  commissionPending: 0,
+  commissionCompleted: 0,
+  toReceive: [],
+  toPay: [],
+  loginLog: [],
+  pendingIssueList: [],
+  resolvedIssueList: [],
+};
+
+function fmtInr(n: number): string {
+  return `₹${Math.round(n).toLocaleString('en-IN')}`;
+}
+
+function fmtTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+}
+
+function fmtShortDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+async function loadAdminStats(): Promise<AdminStats> {
+  const now = new Date();
+  const oneYearAgo = new Date(now);
+  oneYearAgo.setMonth(oneYearAgo.getMonth() - 11);
+  oneYearAgo.setDate(1);
+  oneYearAgo.setHours(0, 0, 0, 0);
+
+  const [
+    usersCount,
+    corpsCount,
+    vendorsCount,
+    bookingsLastYear,
+    openTicketsCount,
+    activePromos,
+    payoutsRes,
+    invoiceRunsRes,
+    loginEventsRes,
+    openTicketsRes,
+    resolvedTicketsRes,
+  ] = await Promise.all([
+    supabase.from('user_profiles').select('id', { count: 'exact', head: true }),
+    supabase.from('corporate_accounts').select('id', { count: 'exact', head: true }),
+    supabase.from('vendors').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+    supabase
+      .from('bookings')
+      .select('total_amount, created_at, status')
+      .in('status', [...CHARGED_STATUSES])
+      .gte('created_at', oneYearAgo.toISOString()),
+    supabase
+      .from('support_tickets')
+      .select('id', { count: 'exact', head: true })
+      .in('status', ['open', 'in_progress', 'waiting_user']),
+    db.promotions.listActive(),
+    supabase.from('payouts').select('gross_amount, commission_amount, status'),
+    listInvoiceRuns(),
+    supabase
+      .from('audit_events_unified')
+      .select('actor_id, at, ip_address, action')
+      .in('action', ['auth.signin', 'auth.login', 'login'])
+      .order('at', { ascending: false })
+      .limit(3),
+    supabase
+      .from('support_tickets')
+      .select('id, subject, message, audience, category, created_at, user_profiles!support_tickets_submitter_id_fkey(full_name), vendors(business_name)')
+      .in('status', ['open', 'in_progress', 'waiting_user'])
+      .order('created_at', { ascending: false })
+      .limit(3),
+    supabase
+      .from('support_tickets')
+      .select('id, subject, message, audience, category, updated_at, user_profiles!support_tickets_submitter_id_fkey(full_name), vendors(business_name)')
+      .eq('status', 'resolved')
+      .order('updated_at', { ascending: false })
+      .limit(3),
+  ]);
+
+  // Revenue by month — bucket bookings into 12 month slots ending current month
+  const buckets = new Map<string, number>();
+  for (let i = 0; i < 12; i += 1) {
+    const d = new Date(oneYearAgo);
+    d.setMonth(d.getMonth() + i);
+    buckets.set(`${d.getFullYear()}-${d.getMonth()}`, 0);
+  }
+  const bookings = (bookingsLastYear.data ?? []) as { total_amount: number | null; created_at: string }[];
+  let revenueTotal = 0;
+  for (const b of bookings) {
+    const d = new Date(b.created_at);
+    const key = `${d.getFullYear()}-${d.getMonth()}`;
+    if (buckets.has(key)) {
+      const amt = b.total_amount ?? 0;
+      buckets.set(key, (buckets.get(key) ?? 0) + amt);
+      revenueTotal += amt;
+    }
+  }
+  const revenueByMonth: { month: string; value: number }[] = [];
+  for (let i = 0; i < 12; i += 1) {
+    const d = new Date(oneYearAgo);
+    d.setMonth(d.getMonth() + i);
+    const key = `${d.getFullYear()}-${d.getMonth()}`;
+    revenueByMonth.push({
+      month: MONTH_LABELS[d.getMonth()],
+      value: +((buckets.get(key) ?? 0) / 100_000).toFixed(2),
+    });
+  }
+
+  // Commission aggregates from payouts
+  const payouts = (payoutsRes.data ?? []) as { gross_amount: number; commission_amount: number; status: string }[];
+  let commissionTotalSales = 0;
+  let commissionPending = 0;
+  let commissionCompleted = 0;
+  for (const p of payouts) {
+    commissionTotalSales += p.gross_amount ?? 0;
+    if (p.status === 'processed') commissionCompleted += p.commission_amount ?? 0;
+    else if (p.status === 'scheduled' || p.status === 'held') commissionPending += p.commission_amount ?? 0;
+  }
+
+  // To Receive — outstanding invoice_runs joined with contracts -> corporate_accounts
+  const invoiceRuns = (invoiceRunsRes.data ?? []).filter((r) =>
+    ['finalised', 'sent', 'overdue'].includes(r.status),
+  );
+  let toReceive: ReceivableRow[] = [];
+  if (invoiceRuns.length > 0) {
+    const top = invoiceRuns.sort((a, b) => b.total - a.total).slice(0, 3);
+    const contractIds = Array.from(new Set(top.map((r) => r.contract_id)));
+    const { data: contractsData } = await supabase
+      .from('contracts')
+      .select('id, corporate_id, corporate_accounts(name)')
+      .in('id', contractIds);
+    const contractMap = new Map<string, { corporateName: string | null }>();
+    for (const c of (contractsData ?? []) as Array<{
+      id: string;
+      corporate_accounts: { name: string | null } | { name: string | null }[] | null;
+    }>) {
+      const ca = Array.isArray(c.corporate_accounts) ? c.corporate_accounts[0] : c.corporate_accounts;
+      contractMap.set(c.id, { corporateName: ca?.name ?? null });
+    }
+    toReceive = top.map((r) => ({
+      id: r.id,
+      name: contractMap.get(r.contract_id)?.corporateName ?? '—',
+      invoice: r.id.slice(0, 8).toUpperCase(),
+      amount: fmtInr(r.total),
+    }));
+  }
+
+  // To Pay — payouts.listDue style, top 3 scheduled
+  const duePayouts = payouts.filter((p) => p.status === 'scheduled');
+  let toPay: PayableRow[] = [];
+  if (duePayouts.length > 0) {
+    const { data: dueRows } = await supabase
+      .from('payouts')
+      .select('id, net_amount, vendors(business_name)')
+      .eq('status', 'scheduled')
+      .order('scheduled_for')
+      .limit(3);
+    toPay = ((dueRows ?? []) as Array<{
+      id: string;
+      net_amount: number;
+      vendors: { business_name: string | null } | { business_name: string | null }[] | null;
+    }>).map((row) => {
+      const v = Array.isArray(row.vendors) ? row.vendors[0] : row.vendors;
+      return {
+        id: row.id,
+        name: v?.business_name ?? '—',
+        bill: row.id.slice(0, 8).toUpperCase(),
+        amount: fmtInr(row.net_amount),
+      };
+    });
+  }
+
+  // Login log — derive name from user_profiles via separate lookup
+  const loginEvents = ((loginEventsRes.data ?? []) as Array<{
+    actor_id: string | null;
+    at: string;
+    ip_address: string | null;
+  }>);
+  let loginLog: LoginRow[] = [];
+  if (loginEvents.length > 0) {
+    const actorIds = Array.from(new Set(loginEvents.map((e) => e.actor_id).filter((x): x is string => !!x)));
+    let nameMap = new Map<string, string>();
+    if (actorIds.length > 0) {
+      const { data: profs } = await supabase
+        .from('user_profiles')
+        .select('id, full_name')
+        .in('id', actorIds);
+      for (const p of (profs ?? []) as Array<{ id: string; full_name: string | null }>) {
+        nameMap.set(p.id, p.full_name ?? '—');
+      }
+    }
+    loginLog = loginEvents.map((e) => ({
+      user: e.actor_id ? nameMap.get(e.actor_id) ?? '—' : '—',
+      time: fmtTime(e.at),
+      ip: e.ip_address ?? '—',
+    }));
+  }
+
+  // Pending + resolved issues
+  type TicketRow = {
+    id: string;
+    subject: string | null;
+    message: string | null;
+    audience: 'corporate' | 'vendor';
+    category: string | null;
+    created_at?: string;
+    updated_at?: string;
+    user_profiles: { full_name: string | null } | { full_name: string | null }[] | null;
+    vendors: { business_name: string | null } | { business_name: string | null }[] | null;
+  };
+  const mapTicket = (t: TicketRow, dateField: 'created_at' | 'updated_at'): IssueRow => {
+    const up = Array.isArray(t.user_profiles) ? t.user_profiles[0] : t.user_profiles;
+    const ven = Array.isArray(t.vendors) ? t.vendors[0] : t.vendors;
+    const name = t.audience === 'vendor' ? ven?.business_name ?? '—' : up?.full_name ?? '—';
+    return {
+      id: t.id,
+      name,
+      role: t.audience === 'vendor' ? 'Vendor' : 'Client',
+      category: t.category ?? '—',
+      snippet: (t.subject ?? t.message ?? '—').slice(0, 100),
+      date: fmtShortDate((dateField === 'updated_at' ? t.updated_at : t.created_at) ?? new Date().toISOString()),
+    };
+  };
+  const pendingIssueList = ((openTicketsRes.data ?? []) as TicketRow[]).map((t) => mapTicket(t, 'created_at'));
+  const resolvedIssueList = ((resolvedTicketsRes.data ?? []) as TicketRow[]).map((t) => mapTicket(t, 'updated_at'));
+
+  const promotionsArr = activePromos.data ?? [];
+
+  return {
+    totalUsers: usersCount.count ?? 0,
+    totalCorporates: corpsCount.count ?? 0,
+    totalVendors: vendorsCount.count ?? 0,
+    revenueLakhs: +(revenueTotal / 100_000).toFixed(1),
+    pendingIssues: openTicketsCount.count ?? 0,
+    activePromotions: promotionsArr.length,
+    revenueByMonth,
+    commissionTotalSales,
+    commissionPending,
+    commissionCompleted,
+    toReceive,
+    toPay,
+    loginLog,
+    pendingIssueList,
+    resolvedIssueList,
+  };
+}
+
+function MiniSparkline({ color, points }: { color: string; points?: number[] }) {
+  const pts = points && points.length >= 2 ? points : [12, 18, 14, 22, 19, 28, 24, 32];
   const w = 72;
   const h = 28;
   const max = Math.max(...pts);
@@ -130,6 +415,30 @@ export default function AdminDashboardPage() {
   const [issueTab, setIssueTab] = useState<'pending' | 'resolved'>('pending');
   const [revenuePeriod, setRevenuePeriod] = useState('This year');
 
+  const [stats, setStats] = useState<AdminStats>(EMPTY_STATS);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    loadAdminStats()
+      .then((s) => {
+        if (!cancelled) setStats(s);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setLoadError(err instanceof Error ? err.message : 'Failed to load admin stats');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     if (location.hash === '#admin-issues') {
       const t = window.setTimeout(() => {
@@ -148,12 +457,77 @@ export default function AdminDashboardPage() {
 
   const displayName = adminDisplayName();
 
+  // Use real data when available, else demo fallback
+  const revenueChartData = useMemo(() => {
+    const hasReal = stats.revenueByMonth.some((m) => m.value > 0);
+    return hasReal ? stats.revenueByMonth : DEMO_REVENUE_BY_MONTH;
+  }, [stats.revenueByMonth]);
+
+  const commissionData = useMemo(() => {
+    const hasReal = stats.commissionTotalSales > 0 || stats.commissionPending > 0 || stats.commissionCompleted > 0;
+    if (hasReal) {
+      return [
+        { name: 'Total sales', value: Math.round(stats.commissionTotalSales), fill: CORP.chartYellow },
+        { name: 'Pending commissions', value: Math.round(stats.commissionPending), fill: CORP.chartOrange },
+        { name: 'Completed commissions', value: Math.round(stats.commissionCompleted), fill: CORP.chartTeal },
+      ];
+    }
+    return [
+      { name: 'Total sales', value: 5000, fill: CORP.chartYellow },
+      { name: 'Pending commissions', value: 500, fill: CORP.chartOrange },
+      { name: 'Completed commissions', value: 100, fill: CORP.chartTeal },
+    ];
+  }, [stats.commissionTotalSales, stats.commissionPending, stats.commissionCompleted]);
+
+  const toReceiveRows: { name: string; invoice: string; amount: string }[] =
+    stats.toReceive.length > 0 ? stats.toReceive : DEMO_TO_RECEIVE;
+  const toPayRows: { name: string; bill: string; amount: string }[] =
+    stats.toPay.length > 0 ? stats.toPay : DEMO_TO_PAY;
+  const loginLog = stats.loginLog.length > 0 ? stats.loginLog : DEMO_LOGIN_LOG;
+  const pendingIssues = stats.pendingIssueList.length > 0 ? stats.pendingIssueList : DEMO_PENDING_ISSUES;
+  const resolvedIssues = stats.resolvedIssueList.length > 0 ? stats.resolvedIssueList : DEMO_RESOLVED_ISSUES;
+
+  const usingAnyDemo =
+    stats.toReceive.length === 0 ||
+    stats.toPay.length === 0 ||
+    stats.loginLog.length === 0 ||
+    stats.pendingIssueList.length === 0;
+
   const quickActions = [
     { to: '/admin/issues', label: 'Issues', Icon: AlertCircle, iconColor: '#1D4ED8', tint: '#EEF4FF' },
     { to: '/admin/clients', label: 'Clients', Icon: Building2, iconColor: '#334155', tint: '#F8FAFC' },
     { to: '/admin/products', label: 'Products', Icon: Package, iconColor: '#2563EB', tint: '#EFF6FF' },
     { to: '/admin/notifications', label: 'Notify', Icon: Bell, iconColor: '#DB2777', tint: CORP.brandRoseSoft },
   ] as const;
+
+  const kpiCards = [
+    {
+      title: 'Total Users',
+      value: stats.totalUsers.toLocaleString('en-IN'),
+      accent: CORP.primary,
+      accentBar: 'rose' as const,
+    },
+    { title: 'Total Clients', value: stats.totalCorporates.toLocaleString('en-IN'), accent: CORP.orange },
+    {
+      title: 'Total Vendors',
+      value: stats.totalVendors.toLocaleString('en-IN'),
+      accent: CORP.teal,
+      accentBar: 'mint' as const,
+    },
+    {
+      title: 'Revenue (12mo)',
+      value: stats.revenueLakhs > 0 ? `₹${stats.revenueLakhs}L` : '—',
+      accent: CORP.green,
+      spark: true,
+    },
+    { title: 'Pending Issues', value: stats.pendingIssues.toLocaleString('en-IN'), accent: CORP.red },
+    { title: 'Active Promotions', value: stats.activePromotions.toLocaleString('en-IN'), accent: CORP.amber },
+  ];
+
+  const sparkPoints = useMemo(
+    () => revenueChartData.map((m) => m.value),
+    [revenueChartData],
+  );
 
   return (
     <>
@@ -191,33 +565,20 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
+      {loading && (
+        <div className="mb-3 flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
+          <Loader2 className="size-3 animate-spin" />
+          Loading admin stats…
+        </div>
+      )}
+      {loadError && (
+        <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          {loadError}
+        </div>
+      )}
+
       <div className="grid grid-cols-2 xl:grid-cols-6 gap-3 lg:gap-4 mb-2">
-        {[
-          {
-            title: 'Total Users',
-            value: '175',
-            delta: '+3.25 than last month',
-            accent: CORP.primary,
-            accentBar: 'rose' as const,
-          },
-          { title: 'Today Clients', value: '64', delta: '+3.25 than last month', accent: CORP.orange },
-          {
-            title: 'Total Vendors',
-            value: '36',
-            delta: '+3.25 than last month',
-            accent: CORP.teal,
-            accentBar: 'mint' as const,
-          },
-          {
-            title: 'Revenue',
-            value: '25',
-            delta: '+3.25 than last month',
-            accent: CORP.green,
-            spark: true,
-          },
-          { title: 'Pending Issues', value: '15', delta: '+3.25 than last month', accent: CORP.red },
-          { title: 'Active Promotions', value: '175', delta: '+3.25 than last month', accent: CORP.amber },
-        ].map((card) => (
+        {kpiCards.map((card) => (
           <div
             key={card.title}
             className="group relative bg-white rounded-2xl border border-slate-200/90 shadow-sm shadow-slate-200/40 p-4 flex flex-col min-h-[112px] transition-all hover:-translate-y-0.5 hover:shadow-md overflow-hidden"
@@ -241,11 +602,11 @@ export default function AdminDashboardPage() {
               <p className="text-2xl font-bold tabular-nums" style={{ color: card.accent }}>
                 {card.value}
               </p>
-              {card.spark && <MiniSparkline color={CORP.green} />}
+              {'spark' in card && card.spark && <MiniSparkline color={CORP.green} points={sparkPoints} />}
             </div>
             <p className="text-[11px] text-slate-400 mt-2 flex items-center gap-0.5">
               <TrendingUp className="size-3 text-emerald-500" />
-              {card.delta}
+              {loading ? '—' : 'Live'}
             </p>
           </div>
         ))}
@@ -269,7 +630,7 @@ export default function AdminDashboardPage() {
           </div>
           <div className="h-[260px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={revenueByMonth} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+              <AreaChart data={revenueChartData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
                 <defs>
                   <linearGradient id="adminRevFill" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor={CORP.primary} stopOpacity={0.25} />
@@ -529,9 +890,11 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
-      <p className="text-center text-[11px] text-slate-400 mt-6 pb-2">
-        Admin console · Mogzu corporate theme · Mock data for layout preview
-      </p>
+      {usingAnyDemo && !loading && (
+        <p className="text-center text-[11px] text-slate-400 mt-6 pb-2">
+          Some panels rendered with demo fallback rows (empty Supabase slice).
+        </p>
+      )}
     </>
   );
 }
