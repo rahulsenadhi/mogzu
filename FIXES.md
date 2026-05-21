@@ -2,6 +2,19 @@
 
 > One line per file touched. Newest at top.
 
+## 2026-05-21 — Batch 3: Bookings glue
+
+- `MogzuApplication/src/app/components/BookingsPage.tsx` — wire to `db.bookings`. L3 admins call `listByCorporate(corporateId)`; everyone else calls `listByUser(profile.id)`. Map `BookingStatus` → UI `{status, type}` via local `mapBookingStatus` switch. Compose `allBookings`: real ⊕ flow when real present; mock ⊕ flow otherwise (DEMO_DATA fallback per convention). `DevMockDataBanner` now gated on `!hasRealData`. Added `formatShortDate` ISO→`"MMM dd, yyyy"` helper for parity with mock format.
+- `MogzuApplication/src/app/components/BookingDetailPage.tsx` — UUID guard around `db.bookings.getById`. Mock numeric ids (e.g. `1240909` from passed booking state) no longer hit Postgres → kills the 22P02 "invalid uuid" console error on legacy mock-link clicks. Real UUID ids continue to fetch + populate `realBooking` for `BookingMessagesPanel` + dispute modal.
+
+Row-click navigation (`/bookings/:id`) confirmed sound — passes `booking` in `location.state` for both real and mock paths; BookingDetailPage uses passed state for primary render and overlays real data when fetch succeeds.
+
+Carry-over → Batch 3b:
+- Hybrid render: when `realBooking` present, override UI fields (venue.name, attendees, price.total, dates) on `booking` derived object so the detail page surface mirrors live data rather than the passed snapshot. Currently real data only powers messages + dispute.
+- Status pill on `/bookings/:id` derived from `booking.bookingStatus.currentStatus` — does not yet flip when `realBooking.status` changes server-side. Add realtime subscription on `db.bookings` row.
+
+Verified: `npm run build` exit 0, `built in 22.67s`.
+
 ## 2026-05-21 — Batch 2c: Heart sweep completion
 
 Card-surface (listing pages, swap local heart -> canonical `<WishlistHeart>`):

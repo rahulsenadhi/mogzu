@@ -14,6 +14,8 @@ import type { Booking, Listing } from '@/lib/database.types';
 
 type RealBooking = Booking & { listings: Listing | null };
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const DISPUTE_CATEGORIES: Array<{ value: string; label: string }> = [
   { value: 'service_quality', label: 'Service quality' },
   { value: 'refund', label: 'Refund issue' },
@@ -158,7 +160,7 @@ export default function BookingDetailPage() {
   const [raiseSuccess, setRaiseSuccess] = useState(false);
 
   const loadReal = useCallback(async () => {
-    if (!id) return;
+    if (!id || !UUID_RE.test(id)) return;
     setRealLoading(true);
     const { data, error } = await db.bookings.getById(id);
     if (!error && data) setRealBooking(data as RealBooking);

@@ -11,6 +11,9 @@ import { mapVendorStatusFromBookingStatus } from '/utils/vendorStatusMap.ts';
 import { loadUnifiedBookings, migrateLegacyGiftingBookings, type UnifiedBookingRecord } from '@/app/lib/bookingRecordsStorage';
 import { getBookingActionLabel } from '@/app/lib/bookingStatus';
 import { DevMockDataBanner } from '@/app/components/global/DevMockDataBanner';
+import { useAuth } from '@/lib/auth';
+import { db } from '@/lib/db';
+import type { BookingStatus } from '@/lib/database.types';
 
 interface Booking {
   id: string;
@@ -217,11 +220,35 @@ const mockBookings: Booking[] = [
   }
 ];
 
+type DbStatusBucket = { status: Booking['status']; type: Booking['type'] };
+
+function mapBookingStatus(s: BookingStatus): DbStatusBucket {
+  switch (s) {
+    case 'draft': return { status: 'INQUIRY', type: 'Inquiry' };
+    case 'pending_approval': return { status: 'PENDING', type: 'Pending' };
+    case 'pending_vendor': return { status: 'Requested', type: 'Request' };
+    case 'confirmed': return { status: 'CONFIRMED', type: 'Confirmed' };
+    case 'cancelled': return { status: 'CANCELLED', type: 'Cancelled' };
+    case 'completed': return { status: 'APPROVED', type: 'Approved' };
+    case 'disputed': return { status: 'CANCELLED', type: 'Cancelled' };
+  }
+}
+
+function formatShortDate(iso: string | null): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 export default function BookingsPage() {
   const navigate = useNavigate();
+  const { profile, corporateId, role } = useAuth();
   const [activeTab, setActiveTab] = useState('All');
   const [selectedBookings, setSelectedBookings] = useState<string[]>([]);
   const [flowBookings, setFlowBookings] = useState<Booking[]>([]);
+  const [realBookings, setRealBookings] = useState<Booking[]>([]);
+  const [bookingsLoading, setBookingsLoading] = useState(false);
   
   // Sidebar State
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -253,8 +280,52 @@ export default function BookingsPage() {
     }));
     setFlowBookings(normalized);
   }, []);
-  
-  const allBookings = useMemo(() => [...mockBookings, ...flowBookings], [flowBookings]);
+
+  // Load real bookings from Supabase. L3 admins see corporate-wide; everyone else sees own.
+  useEffect(() => {
+    let cancelled = false;
+    if (!profile?.id) return;
+    setBookingsLoading(true);
+    const fetcher = role === 'l3_admin' && corporateId
+      ? db.bookings.listByCorporate(corporateId)
+      : db.bookings.listByUser(profile.id);
+    fetcher.then(({ data }) => {
+      if (cancelled || !data) {
+        if (!cancelled) setBookingsLoading(false);
+        return;
+      }
+      const rows = data as Array<Record<string, unknown>>;
+      const normalized: Booking[] = rows.map((row) => {
+        const listing = (row.listings ?? null) as { title?: string; location_city?: string } | null;
+        const vendor = (row.vendors ?? null) as { business_name?: string } | null;
+        const bucket = mapBookingStatus(row.status as BookingStatus);
+        return {
+          id: String(row.id),
+          name: listing?.title ?? '—',
+          venue: listing?.location_city ?? '—',
+          vendor: vendor?.business_name ?? '—',
+          assignTo: profile?.full_name ?? '—',
+          fromDate: formatShortDate(row.start_time as string | null),
+          toDate: formatShortDate((row.end_time ?? row.start_time) as string | null),
+          attendance: (row.group_size as number | null) ?? 0,
+          price: (row.total_amount as number | null) ?? 0,
+          status: bucket.status,
+          type: bucket.type,
+        };
+      });
+      setRealBookings(normalized);
+      setBookingsLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [profile?.id, profile?.full_name, role, corporateId]);
+
+  const hasRealData = realBookings.length > 0;
+  const allBookings = useMemo(
+    () => (hasRealData ? [...realBookings, ...flowBookings] : [...mockBookings, ...flowBookings]),
+    [hasRealData, realBookings, flowBookings],
+  );
 
   const tabs = [
     'All',
@@ -394,7 +465,7 @@ export default function BookingsPage() {
           <div className="max-w-[1600px] mx-auto px-6 py-6">
             {/* Page Title */}
             <h1 className="text-2xl font-semibold text-gray-900 mb-6 font-['Montserrat']">Booking Overview</h1>
-            <DevMockDataBanner />
+            {!hasRealData && <DevMockDataBanner />}
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
