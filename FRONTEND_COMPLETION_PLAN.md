@@ -41,10 +41,10 @@ Per recent commits (`bca5c76`, `f57422e`, `f4877e7`, `9e77906`), runtime stubs f
 |---|---|---|---|---|---|
 | Dashboard (corp) | `/dashboard` | ✅ | Real-data per memory; NotificationBell live | P0/P1 | Critical |
 | Welcome screen | `/welcome` | ✅ | Auth-stabilised 2026-05-17 | P0 | Critical |
-| My Profile | `/my-profile` | ⚠️ (verify) | Likely mock; not in work log | P0 | High |
-| Company Settings | `/company-settings` | ⚠️ (verify) | Partial wiring suspected | P0 | High |
+| My Profile | `/my-profile` | ❌ | Hardcoded `profileForm` + setTimeout mock loader; no Supabase. Verified 2026-05-21 | P0 | High |
+| Company Settings | `/company-settings` | ❌ | Pure navigation hub; no data fetch. Verified 2026-05-21 | P0 | High |
 | Corporate dashboard layout | `/company-settings/dashboard` | ⚠️ (verify) | — | P0 | Medium |
-| Billing & invoices | `/billing-invoices` | ⚠️ (verify) | Pre-P3.8 mock; new contract billing in `AdminInvoiceRunPage` | P3 | High |
+| Billing & invoices | `/billing-invoices` | ❌ | Stub: "Invoice list and billing info will go here". Verified 2026-05-21. Real contract billing at `AdminInvoiceRunPage` | P3 | High |
 | Wallet | `/wallet` | ✅ | Sprint 5 P0 (commit b6/9b chain) | P0 | Critical |
 | Communication | `/communication` | ⚠️ | Skeleton per user stories §7.1; vendor side wired, corp side not | P1 | High |
 | Favourites | `/favourites` | ⚠️ (verify) | Likely mock; supersede by `/wishlist` | P2 | Low |
@@ -71,8 +71,8 @@ Per recent commits (`bca5c76`, `f57422e`, `f4877e7`, `9e77906`), runtime stubs f
 | Employee CSV import | `/corporate/employees/import` | ✅ | Sprint 9 P1 | P1 | High |
 | Approval workflow settings | `/settings/workflow` | ⚠️ (verify) | Pre-P0 page; behaviour unclear | P0 | Medium |
 | Notification prefs | `/settings/notifications` | ✅ | Sprint 9 P1 | P1 | High |
-| User management (L3) | `/user-management` | ⚠️ (verify) | Story 1.2 — likely partial | P0 | High |
-| Accept invite | `/invite/:token` | ⚠️ (verify) | Story 1.2 | P0 | High |
+| User management (L3) | `/user-management` | ❌ | Hardcoded `initialUsers` array; no `db.*`. Story 1.2 not wired. Verified 2026-05-21 | P0 | High |
+| Accept invite | `/invite/:token` | ✅ | `db.userInvites.getByToken` + `getPostLoginPath` after accept. Verified 2026-05-21 | P0 | High |
 
 ### MODULE 2 — Vendor Journey
 
@@ -120,7 +120,7 @@ Per recent commits (`bca5c76`, `f57422e`, `f4877e7`, `9e77906`), runtime stubs f
 |---|---|---|---|---|---|
 | Admin login | `/admin/login` | ✅ | Auth stabilised | P0 | Critical |
 | Admin layout shell | `/admin` | ✅ | — | P0 | Critical |
-| Admin dashboard | `/admin` (index) | ⚠️ (verify) | Verify real-data widgets vs mock | P0 | Critical |
+| Admin dashboard | `/admin` (index) | ❌ | All mock: `revenueByMonth`, `commissionData`, `toReceiveRows`, `toPayRows`, `loginLog`, `pendingIssues` hardcoded; no `db.*`. Verified 2026-05-21 | P0 | Critical |
 | Platform modules | `/admin/platform-modules` | ⚠️ (verify) | Sprint 2 P0 wired `AdminClientManagementPage`; this one separate | P0 | High |
 | Client management | `/admin/clients` | ✅ | Sprint 2 P0 (9.1, 9.3) | P0 | Critical |
 | Admin issues | `/admin/issues` | ⚠️ (verify) | — | — | Medium |
@@ -129,7 +129,7 @@ Per recent commits (`bca5c76`, `f57422e`, `f4877e7`, `9e77906`), runtime stubs f
 | Add product | `/admin/products/new` | ⚠️ (verify) | — | — | Low |
 | Admin teams + role perms | `/admin/teams`, `/admin/teams/roles` | ⚠️ (verify) | Add-on Feature 6 RBAC | P2-AO | High |
 | Admin vendors dashboard | `/admin/vendors` | ⚠️ (verify) | — | P0 | High |
-| Vendor applications | `/admin/vendor-applications` | ⚠️ (verify) | Story 1.4 | P0 | Critical |
+| Vendor applications | `/admin/vendor-applications` | ✅ | `listApplications` + `setStatus` + `setKycStatus` from `vendorOnboarding`. Story 1.4 wired. Verified 2026-05-21 | P0 | Critical |
 | Listings (Mogzu Direct) | `/admin/listings` + `/:id` | ✅ | Add-on Feature 7 | P2-AO | High |
 | Category management | `/admin/categories` | ⚠️ (verify) | Add-on Feature 5 | P2-AO | Medium |
 | Gifting products approval | `/admin/gifting/products` | ✅ | Sprint 6 P0 (4.5) | P0 | Critical |
@@ -187,8 +187,8 @@ Per recent commits (`bca5c76`, `f57422e`, `f4877e7`, `9e77906`), runtime stubs f
 | Booking reschedule | `/bookings/:id/reschedule` + `/reschedule-booking` | ✅ | Sprint 9 P1 | P1 | High |
 | Review submit | `/bookings/:id/review` | ✅ | Sprint 16 P2 (8.4) | P2 | High |
 | Booking tracker | `/bookings/:id/track` | ⚠️ (verify) | Add-on Feature 2 status pipeline | P2-AO | High |
-| Booking detail | `/bookings/:id` | ⚠️ | Missing booker-side messages panel + raise-dispute button | P1 | High |
-| Bookings list | `/bookings` | ⚠️ (verify) | Verify real data | P0 | Critical |
+| Booking detail | `/bookings/:id` | ✅ | Batch 3b/3c: hybrid overlay (venue/dates/price/status/payment/vendor/add-ons/image) + realtime UPDATE sub + UUID guard. Messages panel + dispute live | P1 | High |
+| Bookings list | `/bookings` | ✅ | Batch 3 (`2666caf`): `db.bookings.listByCorporate` (L3) / `listByUser`; mock DEMO_DATA fallback | P0 | Critical |
 | Approval request (manual) | `/booking-approval-request` | ⚠️ (verify) | — | P1 | Medium |
 | Classic booking flow | `/booking-flow` | ⚠️ | Mock; legacy retained | — | Low |
 | Classic booking success | `/booking-success` | ⚠️ (verify) | — | — | Low |
@@ -252,7 +252,7 @@ See Module 5 (catalogue) + Module 4 (booking flow) + Module 1 (travel policy). S
 | AM shortlists | `/am/shortlists`, `/:id` | ✅ | Sprint 18 P2 (13.3) | P2 | High |
 | AM portfolio | `/am/portfolio` | ✅ | Sprint 12 P1 (9.4) | P1 | High |
 | Shortlist share (public) | `/shortlist/:token`, `/qs/:token` | ✅ | Sprint 18 / Add-on F1 | P2 | High |
-| Field agent dashboard | `/agent/dashboard` | ⚠️ (verify) | Add-on Feature 6 | P2-AO | Medium |
+| Field agent dashboard | `/agent/dashboard` | ✅ | `db.bookingTracker.listFieldAgentQueue` + enriched events. Verified 2026-05-21 | P2-AO | Medium |
 | Browse Mogzu Direct (corp view) | `/browse/mogzu-direct/:module/:id` | ⚠️ (verify) | Add-on F7 | P2-AO | Medium |
 | Browse partner listing (corp view) | `/browse/partner-listing/:id` | ⚠️ (verify) | Sprint 20 | P2 | Medium |
 | Shortlist (corp view) | `/corporate/shortlist/:token` | ⚠️ (verify) | — | P2 | Medium |
@@ -557,18 +557,32 @@ Batches sized 5–8 screens. P0/P1 first, then high-impact P2/Add-On gaps, then 
 
 ---
 
-## OPEN VERIFICATION ITEMS (before Batch 1 starts)
+## OPEN VERIFICATION ITEMS — RESOLVED 2026-05-21
 
-These need a 60-second open-in-browser check to convert `(verify)` rows in Section 2 to ✅ or ⚠️:
+Static-analysis sweep (grep + Read on each component, no browser). Results below; Section 2 status flags above updated inline.
 
-1. `/dashboard` — confirm real-data widgets vs mock
-2. `/bookings` and `/bookings/:id` — confirm real-data path
-3. `/admin` (index) — confirm dashboard widgets
-4. `/admin/vendor-applications` — Story 1.4 wiring
-5. `/user-management` and `/invite/:token` — Story 1.2 wiring
-6. `/my-profile`, `/company-settings`, `/billing-invoices` — confirm mock-vs-real
-7. `/explore` and `/p/:slug` and `/blog` — public site functional
-8. `/admin/subscriptions`, `/admin/api-keys`, `/admin/webhooks`, `/admin/white-label`, `/admin/access-reviews` — P4/P5 runtime stubs vs functional
-9. `/agent/dashboard` — field-agent surface state
+| # | Surface | Verdict | Evidence |
+|---|---|---|---|
+| 1 | `/dashboard` | ✅ wired | `db.bookings`, `db.employees`, `db.budgets` calls in `Dashboard.tsx` useEffect |
+| 2a | `/bookings` | ✅ wired | Batch 3 (`2666caf`): `db.bookings.listByCorporate` / `listByUser` |
+| 2b | `/bookings/:id` | ✅ wired | Batch 3b/3c (`b4a0eda`, `d0f8f7d`): hybrid overlay + realtime UPDATE |
+| 3 | `/admin` (index) | ❌ mock | `AdminDashboardPage`: `revenueByMonth`, `commissionData`, `toReceiveRows`, `toPayRows`, `loginLog`, `pendingIssues` all hardcoded |
+| 4 | `/admin/vendor-applications` | ✅ wired | `listApplications` + `setStatus` + `setKycStatus` from `vendorOnboarding` |
+| 5a | `/user-management` | ❌ mock | Hardcoded `initialUsers` array; Story 1.2 not wired |
+| 5b | `/invite/:token` | ✅ wired | `db.userInvites.getByToken` + `getPostLoginPath` after accept |
+| 6a | `/my-profile` | ❌ mock | Hardcoded `profileForm` + `setTimeout` fake loader |
+| 6b | `/company-settings` | ❌ stub | Pure nav hub, no data fetch |
+| 6c | `/billing-invoices` | ❌ stub | "Invoice list will go here" placeholder |
+| 7a | `/explore` | ✅ wired | `listPublicListings` + `storageService` |
+| 7b | `/p/:slug` | ✅ wired | `getLiveBlockBySlug` + JSON-LD emit |
+| 7c | `/blog` | ✅ wired | `supabase.from('cms_blocks_live').select()` |
+| 8a | `/admin/subscriptions` | ✅ wired | `listPlans` + `listSubscriptions` + `corporateAccounts.list` |
+| 8b | `/admin/api-keys` | ✅ wired | `listApiKeys` + CRUD ops |
+| 8c | `/admin/webhooks` | ✅ wired | `listEndpoints` + CRUD ops |
+| 8d | `/admin/white-label` | ✅ wired | `listPartners` + `upsertPartner` |
+| 8e | `/admin/access-reviews` | ✅ wired | `listReviews` + `createReview` + `snapshotReview` |
+| 9 | `/agent/dashboard` | ✅ wired | `db.bookingTracker.listFieldAgentQueue` + enriched events |
+
+**Result: 13 wired ✅, 5 mock/stub ❌.** Mock surfaces (`/admin` index, `/user-management`, `/my-profile`, `/company-settings`, `/billing-invoices`) feed into Batch 5 (corporate user-management + auth gaps) and a new "Admin dashboard wiring" batch — both already in the build order.
 
 Each verification result updates Section 2 in-place; this is intentionally a living doc.
