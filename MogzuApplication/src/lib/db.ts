@@ -298,7 +298,9 @@ export const bookings = {
   getById: async (id: string) =>
     supabase
       .from('bookings')
-      .select('*, listings(*), vendors(*), booking_add_ons(*), user_profiles!user_id(*)')
+      .select(
+        '*, listings(*, listing_images(*)), vendors(*, user_profiles!user_id(full_name,phone)), booking_add_ons(*), user_profiles!user_id(*)',
+      )
       .eq('id', id)
       .single(),
 

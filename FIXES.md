@@ -2,6 +2,20 @@
 
 > One line per file touched. Newest at top.
 
+## 2026-05-21 — Batch 3c: Image + vendor contact + add-ons overlay
+
+- `MogzuApplication/src/lib/db.ts` — `bookings.getById` select extended: `listings(*, listing_images(*)), vendors(*, user_profiles!user_id(full_name,phone)), booking_add_ons(*), user_profiles!user_id(*)`. One round-trip pulls everything the detail page renders.
+- `MogzuApplication/src/app/components/BookingDetailPage.tsx`:
+  - `RealBooking` type widened: `listings.listing_images[]`, `vendors.user_profiles{full_name,phone}`, `booking_add_ons[]`.
+  - Overlay block now mounts:
+    - `venue.image` — first listing image sorted by `display_order`; bucket selected by `listing.module` (`spaceImages` for `spacex_*`, `listingImages` otherwise).
+    - `vendorContact.name` from `vendor.user_profiles.full_name` (falls back to `vendor.business_name`, then mock).
+    - `vendorContact.phone` from `vendor.user_profiles.phone`.
+    - `addOns[]` from `booking_add_ons` rows mapped to `{name, description: "Qty N · ₹price", icon}`; falls back to derived when empty.
+  - `vendorContact.email` intentionally still mock — vendor email lives on `auth.users`, not surfaced via PostgREST embed here. Future: fetch via vendor RPC or move email to `user_profiles`.
+
+Verified: `npm run build` exit 0, `built in 31.02s`. Hybrid render now covers venue (name/location/description/image), attendees, dates, price, status, payment, vendor contact (name+phone), add-ons. Only `vendorContact.email`, `team`, and `equipments` remain from mock.
+
 ## 2026-05-21 — Batch 3b: Detail-page hybrid render + realtime
 
 - `MogzuApplication/src/app/components/BookingDetailPage.tsx`:

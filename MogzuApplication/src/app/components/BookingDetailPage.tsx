@@ -11,9 +11,16 @@ import { BookingMessagesPanel } from './global/BookingMessagesPanel';
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { subscribeToTable } from '@/lib/realtime';
-import type { Booking, BookingStatus, Listing, PaymentStatus } from '@/lib/database.types';
+import { storageService } from '@/lib/storage';
+import type { Booking, BookingAddOn, BookingStatus, Listing, ListingImage, PaymentStatus, Vendor } from '@/lib/database.types';
 
-type RealBooking = Booking & { listings: Listing | null };
+type RealListing = Listing & { listing_images?: ListingImage[] | null };
+type RealVendor = Vendor & { user_profiles?: { full_name: string | null; phone: string | null } | null };
+type RealBooking = Booking & {
+  listings: RealListing | null;
+  vendors: RealVendor | null;
+  booking_add_ons?: BookingAddOn[] | null;
+};
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -356,18 +363,53 @@ export default function BookingDetailPage() {
     const base = realBooking.base_amount ?? derivedBooking.price.basePrice;
     const fee = realBooking.platform_fee ?? derivedBooking.price.processing;
     const total = realBooking.total_amount ?? base + fee;
+
+    // Listing cover image — pick first by display_order; bucket is module-scoped.
+    let venueImage = derivedBooking.venue.image;
+    const images = listing?.listing_images ?? [];
+    if (images.length > 0) {
+      const cover = [...images].sort((a, b) => a.display_order - b.display_order)[0];
+      const bucket = listing?.module?.startsWith('spacex_')
+        ? storageService.spaceImages
+        : storageService.listingImages;
+      venueImage = bucket.getUrl(cover.storage_path);
+    }
+
+    // Vendor contact — vendor.user_profiles holds full_name/phone of the vendor's owner user.
+    const vendor = realBooking.vendors;
+    const vendorUser = vendor?.user_profiles ?? null;
+    const vendorContact = {
+      ...derivedBooking.vendorContact,
+      name: vendorUser?.full_name ?? vendor?.business_name ?? derivedBooking.vendorContact.name,
+      phone: vendorUser?.phone ?? derivedBooking.vendorContact.phone,
+      // email left on derivedBooking — vendor email lives on auth.users, not surfaced via PostgREST here.
+    };
+
+    // Add-ons — booking_add_ons table holds finalized line items per booking.
+    const realAddOns = realBooking.booking_add_ons ?? [];
+    const addOns = realAddOns.length > 0
+      ? realAddOns.map((a) => ({
+          name: a.name,
+          description: `Qty ${a.quantity} · ₹${a.price.toLocaleString('en-IN')}`,
+          icon: '',
+        }))
+      : derivedBooking.addOns;
+
     return {
       ...derivedBooking,
       id: realBooking.id,
       bookingId: realBooking.id,
       plannedFor: realBooking.purpose_note || derivedBooking.plannedFor,
       attendees: realBooking.group_size ?? derivedBooking.attendees,
+      vendorContact,
       venue: {
         ...derivedBooking.venue,
         name: listing?.title ?? derivedBooking.venue.name,
         location: locationLine,
         description: listing?.description ?? derivedBooking.venue.description,
+        image: venueImage,
       },
+      addOns,
       dateTime: {
         checkIn: fmtIsoDate(realBooking.start_time),
         checkOut: fmtIsoDate(realBooking.end_time),
