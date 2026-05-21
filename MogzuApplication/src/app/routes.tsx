@@ -1,4 +1,5 @@
 import { createBrowserRouter, Navigate, useParams } from "react-router";
+import { lazy, Suspense } from "react";
 import { getVendorListingProfileIds } from "@/app/lib/vendorModuleSelection";
 import LandingPage from "@/app/components/LandingPage";
 import LoginPage from "@/app/components/LoginPage";
@@ -88,6 +89,7 @@ import BookingAddOns from "@/app/components/BookingAddOns";
 import BookingReview from "@/app/components/BookingReview";
 import BookingPayment from "@/app/components/BookingPayment";
 import BookingConfirmationFlowPage from "@/app/components/BookingConfirmationFlowPage";
+import ClassicBookingSuccessPage from "@/app/components/ClassicBookingSuccessPage";
 import BookingsPage from "@/app/components/BookingsPage";
 import BookingDetailPage from "@/app/components/BookingDetailPage";
 import CoworkingPage from "@/app/components/CoworkingPage";
@@ -218,6 +220,10 @@ import GievPage from "@/app/components/GievPage";
 import AdminDspacePage from "@/app/components/AdminDspacePage";
 import AdminSpaceDetailPage from "@/app/components/AdminSpaceDetailPage";
 import AdminDspaceBookings from "@/app/components/AdminDspaceBookings";
+import AdminBookingsPage from "@/app/components/AdminBookingsPage";
+import AdminReportsPage from "@/app/components/AdminReportsPage";
+import AdminSettingsPage from "@/app/components/AdminSettingsPage";
+import VendorPerformancePage from "@/app/components/VendorPerformancePage";
 import AdminEventsPage from "@/app/components/AdminEventsPage";
 import AdminEventDetailPage from "@/app/components/AdminEventDetailPage";
 import AdminEventsBookings from "@/app/components/AdminEventsBookings";
@@ -226,6 +232,9 @@ import { CorporateModuleRouteGuard } from "@/app/components/CorporateModuleRoute
 import WhyMogzuPage from "@/app/components/WhyMogzuPage";
 import VendorBenefitsPage from "@/app/components/VendorBenefitsPage";
 import { CorporateRoute, VendorRoute, AdminRoute } from '@/app/components/auth/ProtectedRoute'
+import { corp, vend, adminPage, redirectTo } from '@/app/lib/routeWrappers'
+import { PartnerRoute } from '@/app/components/auth/PartnerRoute'
+import { AccountManagerRoute } from '@/app/components/auth/AccountManagerRoute'
 import AuthCallbackPage from '@/app/components/auth/AuthCallbackPage'
 import ResetPasswordPage from '@/app/components/auth/ResetPasswordPage'
 
@@ -263,81 +272,63 @@ export const router = createBrowserRouter([
   {
     path: "/dspace",
     element: (
-      <CorporateModuleRouteGuard moduleKey="dSpace">
-        <DSpaceHomePage />
-      </CorporateModuleRouteGuard>
+      corp(<DSpaceHomePage />, 'dSpace')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/dspace/home",
     element: (
-      <CorporateModuleRouteGuard moduleKey="dSpace">
-        <DSpaceHomePage />
-      </CorporateModuleRouteGuard>
+      corp(<DSpaceHomePage />, 'dSpace')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/dspace/meetings",
     element: (
-      <CorporateModuleRouteGuard moduleKey="dSpace">
-        <SpaceXPage />
-      </CorporateModuleRouteGuard>
+      corp(<SpaceXPage />, 'dSpace')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/dspace/new",
     element: (
-      <CorporateModuleRouteGuard moduleKey="dSpace">
-        <SpaceXPage />
-      </CorporateModuleRouteGuard>
+      corp(<SpaceXPage />, 'dSpace')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/dspace/classic",
     element: (
-      <CorporateModuleRouteGuard moduleKey="dSpace">
-        <SpaceXPage />
-      </CorporateModuleRouteGuard>
+      corp(<SpaceXPage />, 'dSpace')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/dspace/classic/spaces/:id",
     element: (
-      <CorporateModuleRouteGuard moduleKey="dSpace">
-        <SpaceDetailPage />
-      </CorporateModuleRouteGuard>
+      corp(<SpaceDetailPage />, 'dSpace')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/dspace/spaces/:id",
     element: (
-      <CorporateModuleRouteGuard moduleKey="dSpace">
-        <SpaceDetailPage />
-      </CorporateModuleRouteGuard>
+      corp(<SpaceDetailPage />, 'dSpace')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/dspace/book/:id",
     element: (
-      <CorporateModuleRouteGuard moduleKey="dSpace">
-        <RequestToBook />
-      </CorporateModuleRouteGuard>
+      corp(<RequestToBook />, 'dSpace')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/heygenie",
     element: (
-      <CorporateModuleRouteGuard moduleKey="heyGenie">
-        <HeyGeniePage />
-      </CorporateModuleRouteGuard>
+      corp(<HeyGeniePage />, 'heyGenie')
     ),
     errorElement: <ErrorPage />,
   },
@@ -356,6 +347,17 @@ export const router = createBrowserRouter([
     element: <LoginPage />,
     errorElement: <ErrorPage />,
   },
+  // DEV-ONLY demo persona selector — hot-loaded only in development builds
+  ...(import.meta.env.DEV
+    ? [{
+        path: '/demo-login',
+        element: (() => {
+          const DemoLoginPage = lazy(() => import('@/app/components/DemoLoginPage'))
+          return <Suspense fallback={null}><DemoLoginPage /></Suspense>
+        })(),
+        errorElement: <ErrorPage />,
+      }]
+    : []),
   {
     path: "/auth/callback",
     element: <AuthCallbackPage />,
@@ -433,7 +435,7 @@ export const router = createBrowserRouter([
   },
   {
     path: "/dashboard",
-    element: <CorporateRoute><Dashboard /></CorporateRoute>,
+    element: corp(<Dashboard />),
     errorElement: <ErrorPage />,
   },
   {
@@ -491,16 +493,50 @@ export const router = createBrowserRouter([
       { path: "quick-share", element: <AdminQuickSharePage /> },
       { path: "quick-share/:id", element: <AdminQuickShareDetailPage /> },
       { path: "mogzu-orders", element: <AdminMogzuOrdersPage /> },
+      { path: "commissions", element: <AdminCommissionsPage /> },
+      { path: "support", element: <AdminSupportPage /> },
+      { path: "support/:id", element: <AdminSupportPage /> },
+      { path: "disputes", element: <AdminDisputesPage /> },
+      { path: "disputes/:id", element: <AdminDisputesPage /> },
+      { path: "reviews/approval", element: <AdminReviewsApprovalPage /> },
+      { path: "promotions/approval", element: <AdminPromotionsApprovalPage /> },
+      { path: "branding/approvals", element: <AdminBrandingApprovalsPage /> },
+      { path: "cms", element: <AdminCmsPage /> },
+      { path: "ai-agents", element: <AdminAiAgentsPage /> },
+      { path: "sso", element: <AdminSsoPage /> },
+      { path: "listings/public", element: <AdminPublicListingsPage /> },
+      { path: "leads", element: <AdminLeadsPage /> },
+      { path: "compliance/audit", element: <AdminAuditPage /> },
+      { path: "contracts", element: <AdminContractsPage /> },
+      { path: "contracts/new", element: <AdminContractFormPage /> },
+      { path: "contracts/:id/edit", element: <AdminContractFormPage /> },
+      { path: "invoice-runs/:id", element: <AdminInvoiceRunPage /> },
+      { path: "subscriptions", element: <AdminSubscriptionsPage /> },
+      { path: "api-keys", element: <AdminApiKeysPage /> },
+      { path: "webhooks", element: <AdminWebhooksPage /> },
+      { path: "vendor-payouts", element: <AdminVendorPayoutsPage /> },
+      { path: "vendor-applications", element: <AdminVendorApplicationsPage /> },
+      { path: "white-label", element: <AdminWhiteLabelPage /> },
+      { path: "access-reviews", element: <AdminAccessReviewsPage /> },
+      { path: "dspace", element: <AdminDspacePage /> },
+      { path: "dspace/spaces/:id", element: <AdminSpaceDetailPage /> },
+      { path: "dspace/bookings", element: <AdminDspaceBookings /> },
+      { path: "bookings", element: <AdminBookingsPage /> },
+      { path: "reports", element: <AdminReportsPage /> },
+      { path: "settings", element: <AdminSettingsPage /> },
+      { path: "events", element: <AdminEventsPage /> },
+      { path: "events/services/:id", element: <AdminEventDetailPage /> },
+      { path: "events/bookings", element: <AdminEventsBookings /> },
     ],
   },
   {
     path: "/am/shortlists",
-    element: <AmShortlistsPage />,
+    element: <AccountManagerRoute><AmShortlistsPage /></AccountManagerRoute>,
     errorElement: <ErrorPage />,
   },
   {
     path: "/am/shortlists/:id",
-    element: <AmShortlistsPage />,
+    element: <AccountManagerRoute><AmShortlistsPage /></AccountManagerRoute>,
     errorElement: <ErrorPage />,
   },
   {
@@ -520,42 +556,42 @@ export const router = createBrowserRouter([
   },
   {
     path: "/partner/dashboard",
-    element: <PartnerDashboardPage />,
+    element: <PartnerRoute><PartnerDashboardPage /></PartnerRoute>,
     errorElement: <ErrorPage />,
   },
   {
     path: "/partner/clients",
-    element: <PartnerClientsPage />,
+    element: <PartnerRoute><PartnerClientsPage /></PartnerRoute>,
     errorElement: <ErrorPage />,
   },
   {
     path: "/partner/listings",
-    element: <PartnerListingsPage />,
+    element: <PartnerRoute><PartnerListingsPage /></PartnerRoute>,
     errorElement: <ErrorPage />,
   },
   {
     path: "/partner/listings/new",
-    element: <PartnerListingFormPage />,
+    element: <PartnerRoute><PartnerListingFormPage /></PartnerRoute>,
     errorElement: <ErrorPage />,
   },
   {
     path: "/partner/listings/:id/edit",
-    element: <PartnerListingFormPage />,
+    element: <PartnerRoute><PartnerListingFormPage /></PartnerRoute>,
     errorElement: <ErrorPage />,
   },
   {
     path: "/invoice/:token",
-    element: <PartnerInvoicePage />,
+    element: corp(<PartnerInvoicePage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/partner/statements/:yyyymm",
-    element: <PartnerStatementPage />,
+    element: <PartnerRoute><PartnerStatementPage /></PartnerRoute>,
     errorElement: <ErrorPage />,
   },
   {
     path: "/invite/:token",
-    element: <AcceptInvitePage />,
+    element: corp(<AcceptInvitePage />),
     errorElement: <ErrorPage />,
   },
   {
@@ -565,25 +601,23 @@ export const router = createBrowserRouter([
   },
   {
     path: "/bookings/:id/track",
-    element: <BookingTrackerPage />,
+    element: corp(<BookingTrackerPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/qs/:token",
-    element: <QuickShareViewerPage />,
+    element: corp(<QuickShareViewerPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/activitysuite",
-    element: <ActivitySuite />,
+    element: corp(<ActivitySuite />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/dspace/:id",
     element: (
-      <CorporateModuleRouteGuard moduleKey="dSpace">
-        <SpaceDetailPage />
-      </CorporateModuleRouteGuard>
+      corp(<SpaceDetailPage />, 'dSpace')
     ),
     errorElement: <ErrorPage />,
   },
@@ -595,355 +629,308 @@ export const router = createBrowserRouter([
   {
     path: "/spacex/:id",
     element: (
-      <CorporateModuleRouteGuard moduleKey="dSpace">
-        <SpaceDetailPage />
-      </CorporateModuleRouteGuard>
+      corp(<SpaceDetailPage />, 'dSpace')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/request-to-book",
-    element: <RequestToBook />,
+    element: corp(<RequestToBook />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/booking-addons",
-    element: <BookingAddOns />,
+    element: corp(<BookingAddOns />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/booking-review",
-    element: <BookingReview />,
+    element: corp(<BookingReview />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/booking-payment",
-    element: <BookingPayment />,
+    element: corp(<BookingPayment />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/booking-confirmation",
-    element: <BookingConfirmationFlowPage />,
+    element: corp(<BookingConfirmationFlowPage />),
     errorElement: <ErrorPage />,
   },
   {
+    // canonical redirect — old alias kept for deep-links
     path: "/booking/confirmation",
-    element: <BookingConfirmationFlowPage />,
+    element: corp(<BookingConfirmationFlowPage />),
+    errorElement: <ErrorPage />,
+  },
+  {
+    // classic flow (RequestToBook → AddOns → Review → Payment) success page
+    path: "/booking-success",
+    element: corp(<ClassicBookingSuccessPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/bookings",
-    element: <BookingsPage />,
+    element: corp(<BookingsPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/bookings/:id",
-    element: <BookingDetailPage />,
+    element: corp(<BookingDetailPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/coworking",
     element: (
-      <CorporateModuleRouteGuard moduleKey="dSpace">
-        <CoworkingPage />
-      </CorporateModuleRouteGuard>
+      corp(<CoworkingPage />, 'dSpace')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/coworking/:id",
     element: (
-      <CorporateModuleRouteGuard moduleKey="dSpace">
-        <CoworkingDetailPage />
-      </CorporateModuleRouteGuard>
+      corp(<CoworkingDetailPage />, 'dSpace')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/activities",
     element: (
-      <CorporateModuleRouteGuard moduleKey="events">
-        <ActivitiesPage />
-      </CorporateModuleRouteGuard>
+      corp(<ActivitiesPage />, 'events')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/dashboard/activities/:id",
     element: (
-      <CorporateModuleRouteGuard moduleKey="events">
-        <ActivityDetailPage />
-      </CorporateModuleRouteGuard>
+      corp(<ActivityDetailPage />, 'events')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/dashboard/activities",
     element: (
-      <CorporateModuleRouteGuard moduleKey="events">
-        <ActivitiesPage />
-      </CorporateModuleRouteGuard>
+      corp(<ActivitiesPage />, 'events')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/dashboard/activities/:id/booking",
     element: (
-      <CorporateModuleRouteGuard moduleKey="events">
-        <ActivityBookingFlow />
-      </CorporateModuleRouteGuard>
+      corp(<ActivityBookingFlow />, 'events')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/stay",
     element: (
-      <CorporateModuleRouteGuard moduleKey="dSpace">
-        <StayPage />
-      </CorporateModuleRouteGuard>
+      corp(<StayPage />, 'dSpace')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/promotions",
-    element: <PromotionsPage />,
+    element: corp(<PromotionsPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/gifting",
     element: (
-      <CorporateModuleRouteGuard moduleKey="gifting">
-        <GiftingPage />
-      </CorporateModuleRouteGuard>
+      corp(<GiftingPage />, 'gifting')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/gifting/new",
     element: (
-      <CorporateModuleRouteGuard moduleKey="gifting">
-        <GiftingPage />
-      </CorporateModuleRouteGuard>
+      corp(<GiftingPage />, 'gifting')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/gifting/classic",
     element: (
-      <CorporateModuleRouteGuard moduleKey="gifting">
-        <GiftingPage />
-      </CorporateModuleRouteGuard>
+      corp(<GiftingPage />, 'gifting')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/shop",
     element: (
-      <CorporateModuleRouteGuard moduleKey="gifting">
-        <GiftingShopPage />
-      </CorporateModuleRouteGuard>
+      corp(<GiftingShopPage />, 'gifting')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/gifting-shop",
     element: (
-      <CorporateModuleRouteGuard moduleKey="gifting">
-        <GiftingShopPage />
-      </CorporateModuleRouteGuard>
+      corp(<GiftingShopPage />, 'gifting')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/gifting/shop",
     element: (
-      <CorporateModuleRouteGuard moduleKey="gifting">
-        <GiftingShopPage />
-      </CorporateModuleRouteGuard>
+      corp(<GiftingShopPage />, 'gifting')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/gifting/home",
     element: (
-      <CorporateModuleRouteGuard moduleKey="gifting">
-        <GiftingPage />
-      </CorporateModuleRouteGuard>
+      corp(<GiftingPage />, 'gifting')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/gifting/combo",
     element: (
-      <CorporateModuleRouteGuard moduleKey="gifting">
-        <GiftingSpecialTabsPage />
-      </CorporateModuleRouteGuard>
+      corp(<GiftingSpecialTabsPage />, 'gifting')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/gifting/e-gift",
     element: (
-      <CorporateModuleRouteGuard moduleKey="gifting">
-        <GiftingSpecialTabsPage />
-      </CorporateModuleRouteGuard>
+      corp(<GiftingSpecialTabsPage />, 'gifting')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/gifting/go-local",
     element: (
-      <CorporateModuleRouteGuard moduleKey="gifting">
-        <GiftingSpecialTabsPage />
-      </CorporateModuleRouteGuard>
+      corp(<GiftingSpecialTabsPage />, 'gifting')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/gifting/baskets",
     element: (
-      <CorporateModuleRouteGuard moduleKey="gifting">
-        <GiftingSpecialTabsPage />
-      </CorporateModuleRouteGuard>
+      corp(<GiftingSpecialTabsPage />, 'gifting')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/gifting/celebrations",
     element: (
-      <CorporateModuleRouteGuard moduleKey="gifting">
-        <CelebrationsPage />
-      </CorporateModuleRouteGuard>
+      corp(<CelebrationsPage />, 'gifting')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/product-booking",
     element: (
-      <CorporateModuleRouteGuard moduleKey="gifting">
-        <ProductBookingPage />
-      </CorporateModuleRouteGuard>
+      corp(<ProductBookingPage />, 'gifting')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/apparel",
-    element: <ApparelTestPage />,
+    element: corp(<ApparelTestPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/booking-flow",
-    element: <BookingFlow />,
+    element: corp(<BookingFlow />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/book/event/:listingId",
-    element: <EventBookingPage />,
+    element: corp(<EventBookingPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/booking-requests",
-    element: <VendorBookingRequestsPage />,
+    element: vend(<VendorBookingRequestsPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/booking-requests/:bookingId",
-    element: <VendorBookingRequestsPage />,
+    element: vend(<VendorBookingRequestsPage />),
     errorElement: <ErrorPage />,
   },
-  {
-    path: "/admin/commissions",
-    element: <AdminCommissionsPage />,
-    errorElement: <ErrorPage />,
-  },
+  ,
   {
     path: "/bookings/:id/pay",
-    element: <BookingPaymentPage />,
+    element: corp(<BookingPaymentPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/corporate/gifting-programme",
-    element: <CorporateGiftingProgrammePage />,
+    element: corp(<CorporateGiftingProgrammePage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/gifting/send",
-    element: <GiftingSendPage />,
+    element: corp(<GiftingSendPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/book/space/:listingId",
-    element: <SpaceBookingPage />,
+    element: corp(<SpaceBookingPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/payouts",
-    element: <VendorPayoutsPage />,
+    element: vend(<VendorPayoutsPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/corporate/employees/import",
-    element: <EmployeeImportPage />,
+    element: corp(<EmployeeImportPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/notifications",
-    element: <NotificationsPage />,
+    element: redirectTo("/corporate/notifications"),
     errorElement: <ErrorPage />,
   },
   {
     path: "/settings/notifications",
-    element: <NotificationPreferencesPage />,
+    element: corp(<NotificationPreferencesPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/spend",
-    element: <EmployeeSpendPage />,
+    element: corp(<EmployeeSpendPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/corporate/spend-report",
-    element: <CorporateSpendReportPage />,
+    element: corp(<CorporateSpendReportPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/support",
-    element: <SupportPage />,
+    element: corp(<SupportPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/support/:id",
-    element: <SupportPage />,
+    element: corp(<SupportPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/support",
-    element: <VendorSupportPage />,
+    element: vend(<VendorSupportPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/support/:id",
-    element: <VendorSupportPage />,
+    element: vend(<VendorSupportPage />),
     errorElement: <ErrorPage />,
   },
-  {
-    path: "/admin/support",
-    element: <AdminSupportPage />,
-    errorElement: <ErrorPage />,
-  },
-  {
-    path: "/admin/support/:id",
-    element: <AdminSupportPage />,
-    errorElement: <ErrorPage />,
-  },
+  ,
+  ,
   {
     path: "/corporate/celebrations",
-    element: <CorporateCelebrationsPage />,
+    element: corp(<CorporateCelebrationsPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/celebrations/team",
-    element: <ManagerCelebrationsPage />,
+    element: corp(<ManagerCelebrationsPage />),
     errorElement: <ErrorPage />,
   },
   {
@@ -953,94 +940,58 @@ export const router = createBrowserRouter([
   },
   {
     path: "/corporate/travel-policy",
-    element: <CorporateTravelPolicyPage />,
+    element: corp(<CorporateTravelPolicyPage />),
     errorElement: <ErrorPage />,
   },
   {
-    path: "/stay",
-    element: <StaySearchPage />,
+    path: "/stay/search",
+    element: corp(<StaySearchPage />, 'dSpace'),
     errorElement: <ErrorPage />,
   },
-  {
-    path: "/admin/disputes",
-    element: <AdminDisputesPage />,
-    errorElement: <ErrorPage />,
-  },
-  {
-    path: "/admin/disputes/:id",
-    element: <AdminDisputesPage />,
-    errorElement: <ErrorPage />,
-  },
+  ,
+  ,
   {
     path: "/corporate/bulk-gifting",
-    element: <BulkGiftingPage />,
+    element: corp(<BulkGiftingPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/corporate/bulk-gifting/:id",
-    element: <BulkGiftingPage />,
+    element: corp(<BulkGiftingPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/bookings/:id/review",
-    element: <ReviewSubmitPage />,
+    element: corp(<ReviewSubmitPage />),
     errorElement: <ErrorPage />,
   },
-  {
-    path: "/admin/reviews/approval",
-    element: <AdminReviewsApprovalPage />,
-    errorElement: <ErrorPage />,
-  },
+  ,
   {
     path: "/vendor/analytics",
-    element: <VendorAnalyticsPage />,
+    element: vend(<VendorAnalyticsPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/promotions-live",
-    element: <VendorPromotionsRealPage />,
+    element: vend(<VendorPromotionsRealPage />),
     errorElement: <ErrorPage />,
   },
-  {
-    path: "/admin/promotions/approval",
-    element: <AdminPromotionsApprovalPage />,
-    errorElement: <ErrorPage />,
-  },
-  {
-    path: "/admin/branding/approvals",
-    element: <AdminBrandingApprovalsPage />,
-    errorElement: <ErrorPage />,
-  },
-  {
-    path: "/admin/cms",
-    element: <AdminCmsPage />,
-    errorElement: <ErrorPage />,
-  },
-  {
-    path: "/admin/ai-agents",
-    element: <AdminAiAgentsPage />,
-    errorElement: <ErrorPage />,
-  },
+  ,
+  ,
+  ,
+  ,
   {
     path: "/explore",
-    element: <ExplorePage />,
+    element: corp(<ExplorePage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/explore/:module",
-    element: <ExplorePage />,
+    element: corp(<ExplorePage />),
     errorElement: <ErrorPage />,
   },
-  {
-    path: "/admin/sso",
-    element: <AdminSsoPage />,
-    errorElement: <ErrorPage />,
-  },
-  {
-    path: "/admin/listings/public",
-    element: <AdminPublicListingsPage />,
-    errorElement: <ErrorPage />,
-  },
+  ,
+  ,
   {
     path: "/p/:slug",
     element: <PublicLandingPage />,
@@ -1056,196 +1007,120 @@ export const router = createBrowserRouter([
     element: <PublicLandingPage />,
     errorElement: <ErrorPage />,
   },
-  {
-    path: "/admin/leads",
-    element: <AdminLeadsPage />,
-    errorElement: <ErrorPage />,
-  },
-  {
-    path: "/admin/compliance/audit",
-    element: <AdminAuditPage />,
-    errorElement: <ErrorPage />,
-  },
-  {
-    path: "/admin/contracts",
-    element: <AdminContractsPage />,
-    errorElement: <ErrorPage />,
-  },
-  {
-    path: "/admin/contracts/new",
-    element: <AdminContractFormPage />,
-    errorElement: <ErrorPage />,
-  },
-  {
-    path: "/admin/contracts/:id/edit",
-    element: <AdminContractFormPage />,
-    errorElement: <ErrorPage />,
-  },
-  {
-    path: "/admin/invoice-runs/:id",
-    element: <AdminInvoiceRunPage />,
-    errorElement: <ErrorPage />,
-  },
-  {
-    path: "/admin/subscriptions",
-    element: <AdminSubscriptionsPage />,
-    errorElement: <ErrorPage />,
-  },
-  {
-    path: "/admin/api-keys",
-    element: <AdminApiKeysPage />,
-    errorElement: <ErrorPage />,
-  },
-  {
-    path: "/admin/webhooks",
-    element: <AdminWebhooksPage />,
-    errorElement: <ErrorPage />,
-  },
-  {
-    path: "/admin/vendor-payouts",
-    element: <AdminVendorPayoutsPage />,
-    errorElement: <ErrorPage />,
-  },
+  ,
+  ,
+  ,
+  ,
+  ,
+  ,
+  ,
+  ,
+  ,
+  ,
   {
     path: "/vendor-apply",
     element: <PublicVendorApplyPage />,
     errorElement: <ErrorPage />,
   },
-  {
-    path: "/admin/vendor-applications",
-    element: <AdminVendorApplicationsPage />,
-    errorElement: <ErrorPage />,
-  },
-  {
-    path: "/admin/white-label",
-    element: <AdminWhiteLabelPage />,
-    errorElement: <ErrorPage />,
-  },
+  ,
+  ,
   {
     path: "/corporate/ai-autonomy",
-    element: <CorporateAiAutonomyPage />,
+    element: corp(<CorporateAiAutonomyPage />),
     errorElement: <ErrorPage />,
   },
-  {
-    path: "/admin/access-reviews",
-    element: <AdminAccessReviewsPage />,
-    errorElement: <ErrorPage />,
-  },
+  ,
   {
     path: "/corporate/event-templates",
-    element: <CorporateEventTemplatesPage />,
+    element: corp(<CorporateEventTemplatesPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/corporate-picks",
-    element: <CorporatePicksPage />,
+    element: corp(<CorporatePicksPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/celebrations",
     element: (
-      <CorporateModuleRouteGuard moduleKey="gifting">
-        <CelebrationsPage />
-      </CorporateModuleRouteGuard>
+      corp(<CelebrationsPage />, 'gifting')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/celebrations/:id",
     element: (
-      <CorporateModuleRouteGuard moduleKey="gifting">
-        <CelebrationDetailPage />
-      </CorporateModuleRouteGuard>
+      corp(<CelebrationDetailPage />, 'gifting')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/celebration-booking-flow",
     element: (
-      <CorporateModuleRouteGuard moduleKey="gifting">
-        <CelebrationBookingFlow />
-      </CorporateModuleRouteGuard>
+      corp(<CelebrationBookingFlow />, 'gifting')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/events",
     element: (
-      <CorporateModuleRouteGuard moduleKey="events">
-        <EventsHomePage />
-      </CorporateModuleRouteGuard>
+      corp(<EventsHomePage />, 'events')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/events/home",
     element: (
-      <CorporateModuleRouteGuard moduleKey="events">
-        <EventsHomePage />
-      </CorporateModuleRouteGuard>
+      corp(<EventsHomePage />, 'events')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/events/new",
     element: (
-      <CorporateModuleRouteGuard moduleKey="events">
-        <EventsCorporateListingPage />
-      </CorporateModuleRouteGuard>
+      corp(<EventsCorporateListingPage />, 'events')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/events/classic",
     element: (
-      <CorporateModuleRouteGuard moduleKey="events">
-        <EventsPage />
-      </CorporateModuleRouteGuard>
+      corp(<EventsPage />, 'events')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/events/services/:id",
     element: (
-      <CorporateModuleRouteGuard moduleKey="events">
-        <EventServiceDetailPage />
-      </CorporateModuleRouteGuard>
+      corp(<EventServiceDetailPage />, 'events')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/events/book/:id",
     element: (
-      <CorporateModuleRouteGuard moduleKey="events">
-        <BookingFlow />
-      </CorporateModuleRouteGuard>
+      corp(<BookingFlow />, 'events')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/event-activity",
     element: (
-      <CorporateModuleRouteGuard moduleKey="events">
-        <EventActivityPage />
-      </CorporateModuleRouteGuard>
+      corp(<EventActivityPage />, 'events')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/event-activity/:id",
     element: (
-      <CorporateModuleRouteGuard moduleKey="events">
-        <EventDetailPage />
-      </CorporateModuleRouteGuard>
+      corp(<EventDetailPage />, 'events')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/event-services",
     element: (
-      <CorporateModuleRouteGuard moduleKey="events">
-        <EventServicePage />
-      </CorporateModuleRouteGuard>
+      corp(<EventServicePage />, 'events')
     ),
     errorElement: <ErrorPage />,
   },
@@ -1261,194 +1136,188 @@ export const router = createBrowserRouter([
   },
   {
     path: "/user-management",
-    element: <UserManagementPage />,
+    element: corp(<UserManagementPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/my-profile",
-    element: <MyProfilePage />,
+    element: corp(<MyProfilePage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/company-settings",
-    element: <CompanySettingsPage />,
+    element: corp(<CompanySettingsPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/company-settings/dashboard",
-    element: <CorporateDashboardLayoutPage />,
+    element: corp(<CorporateDashboardLayoutPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/billing-invoices",
-    element: <BillingInvoicesPage />,
+    element: corp(<BillingInvoicesPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/wallet",
-    element: <WalletPage />,
+    element: corp(<WalletPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/communication",
-    element: <CommunicationPage />,
+    element: corp(<CommunicationPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/browse/mogzu-direct/:module/:id",
-    element: <MogzuDirectCorporateDetailPage />,
+    element: corp(<MogzuDirectCorporateDetailPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/browse/partner-listing/:id",
-    element: <PartnerListingCorporateDetailPage />,
+    element: corp(<PartnerListingCorporateDetailPage />),
     errorElement: <ErrorPage />,
   },
   {
-    path: "/shortlist/:token",
-    element: <ShortlistCorporatePage />,
+    path: "/corporate/shortlist/:token",
+    element: corp(<ShortlistCorporatePage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/favourites",
-    element: <FavouritesPage />,
+    element: corp(<FavouritesPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/report",
-    element: <ReportsPage />,
+    element: corp(<ReportsPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/assistance",
-    element: <MogzuAssistancePage />,
+    element: redirectTo("/heygenie"),
     errorElement: <ErrorPage />,
   },
   {
     path: "/corporate/transactions",
-    element: <CorporateTransactionsPage />,
+    element: corp(<CorporateTransactionsPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/corporate/notifications",
-    element: <CorporateNotificationsPage />,
+    element: corp(<CorporateNotificationsPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/corporate/approvals",
-    element: <CorporateApprovalsPage />,
+    element: corp(<CorporateApprovalsPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/corporate/approvals/:id",
-    element: <CorporateApprovalDetailPage />,
+    element: corp(<CorporateApprovalDetailPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/corporate/budget",
-    element: <CorporateBudgetPage />,
+    element: corp(<CorporateBudgetPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/deals",
-    element: <DealsPage />,
+    element: corp(<DealsPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/deals/claim/:id",
-    element: <DealClaimFlow />,
+    element: corp(<DealClaimFlow />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/compare",
     element: (
-      <CorporateModuleRouteGuard moduleKey="events">
-        <ComparePage />
-      </CorporateModuleRouteGuard>
+      corp(<ComparePage />, 'events')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/wishlist",
     element: (
-      <CorporateModuleRouteGuard moduleKey="events">
-        <WishlistPage />
-      </CorporateModuleRouteGuard>
+      corp(<WishlistPage />, 'events')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/booking/new",
     element: (
-      <CorporateModuleRouteGuard moduleKey="events">
-        <BookingSummaryPage />
-      </CorporateModuleRouteGuard>
+      corp(<BookingSummaryPage />, 'events')
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/settings/workflow",
-    element: <ApprovalWorkflowPage />,
+    element: corp(<ApprovalWorkflowPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/dashboard",
-    element: <VendorRoute><VendorDashboardPage /></VendorRoute>,
+    element: vend(<VendorRoute><VendorDashboardPage /></VendorRoute>),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/products",
-    element: <VendorProductManagementPage />,
+    element: vend(<VendorProductManagementPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/products/new",
-    element: <VendorAddProductPage />,
+    element: vend(<VendorAddProductPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/products/:productId",
-    element: <VendorAddProductPage />,
+    element: vend(<VendorAddProductPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/orders",
-    element: <VendorOrdersPage />,
+    element: vend(<VendorOrdersPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/orders/:orderId",
-    element: <VendorOrderDetailsPage />,
+    element: vend(<VendorOrderDetailsPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/communication",
-    element: <VendorCommunicationPage />,
+    element: vend(<VendorCommunicationPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/messages",
-    element: <VendorCommunicationPage />,
+    element: vend(<VendorCommunicationPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/users",
-    element: <VendorUserManagementPage />,
+    element: vend(<VendorUserManagementPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/team",
-    element: <VendorUserManagementPage />,
+    element: vend(<VendorUserManagementPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/settings",
-    element: <VendorSettingsStep12Placeholder />,
+    element: vend(<VendorSettingsStep12Placeholder />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/listings",
-    element: <VendorListingsRouteRedirect />,
+    element: vend(<VendorListingsRouteRedirect />),
     errorElement: <ErrorPage />,
   },
   {
@@ -1463,119 +1332,103 @@ export const router = createBrowserRouter([
   },
   {
     path: "/vendor/events",
-    element: <VendorEventsServicesPage />,
+    element: vend(<VendorEventsServicesPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/events/services/new",
-    element: <VendorEventsServicesPage />,
+    element: vend(<VendorEventsServicesPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/events/services/:id",
-    element: <VendorEventsServicesPage />,
+    element: vend(<VendorEventsServicesPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/event-activity",
-    element: <VendorEventActivityPage />,
+    element: vend(<VendorEventActivityPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/dspace",
-    element: <VendorSpaceXServicesPage />,
+    element: vend(<VendorSpaceXServicesPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/dspace/spaces/new",
-    element: <VendorSpaceXServicesPage />,
+    element: vend(<VendorSpaceXServicesPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/dspace/spaces/:id",
-    element: <VendorSpaceXDetailsPage />,
+    element: vend(<VendorSpaceXDetailsPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/spacex",
-    element: <VendorSpaceXServicesPage />,
+    element: vend(<VendorSpaceXServicesPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/spacex/:spaceId",
-    element: <VendorSpaceXDetailsPage />,
+    element: vend(<VendorSpaceXDetailsPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/gifting",
-    element: <VendorGiftingDashboardPage />,
+    element: vend(<VendorGiftingDashboardPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/gifting/products/new",
-    element: <VendorGiftingProductFormPage />,
+    element: vend(<VendorGiftingProductFormPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/gifting/products/:id",
-    element: <VendorGiftingProductFormPage />,
+    element: vend(<VendorGiftingProductFormPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/promotions",
-    element: <VendorPromotionsPage />,
+    element: vend(<VendorPromotionsPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/promotions/ad-campaign",
-    element: <VendorAdCampaignPage />,
+    element: vend(<VendorAdCampaignPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/promotions/offer",
-    element: <VendorPromotionOfferPage />,
+    element: vend(<VendorPromotionOfferPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/reviews",
-    element: <VendorReviewsPage />,
+    element: vend(<VendorReviewsPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/vendor/calendar",
-    element: <VendorCalendarPage />,
+    element: vend(<VendorCalendarPage />),
     errorElement: <ErrorPage />,
   },
+  ,
+  ,
+  ,
+  ,
+  ,
+  ,
   {
-    path: "/admin/dspace",
-    element: <AdminDspacePage />,
+    path: "/vendor/performance",
+    element: vend(<VendorPerformancePage />),
     errorElement: <ErrorPage />,
   },
-  {
-    path: "/admin/dspace/spaces/:id",
-    element: <AdminSpaceDetailPage />,
-    errorElement: <ErrorPage />,
-  },
-  {
-    path: "/admin/dspace/bookings",
-    element: <AdminDspaceBookings />,
-    errorElement: <ErrorPage />,
-  },
-  {
-    path: "/admin/events",
-    element: <AdminEventsPage />,
-    errorElement: <ErrorPage />,
-  },
-  {
-    path: "/admin/events/services/:id",
-    element: <AdminEventDetailPage />,
-    errorElement: <ErrorPage />,
-  },
-  {
-    path: "/admin/events/bookings",
-    element: <AdminEventsBookings />,
-    errorElement: <ErrorPage />,
-  },
+  ,
+  ,
+  ,
   {
     path: "/vendor-passport",
     element: <VendorPassportPage />,
@@ -1583,27 +1436,27 @@ export const router = createBrowserRouter([
   },
   {
     path: "/booking-approval-request",
-    element: <ApprovalRequestPage />,
+    element: corp(<ApprovalRequestPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/bookings/:id/cancel",
-    element: <CancelBookingPage />,
+    element: corp(<CancelBookingPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/cancel-booking",
-    element: <CancelBookingPage />,
+    element: corp(<CancelBookingPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/bookings/:id/reschedule",
-    element: <RescheduleBookingPage />,
+    element: corp(<RescheduleBookingPage />),
     errorElement: <ErrorPage />,
   },
   {
     path: "/reschedule-booking",
-    element: <RescheduleBookingPage />,
+    element: corp(<RescheduleBookingPage />),
     errorElement: <ErrorPage />,
   },
   {

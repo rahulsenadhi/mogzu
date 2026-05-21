@@ -40,6 +40,25 @@ interface AuthActions {
 }
 
 const ACTIVE_ROLE_KEY = 'mogzu_active_role'
+const DEMO_PROFILE_KEY = 'mogzu_demo_profile'
+
+/** Dev-only: read demo profile from localStorage */
+function readDemoProfile(): UserProfile | null {
+  if (!import.meta.env.DEV) return null
+  try {
+    const raw = localStorage.getItem(DEMO_PROFILE_KEY)
+    return raw ? (JSON.parse(raw) as UserProfile) : null
+  } catch {
+    return null
+  }
+}
+
+/** Dev-only: write (or clear) a demo profile */
+export function setDemoProfile(p: UserProfile | null) {
+  if (!import.meta.env.DEV) return
+  if (p) localStorage.setItem(DEMO_PROFILE_KEY, JSON.stringify(p))
+  else localStorage.removeItem(DEMO_PROFILE_KEY)
+}
 
 type AuthContextValue = AuthState & AuthActions
 
@@ -126,12 +145,14 @@ function writeStoredRole(role: UserRole | null) {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
-  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [profile, setProfile] = useState<UserProfile | null>(() => readDemoProfile())
   const [corporateAccount, setCorporateAccount] = useState<CorporateAccount | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [activeRoleOverride, setActiveRoleOverride] = useState<UserRole | null>(() =>
     readStoredRole(),
   )
+  // True when running in dev demo mode (no real Supabase session)
+  const [isDemoMode, setIsDemoMode] = useState(() => Boolean(readDemoProfile()))
 
   const loadProfile = async (userId: string, authUser?: User) => {
     let p = await fetchProfile(userId)
@@ -163,6 +184,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    // In demo mode skip Supabase entirely
+    if (readDemoProfile()) {
+      setIsLoading(false)
+      return
+    }
     // Initial session check
     supabase.auth.getSession().then(({ data: { session: s } }) => {
       setSession(s)
@@ -267,6 +293,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signOut = async () => {
+    setDemoProfile(null)
+    setIsDemoMode(false)
     await supabase.auth.signOut()
     setProfile(null)
     setCorporateAccount(null)
@@ -348,7 +376,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       vendorId: profile?.vendor_id ?? null,
       corporateAccount,
       isLoading,
-      isAuthenticated: !!session,
+      isAuthenticated: !!session || isDemoMode,
       signIn,
       signUp,
       signOut,

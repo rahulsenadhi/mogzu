@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router'
 import { useAuth, isCorporateRole, isVendorRole, isAdminRole } from '@/lib/auth'
+import { getCorporateOnboardingPath } from '@/app/lib/corporateOnboarding'
 
 function FullScreenSpinner() {
   return (
@@ -34,6 +35,15 @@ export function CorporateRoute({ children }: GuardProps) {
     if (isVendorRole(role)) return <Navigate to="/vendor/dashboard" replace />
     if (isAdminRole(role)) return <Navigate to="/admin" replace />
     return <Navigate to="/login" state={{ from: location }} replace />
+  }
+
+  const onboardingPath = getCorporateOnboardingPath()
+  if (
+    onboardingPath &&
+    !location.pathname.startsWith('/signup/corporate') &&
+    location.pathname !== '/welcome'
+  ) {
+    return <Navigate to={onboardingPath} replace />
   }
 
   return <>{children}</>

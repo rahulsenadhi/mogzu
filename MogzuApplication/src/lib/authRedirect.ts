@@ -1,4 +1,9 @@
 import type { UserRole } from './database.types'
+import { getCorporateOnboardingPath, isCorporateOnboardingComplete } from '@/app/lib/corporateOnboarding'
+
+function isCorporateRole(role: UserRole | null): boolean {
+  return role === 'l1_employee' || role === 'l2_manager' || role === 'l3_admin'
+}
 
 /** Where to send the user after a successful login. */
 export function getPostLoginPath(role: UserRole | null): string {
@@ -12,7 +17,12 @@ export function getPostLoginPath(role: UserRole | null): string {
   if (role === 'field_agent') return '/agent/dashboard'
   if (role === 'vendor') return '/vendor/dashboard'
   if (role === 'partner') return '/partner/dashboard'
-  // Default for corporate roles and while profile is still loading (null)
+  if (isCorporateRole(role)) {
+    const onboarding = getCorporateOnboardingPath()
+    if (onboarding) return onboarding
+    if (!isCorporateOnboardingComplete()) return '/signup/corporate/company-details'
+    return '/dashboard'
+  }
   return '/dashboard'
 }
 

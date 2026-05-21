@@ -24,7 +24,7 @@ export function RoleTopNavItems({ className = '' }: { className?: string }) {
       return [
         { label: 'My Listings', to: '/vendor/listings' },
         { label: 'Create Listing', to: '/vendor/products/new' },
-        { label: 'Performance' },
+        { label: 'Performance', to: '/vendor/performance' },
       ]
     }
     if (activeRole === 'admin') {
@@ -55,10 +55,6 @@ export function RoleTopNavItems({ className = '' }: { className?: string }) {
             key={item.label}
             type="button"
             onClick={() => {
-              if (item.label === 'Performance' && activeRole === 'vendor') {
-                toast.info('Performance dashboard coming soon.')
-                return
-              }
               if (!item.to) return
               navigate(item.to)
             }}
