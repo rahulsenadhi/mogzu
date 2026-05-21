@@ -12,6 +12,13 @@ Purpose: durable project memory for decisions, changes, incidents, and next acti
 Use this for important technical decisions.
 
 Latest entries:
+- Date: 2026-05-17
+- Decision: Centralize post-login routing and profile bootstrap in auth layer; default signed-in corporate users to `/dashboard`
+- Context: Login, welcome, and dashboard formed redirect loops when `user_profiles` was missing or `role` was null; duplicate `VendorSupportPage` import broke Vite build; Supabase placeholder `.env` caused "Failed to fetch"
+- Options considered: (1) Force all users through `/welcome` then dashboard, (2) Redirect null role to company onboarding only, (3) `ensureUserProfile` + `getPostLoginPath` + fallback `l1_employee` when session exists but profile row missing
+- Rationale: Auth succeeds before profile row exists; guards must not bounce to login/onboarding while profile loads. `getAuthCallbackUrl()` uses live `window.location.origin` so email links match dev port (5173–5177). Real Supabase creds live in `MogzuApplication/.env` (from `utils/supabase/info.tsx`, project `edbryqkqysptxwivdyle`)
+- Impact: `src/lib/authRedirect.ts` (`getPostLoginPath`, `getAuthCallbackUrl`), `src/lib/auth.ts` (`ensureUserProfile`, signIn loads profile), `LoginPage`, `WelcomeScreen`, `ProtectedRoute`, `CorporateSignUpForm` (resend verification), removed duplicate import in `routes.tsx` (use `VendorSupportPage` from `SupportPage.tsx` only)
+- Owner: Project team
 - Date: 2026-04-22
 - Decision: Gifting top navigation must sit on the workspace ambient backdrop, not a separate “patch” band; use `SharedHeader` `variant="blended"` on gifting routes
 - Context: Stacked `bg-white/60–65` breadcrumb and tab rows plus opaque `bg-white` app header read as unsynced with `MogzuAmbientBackdrop` (cream `#FFFDF9` + blue washes)
@@ -47,6 +54,12 @@ Template:
 Use this for significant implementation updates.
 
 Latest entries:
+- Date: 2026-05-17
+- Summary: Auth/dev stability pass — fixed login→dashboard routing, welcome loop, Supabase wiring, and build error
+- Files changed: `MogzuApplication/src/lib/supabase.ts`, `MogzuApplication/.env`, `MogzuApplication/src/lib/authRedirect.ts`, `MogzuApplication/src/lib/auth.ts`, `MogzuApplication/src/app/components/LoginPage.tsx`, `MogzuApplication/src/app/components/WelcomeScreen.tsx`, `MogzuApplication/src/app/components/auth/ProtectedRoute.tsx`, `MogzuApplication/src/app/components/auth/AuthCallbackPage.tsx`, `MogzuApplication/src/app/components/CorporateSignUpForm.tsx`, `MogzuApplication/src/app/components/VendorOnboardingPage.tsx`, `MogzuApplication/src/app/components/AdminLoginPage.tsx`, `MogzuApplication/src/app/routes.tsx`
+- Verification performed: `npm run build` clean after changes
+- Risks / notes: Supabase project must stay **unpaused** or all auth calls fail with "Failed to fetch". Add every dev port in use to Supabase Auth redirect URLs (`http://localhost:5173/**` … `5177/**`). Multiple `npm run dev` instances stack ports — prefer one server on 5173. Free tier ~4 auth emails/hour. Marketing landing is `/`; post-login corporate home is `/dashboard`
+- Owner: Project team
 - Date: 2026-05-16
 - Summary: Sprint 17 P2 — Promotions + analytics + event templates (8.7, 9.6, 8.3, 3.5). New `promotions` table (vendor_id, listing_id, kind percent_off|flat_off|free_addon|paid_boost, title, value, add_on_name, starts_at, ends_at, max_redemptions, redemptions, paid_boost_amount, paid_boost_payment_reference, status enum) + `event_templates` table (corp, name, default_group_size, default_budget, preferred_vendor_ids[], preferred_listing_ids[], usage_count). Types + `db.promotions` (listByVendor / listActive / listQueue / create / setStatus) + `db.eventTemplates` (listByCorporate / listActive / create / update / incrementUsage). Pages: `VendorPromotionsRealPage` at `/vendor/promotions-live` (separate from legacy mock page) — create promo with kind-specific fields, paid boost flips to `pending_payment` until Razorpay ref pasted then `pending_approval`. `AdminPromotionsApprovalPage` at `/admin/promotions/approval` — approve→active or reject with reason. `VendorAnalyticsPage` at `/vendor/analytics` — real `db.bookings.listByVendor` aggregation: total bookings / confirmed revenue with prev-period trend / AOV / cancellation rate; per-listing conversion table; 30-bucket revenue sparkline; window selector 30/90/180d. `CorporateEventTemplatesPage` at `/corporate/event-templates` (L3) — CRUD with vendor + listing chip-pickers. `CorporatePicksPage` at `/corporate-picks` (any role) — surfaces active templates with "Use this template" CTA that increments usage_count and routes to first preferred listing's booking flow.
 - Files changed: `MogzuApplication/supabase/migrations/20260516000016_promotions_templates.sql`, `MogzuApplication/src/lib/database.types.ts`, `MogzuApplication/src/lib/db.ts`, `MogzuApplication/src/app/components/VendorPromotionsRealPage.tsx`, `MogzuApplication/src/app/components/AdminPromotionsApprovalPage.tsx`, `MogzuApplication/src/app/components/VendorAnalyticsPage.tsx`, `MogzuApplication/src/app/components/CorporateEventTemplatesPage.tsx`, `MogzuApplication/src/app/components/CorporatePicksPage.tsx`, `MogzuApplication/src/app/routes.tsx`
@@ -246,7 +259,20 @@ Template:
 Use this for bugs, outages, or difficult troubleshooting.
 
 Latest entries:
-- No incidents recorded yet for this workspace
+- Date: 2026-05-17
+- Incident / issue: Login/signup "Failed to fetch" and email verification links failing on localhost
+- Symptoms: `signIn`/`signUp` network errors; verification URL opens localhost with "unable to load server"; no confirmation email on repeat signup
+- Root cause: (1) Supabase project paused + placeholder `.env` pointing at `your-project.supabase.co` / `placeholder.supabase.co`, (2) dev server not running when clicking email links, (3) redirect URL port mismatch (VITE_APP_URL 5173 vs actual 5176/5177), (4) duplicate signup does not resend email by default
+- Resolution: Unpause project; set real `VITE_SUPABASE_*` in `MogzuApplication/.env`; wire `emailRedirectTo` via `getAuthCallbackUrl()`; resend button on corporate signup; keep `npm run dev` running
+- Preventive action: Document Supabase Site URL + Redirect URLs per active dev port; use `CorporateSignUpForm` resend for existing unconfirmed emails
+- Owner: Project team
+- Date: 2026-05-17
+- Incident / issue: Welcome screen ↔ dashboard infinite redirect
+- Symptoms: After login, user stuck on `/welcome` or never reaches `/dashboard`
+- Root cause: `WelcomeScreen` auto-navigated to `/dashboard` while `CorporateRoute` saw `role === null` (no `user_profiles` row or profile wiped by `onAuthStateChange` race) and sent user back to `/welcome` or company onboarding
+- Resolution: `ensureUserProfile` on sign-in; `getPostLoginPath` defaults to `/dashboard`; fallback role `l1_employee` when session exists; welcome only redirects when auth ready; `CorporateRoute` shows spinner while profile bootstraps
+- Preventive action: Do not redirect away from login until `role` is set; avoid duplicate `VendorSupportPage` import in `routes.tsx`
+- Owner: Project team
 
 Template:
 - Date:
@@ -261,6 +287,14 @@ Template:
 Use this for actionable next steps.
 
 Open items:
+- [ ] Task: Add Supabase Auth redirect URLs for all local dev ports in use (5173–5177) and align Site URL with active `npm run dev` port
+  - Priority: High
+  - Context: Email verification and OAuth break when link port ≠ running Vite server
+  - Owner: Project team
+- [ ] Task: Kill stale `npm run dev` processes so one instance binds to 5173 (matches `VITE_APP_URL`)
+  - Priority: Medium
+  - Context: Multiple background Vite servers caused port drift (5174–5177)
+  - Owner: Project team
 - [ ] Task: Populate combo `occasion` metadata in source data so occasion filtering has real options
   - Priority: High
   - Context: Combo occasion filter is wired but data currently has mostly empty `occasion` arrays
