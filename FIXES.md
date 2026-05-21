@@ -63,7 +63,11 @@ Deferred from Batch 1:
 
 ## OPEN BUGS — fix later
 
-- **Corporate onboarding gate is localStorage-only** (`src/app/lib/corporateOnboarding.ts:40`). `isCorporateOnboardingComplete()` reads `mogzu_corporate_onboarding_complete` from `localStorage`. Any existing user signing in on a fresh browser/device is forced through `/signup/corporate/company-details` even when `user_profiles.corporate_id` is already set. Root fix: derive completion from `user_profiles.corporate_id != null` (database truth) instead of/in addition to localStorage. Smoke workaround: pre-set the flag.
+- **Corporate onboarding gate is localStorage-only** — fixed 2026-05-21.
+  - `isCorporateOnboardingComplete(profile?)` + `getCorporateOnboardingPath(profile?)` now accept an optional `UserProfile`. When supplied, completeness is derived from `user_profiles.corporate_id != null` (DB truth). LocalStorage flag remains as a fallback for pre-auth contexts only.
+  - `getPostLoginPath(role, profile?)` updated to thread `profile` through.
+  - Callsites updated to pass `profile` from `useAuth()`: ProtectedRoute.CorporateRoute, LoginPage, WelcomeScreen, AuthCallbackPage, auth.ts signIn return value.
+  - AcceptInvitePage intentionally left unchanged — invite flow has no profile yet; localStorage fallback path is correct there.
 
 
 

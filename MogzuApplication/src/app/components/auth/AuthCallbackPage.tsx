@@ -43,7 +43,7 @@ export default function AuthCallbackPage() {
           profile = { ...profile, corporate_id: jit.corporate_id, role: (jit.role ?? profile.role) as typeof profile.role }
         }
       }
-      navigate(getPostLoginPath((profile?.role as UserRole | undefined) ?? null), { replace: true })
+      navigate(getPostLoginPath((profile?.role as UserRole | undefined) ?? null, profile), { replace: true })
     }
 
     const run = async () => {
@@ -84,7 +84,7 @@ export default function AuthCallbackPage() {
             profile = { ...profile, corporate_id: jit.corporate_id, role: (jit.role ?? profile.role) as typeof profile.role }
           }
         }
-        navigate(getPostLoginPath((profile?.role as UserRole | undefined) ?? null), { replace: true })
+        navigate(getPostLoginPath((profile?.role as UserRole | undefined) ?? null, profile), { replace: true })
         return
       }
 

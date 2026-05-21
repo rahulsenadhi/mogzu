@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import type { UserProfile } from '@/lib/database.types'
 
 const STORAGE_KEY = 'mogzu_corporate_onboarding'
 const COMPLETE_KEY = 'mogzu_corporate_onboarding_complete'
@@ -37,7 +38,13 @@ export function saveCorporateOnboardingDraft(patch: Partial<CorporateOnboardingD
   localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
 }
 
-export function isCorporateOnboardingComplete(): boolean {
+/**
+ * Onboarding completeness is DB-truth: a user is "onboarded" once user_profiles.corporate_id is set.
+ * Pass the loaded profile when available. Falls back to a localStorage flag only when no profile is
+ * supplied (e.g. pre-auth contexts or legacy callers) so behaviour stays defined.
+ */
+export function isCorporateOnboardingComplete(profile?: UserProfile | null): boolean {
+  if (profile?.corporate_id) return true
   if (typeof window === 'undefined') return false
   return localStorage.getItem(COMPLETE_KEY) === 'true'
 }
@@ -48,8 +55,8 @@ export function setCorporateOnboardingComplete(complete: boolean) {
   else localStorage.removeItem(COMPLETE_KEY)
 }
 
-export function getCorporateOnboardingPath(): string | null {
-  if (isCorporateOnboardingComplete()) return null
+export function getCorporateOnboardingPath(profile?: UserProfile | null): string | null {
+  if (isCorporateOnboardingComplete(profile)) return null
   const draft = getCorporateOnboardingDraft()
   const step = draft?.step ?? 'company-details'
   if (step === 'company-details') return '/signup/corporate/company-details'

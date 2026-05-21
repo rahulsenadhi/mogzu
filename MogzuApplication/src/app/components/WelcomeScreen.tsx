@@ -6,7 +6,7 @@ import { getPostLoginPath } from '@/lib/authRedirect'
 
 export default function WelcomeScreen() {
   const navigate = useNavigate()
-  const { role, isLoading, isAuthenticated } = useAuth()
+  const { role, isLoading, isAuthenticated, profile } = useAuth()
   const [progress, setProgress] = useState(0)
   const [isContinuing, setIsContinuing] = useState(false)
   const didRedirectRef = useRef(false)
@@ -30,7 +30,7 @@ export default function WelcomeScreen() {
     }
 
     // Corporate (incl. default l1_employee when profile still loading)
-    navigate(getPostLoginPath(role), { replace: true })
+    navigate(getPostLoginPath(role, profile), { replace: true })
   }
 
   useEffect(() => {

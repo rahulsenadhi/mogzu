@@ -268,7 +268,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const role = profileRow?.role ?? null
-      return { error: null, redirectTo: getPostLoginPath(role) }
+      return { error: null, redirectTo: getPostLoginPath(role, profileRow) }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Sign in failed.'
       return { error: formatAuthError(msg) ?? 'Sign in failed.', redirectTo: null }

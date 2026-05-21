@@ -13,7 +13,7 @@ import { resolveSsoForEmail } from '@/lib/ssoConfig';
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { signIn, isAuthenticated, role, isLoading } = useAuth();
+  const { signIn, isAuthenticated, role, isLoading, profile } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -42,8 +42,8 @@ export default function LoginPage() {
     // Wait until auth/profile resolved before redirecting away from login
     if (!role) return;
     const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
-    navigate(from ?? getPostLoginPath(role), { replace: true });
-  }, [isLoading, isAuthenticated, role, navigate, location.state]);
+    navigate(from ?? getPostLoginPath(role, profile), { replace: true });
+  }, [isLoading, isAuthenticated, role, profile, navigate, location.state]);
 
   useEffect(() => {
     if (view !== 'otp' || otpSecondsLeft <= 0) return;

@@ -1,12 +1,18 @@
-import type { UserRole } from './database.types'
+import type { UserProfile, UserRole } from './database.types'
 import { getCorporateOnboardingPath, isCorporateOnboardingComplete } from '@/app/lib/corporateOnboarding'
 
 function isCorporateRole(role: UserRole | null): boolean {
   return role === 'l1_employee' || role === 'l2_manager' || role === 'l3_admin'
 }
 
-/** Where to send the user after a successful login. */
-export function getPostLoginPath(role: UserRole | null): string {
+/**
+ * Where to send the user after a successful login.
+ *
+ * Pass `profile` when available so corporate-onboarding completeness is derived from
+ * `user_profiles.corporate_id` (DB truth) instead of the localStorage flag. The flag is
+ * device-scoped and forces existing users through onboarding on a fresh browser.
+ */
+export function getPostLoginPath(role: UserRole | null, profile?: UserProfile | null): string {
   if (
     role === 'mogzu_admin' ||
     role === 'account_manager' ||
@@ -18,9 +24,9 @@ export function getPostLoginPath(role: UserRole | null): string {
   if (role === 'vendor') return '/vendor/dashboard'
   if (role === 'partner') return '/partner/dashboard'
   if (isCorporateRole(role)) {
-    const onboarding = getCorporateOnboardingPath()
+    const onboarding = getCorporateOnboardingPath(profile)
     if (onboarding) return onboarding
-    if (!isCorporateOnboardingComplete()) return '/signup/corporate/company-details'
+    if (!isCorporateOnboardingComplete(profile)) return '/signup/corporate/company-details'
     return '/dashboard'
   }
   return '/dashboard'

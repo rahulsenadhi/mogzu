@@ -37,7 +37,7 @@ export function CorporateRoute({ children }: GuardProps) {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 
-  const onboardingPath = getCorporateOnboardingPath()
+  const onboardingPath = getCorporateOnboardingPath(profile)
   if (
     onboardingPath &&
     !location.pathname.startsWith('/signup/corporate') &&
