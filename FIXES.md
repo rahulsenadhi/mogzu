@@ -2,6 +2,22 @@
 
 > One line per file touched. Newest at top.
 
+## 2026-05-21 — Batch 3b: Detail-page hybrid render + realtime
+
+- `MogzuApplication/src/app/components/BookingDetailPage.tsx`:
+  - Added inverse mappers `mapStatus` (BookingStatus → UI `currentStatus`), `mapPaymentStatus`, `mapPaymentType`; ISO formatter `fmtIsoDate`.
+  - Renamed existing `booking` useMemo → `derivedBooking` (passed-state / mock fallback derivation, unchanged).
+  - New `booking` useMemo overlays `realBooking` fields onto `derivedBooking` when fetch resolves: `venue.name/location/description` from `listings`, `attendees` from `group_size`, `dateTime` from `start_time`/`end_time`, `price.basePrice/processing/total` from base_amount/platform_fee/total_amount, `bookingStatus.currentStatus` + `approvedOn`, `paymentStatus.status` + `paymentType`.
+  - Realtime subscription via `subscribeToTable<RealBooking>` on `bookings` table with `id=eq.{id}` filter, event=UPDATE. Merges `payload.new` into `realBooking` state so the overlay re-renders when vendor confirms / corp cancels server-side. Cleanup on unmount.
+  - Used Listing's `location_address` + `location_city` (no `location_state` on schema) for `venue.location`.
+
+Verified: `npm run build` exit 0, `built in 14.72s`.
+
+Carry-over → Batch 3c:
+- Mount real listing image (currently `derivedBooking.venue.image` remains the mock figma asset). Need to extend `db.bookings.getById` select to include `listing_images` OR a separate fetch.
+- Real vendor contact name (currently mock). Vendor row available in select but not yet wired into overlay (would need vendor user profile join for phone/email).
+- Real add-ons + booking_add_ons → overlay `booking.addOns`.
+
 ## 2026-05-21 — Batch 3: Bookings glue
 
 - `MogzuApplication/src/app/components/BookingsPage.tsx` — wire to `db.bookings`. L3 admins call `listByCorporate(corporateId)`; everyone else calls `listByUser(profile.id)`. Map `BookingStatus` → UI `{status, type}` via local `mapBookingStatus` switch. Compose `allBookings`: real ⊕ flow when real present; mock ⊕ flow otherwise (DEMO_DATA fallback per convention). `DevMockDataBanner` now gated on `!hasRealData`. Added `formatShortDate` ISO→`"MMM dd, yyyy"` helper for parity with mock format.

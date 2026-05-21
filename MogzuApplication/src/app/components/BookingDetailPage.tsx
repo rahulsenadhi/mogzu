@@ -10,11 +10,49 @@ import { isInvoiceEligibleStatus } from '@/app/lib/bookingStatus';
 import { BookingMessagesPanel } from './global/BookingMessagesPanel';
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import type { Booking, Listing } from '@/lib/database.types';
+import { subscribeToTable } from '@/lib/realtime';
+import type { Booking, BookingStatus, Listing, PaymentStatus } from '@/lib/database.types';
 
 type RealBooking = Booking & { listings: Listing | null };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function mapStatus(s: BookingStatus): BookingDetail['bookingStatus']['currentStatus'] {
+  switch (s) {
+    case 'draft': return 'INQUIRY';
+    case 'pending_approval': return 'PENDING';
+    case 'pending_vendor': return 'Requested';
+    case 'confirmed': return 'CONFIRMED';
+    case 'cancelled': return 'CANCELLED';
+    case 'completed': return 'APPROVED';
+    case 'disputed': return 'CANCELLED';
+  }
+}
+
+function mapPaymentStatus(s: PaymentStatus): BookingDetail['paymentStatus']['status'] {
+  switch (s) {
+    case 'pending': return 'PENDING';
+    case 'paid': return 'PAID';
+    case 'refunded': return 'REFUNDED';
+    case 'failed': return 'FAILED';
+  }
+}
+
+function mapPaymentType(m: 'wallet' | 'card' | 'upi' | null): BookingDetail['paymentStatus']['paymentType'] {
+  switch (m) {
+    case 'wallet': return 'Empanelled';
+    case 'card': return 'Card';
+    case 'upi': return 'UPI';
+    default: return 'None';
+  }
+}
+
+function fmtIsoDate(iso: string | null): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
 
 const DISPUTE_CATEGORIES: Array<{ value: string; label: string }> = [
   { value: 'service_quality', label: 'Service quality' },
@@ -207,7 +245,24 @@ export default function BookingDetailPage() {
 
   const passedBooking = location.state?.booking;
 
-  const booking = useMemo(() => {
+  // Subscribe to row updates so the status pill flips when vendor confirms / corp cancels.
+  useEffect(() => {
+    if (!id || !UUID_RE.test(id)) return;
+    const unsub = subscribeToTable<RealBooking>(`booking-${id}`, {
+      table: 'bookings',
+      event: 'UPDATE',
+      filter: `id=eq.${id}`,
+      onData: (payload) => {
+        const next = payload.new as RealBooking | null;
+        if (next && next.id) {
+          setRealBooking((prev) => (prev ? { ...prev, ...next } : (next as RealBooking)));
+        }
+      },
+    });
+    return unsub;
+  }, [id]);
+
+  const derivedBooking = useMemo(() => {
     // If we have a passed booking, generate context-aware data
     if (passedBooking) {
       const basePrice = passedBooking.price;
@@ -288,6 +343,55 @@ export default function BookingDetailPage() {
       bookingId: id || mockBookingData.bookingId
     };
   }, [passedBooking, id]);
+
+  // Overlay live Supabase fields onto the derived (passed/mock) booking when realBooking present.
+  // The passed booking keeps the UI alive on initial render; the overlay flips fields to live data
+  // once the fetch resolves and again whenever the realtime subscription fires.
+  const booking = useMemo<BookingDetail>(() => {
+    if (!realBooking) return derivedBooking;
+    const listing = realBooking.listings;
+    const city = listing?.location_city ?? null;
+    const address = listing?.location_address ?? null;
+    const locationLine = [address, city].filter(Boolean).join(', ') || derivedBooking.venue.location;
+    const base = realBooking.base_amount ?? derivedBooking.price.basePrice;
+    const fee = realBooking.platform_fee ?? derivedBooking.price.processing;
+    const total = realBooking.total_amount ?? base + fee;
+    return {
+      ...derivedBooking,
+      id: realBooking.id,
+      bookingId: realBooking.id,
+      plannedFor: realBooking.purpose_note || derivedBooking.plannedFor,
+      attendees: realBooking.group_size ?? derivedBooking.attendees,
+      venue: {
+        ...derivedBooking.venue,
+        name: listing?.title ?? derivedBooking.venue.name,
+        location: locationLine,
+        description: listing?.description ?? derivedBooking.venue.description,
+      },
+      dateTime: {
+        checkIn: fmtIsoDate(realBooking.start_time),
+        checkOut: fmtIsoDate(realBooking.end_time),
+      },
+      price: {
+        basePrice: base,
+        hours: derivedBooking.price.hours,
+        processing: fee,
+        total,
+      },
+      bookingStatus: {
+        ...derivedBooking.bookingStatus,
+        currentStatus: mapStatus(realBooking.status),
+        approvedOn: realBooking.approved_at
+          ? fmtIsoDate(realBooking.approved_at)
+          : derivedBooking.bookingStatus.approvedOn,
+      },
+      paymentStatus: {
+        ...derivedBooking.paymentStatus,
+        status: mapPaymentStatus(realBooking.payment_status),
+        paymentType: mapPaymentType(realBooking.payment_method),
+      },
+    };
+  }, [realBooking, derivedBooking]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
