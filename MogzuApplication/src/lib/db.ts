@@ -1649,7 +1649,7 @@ export const giftingCampaigns = {
   listBookings: async (campaignId: string) =>
     supabase
       .from('bookings')
-      .select('*, user_profiles(full_name,department,email)')
+      .select('*, user_profiles!user_id(full_name,department,email)')
       .eq('gifting_campaign_id', campaignId)
       .order('created_at'),
 }

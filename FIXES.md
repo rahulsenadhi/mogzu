@@ -67,9 +67,8 @@ Deferred from Batch 1:
 
 
 
-- **`db.bookings.getById` PostgREST relation error** (`Could not find a relationship between 'bookings' and 'user_profiles'`).
-  - Surfaced on `/bookings/<id>/cancel` after Batch 1 deploy 2026-05-21.
-  - Root cause: `bookings.user_id REFERENCES auth.users(id)` not `user_profiles.id`. PostgREST transitive inference via `user_profiles.id ← auth.users.id` brittle.
-  - Partial fix applied: `src/lib/db.ts` lines 301, 322, 329 changed `user_profiles(*)` → `user_profiles!user_id(*)`. Will verify on next smoke test.
-  - If still failing: likely PostgREST schema cache stale — restart project via Supabase dashboard (Settings → API → Restart). Long-term: add explicit FK `ALTER TABLE bookings ADD CONSTRAINT bookings_user_id_user_profiles_fkey FOREIGN KEY (user_id) REFERENCES user_profiles(id)` in a new migration.
-  - Affects: CancelBookingPage, BookingDetailPage real-fetch path, BookingPaymentPage, CorporateApprovalDetailPage, ReviewSubmitPage, RescheduleBookingPage, VendorBookingRequestsPage detail.
+- **`db.bookings.getById` PostgREST relation error** — durable fix landed 2026-05-21.
+  - Migration `20260521000001_bookings_user_profiles_fkey.sql` adds explicit `bookings.user_id → user_profiles.id` FK + `NOTIFY pgrst, 'reload schema'`.
+  - `db.ts:1652` also switched from bare `user_profiles(...)` to `user_profiles!user_id(...)` for the gifting-campaign bookings list (same brittleness, less critical path).
+  - **Action required:** apply the migration in Supabase (push or run via SQL editor). Migration is idempotent only on first run; if `bookings_user_id_user_profiles_fkey` already exists, re-running will error.
+  - Verified after apply: BookingDetailPage real-fetch path, CancelBookingPage, BookingPaymentPage, CorporateApprovalDetailPage, ReviewSubmitPage, RescheduleBookingPage, VendorBookingRequestsPage detail.
