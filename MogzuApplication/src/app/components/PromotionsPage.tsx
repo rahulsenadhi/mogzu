@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Heart, MapPin, Users, Star, Search, Building2, LayoutGrid, Store, Clapperboard, ShoppingBag, Megaphone, Share2, Tv, House, type LucideIcon } from 'lucide-react';
+import { MapPin, Users, Star, Search, Building2, LayoutGrid, Store, Clapperboard, ShoppingBag, Megaphone, Share2, Tv, House, type LucideIcon } from 'lucide-react';
+import { WishlistHeart } from './global/WishlistHeart';
 import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
@@ -763,9 +764,7 @@ export default function PromotionsPage() {
                           </div>
                         </>
                       ) : null}
-                      <button className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-[0_6px_16px_rgba(15,23,42,0.16)] backdrop-blur-sm transition-all hover:bg-white">
-                        <Heart className="h-4 w-4 text-[#878e9e]" />
-                      </button>
+                      <WishlistHeart listingId={String(promo.id)} />
                       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2.5">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-0.5 rounded-md bg-white/95 px-1.5 py-0.5 text-[10px] font-semibold text-[#0e1e3f] shadow-[0_6px_16px_rgba(15,23,42,0.16)] backdrop-blur-sm">

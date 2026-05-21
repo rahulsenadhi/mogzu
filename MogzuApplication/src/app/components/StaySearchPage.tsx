@@ -11,6 +11,8 @@ import {
 import { SharedHeader } from './layouts/SharedHeader'
 import { SharedSidebar } from './layouts/SharedSidebar'
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface'
+import { WishlistHeart } from './global/WishlistHeart'
+import { RatingBadge } from './global/RatingBadge'
 import { useAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { storageService } from '@/lib/storage'
@@ -229,7 +231,7 @@ export default function StaySearchPage() {
                       key={stay.id}
                       className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row"
                     >
-                      <div className="size-24 shrink-0 overflow-hidden rounded-xl bg-slate-100 sm:size-28">
+                      <div className="relative size-24 shrink-0 overflow-hidden rounded-xl bg-slate-100 sm:size-28">
                         {cover && (
                           <img
                             src={storageService.spaceImages.getUrl(cover.storage_path)}
@@ -237,6 +239,7 @@ export default function StaySearchPage() {
                             className="size-full object-cover"
                           />
                         )}
+                        <WishlistHeart listingId={stay.id} />
                       </div>
                       <div className="flex min-w-0 flex-1 flex-col gap-1">
                         <div className="flex flex-wrap items-center gap-2">
@@ -254,10 +257,13 @@ export default function StaySearchPage() {
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-slate-500">
-                          {stay.vendors?.business_name ?? '—'}
-                          {stay.location_city ? ` · ${stay.location_city}` : ''}
-                        </p>
+                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                          <span>
+                            {stay.vendors?.business_name ?? '—'}
+                            {stay.location_city ? ` · ${stay.location_city}` : ''}
+                          </span>
+                          <RatingBadge listingId={stay.id} showCount={false} />
+                        </div>
                         {!policy.withinPolicy && (
                           <p className="text-[11px] text-amber-700">
                             {policy.reasons.join(' · ')}

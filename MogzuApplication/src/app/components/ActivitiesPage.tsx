@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router';
 import { SharedHeader } from '@/app/components/layouts/SharedHeader';
 import { SharedSidebar } from '@/app/components/layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from '@/app/components/layouts/MogzuCorporateScrollSurface';
-import { ChevronDown, ChevronRight, Heart, Search, Users, MapPin, Grid3x3, Gamepad2, Mountain, Trophy, UsersRound, Palette, Sparkles, UtensilsCrossed, MonitorPlay, Plane, Crown, AlertCircle, type LucideIcon } from 'lucide-react';
+import { ChevronDown, ChevronRight, Search, Users, MapPin, Grid3x3, Gamepad2, Mountain, Trophy, UsersRound, Palette, Sparkles, UtensilsCrossed, MonitorPlay, Plane, Crown, AlertCircle, type LucideIcon } from 'lucide-react';
+import { WishlistHeart } from './global/WishlistHeart';
 import svgPaths from '@/imports/svg-xho44kfymu';
 import svgPathsSpaceX from '@/imports/svg-5pj2l0pukf';
 import imgAvatar from 'figma:asset/e67667939a12621af070c82a05583b9248a7c28e.png';
@@ -1181,19 +1182,7 @@ export default function ActivitiesPage() {
                         </>
                       ) : null}
 
-                      {/* Heart Button - Top Right */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setGridUiNotice(
-                            `Saving "${activity.subcategory}" to favorites will be available in a future release.`,
-                          );
-                        }}
-                        className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-[0_6px_16px_rgba(15,23,42,0.16)] backdrop-blur-sm transition-all hover:bg-white"
-                      >
-                        <Heart className="h-4 w-4 text-[#878e9e]" />
-                      </button>
+                      <WishlistHeart listingId={String(activity.id)} />
 
                       {/* Bottom Overlay Bar */}
                       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2.5">

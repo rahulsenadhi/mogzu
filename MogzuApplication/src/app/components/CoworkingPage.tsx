@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router';
 import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
-import { Search, MapPin, Users, ChevronDown, Star, Heart, AlertCircle, Grid3x3, Flame, BriefcaseBusiness, Building2, Coffee, Laptop } from 'lucide-react';
+import { Search, MapPin, Users, ChevronDown, Star, AlertCircle, Grid3x3, Flame, BriefcaseBusiness, Building2, Coffee, Laptop } from 'lucide-react';
+import { WishlistHeart } from './global/WishlistHeart';
 import svgPaths from '@/imports/svg-camfkj9vq4';
 import svgPathsSpaceX from '@/imports/svg-5pj2l0pukf';
 import imgAvatar from 'figma:asset/e67667939a12621af070c82a05583b9248a7c28e.png';
@@ -209,7 +210,6 @@ export default function CoworkingPage() {
   const [selectedCapacity, setSelectedCapacity] = useState('Any Capacity');
   const [priceRange, setPriceRange] = useState('Any Price');
   const [searchQuery, setSearchQuery] = useState('');
-  const [favorites, setFavorites] = useState<string[]>([]);
   const [isError, setIsError] = useState(false);
   const [cardImageIndexById, setCardImageIndexById] = useState<Record<string, number>>({});
   const categoryScrollRef = useRef<HTMLDivElement | null>(null);
@@ -235,11 +235,6 @@ export default function CoworkingPage() {
     return <Laptop className="h-4.5 w-4.5" color={color} strokeWidth={2.2} />;
   };
 
-  const toggleFavorite = (id: string) => {
-    setFavorites(prev =>
-      prev.includes(id) ? prev.filter(fav => fav !== id) : [...prev, id]
-    );
-  };
 
   const filteredSpaces = mockCoworkingSpaces.filter(space => {
     if (selectedCity !== 'All Cities' && space.city !== selectedCity) return false;
@@ -746,16 +741,7 @@ export default function CoworkingPage() {
                         </>
                       ) : null}
 
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleFavorite(space.id);
-                        }}
-                        className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-[0_6px_16px_rgba(15,23,42,0.16)] backdrop-blur-sm transition-all hover:bg-white"
-                      >
-                        <Heart className={`h-4 w-4 ${favorites.includes(space.id) ? 'fill-red-500 text-red-500' : 'text-[#878e9e]'}`} />
-                      </button>
+                      <WishlistHeart listingId={String(space.id)} />
 
                       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2.5">
                         <div className="flex items-center justify-between">

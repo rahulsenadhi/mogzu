@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { Calendar, ChevronDown, Heart, MapPin, Search, Star, Users } from 'lucide-react'
+import { Calendar, ChevronDown, MapPin, Search, Star, Users } from 'lucide-react'
+import { WishlistHeart } from './global/WishlistHeart'
 import { SharedHeader } from './layouts/SharedHeader'
 import { SharedSidebar } from './layouts/SharedSidebar'
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface'
@@ -182,7 +183,6 @@ export default function EventActivityPage() {
   const [attendees, setAttendees] = useState('')
   const [sortBy, setSortBy] = useState<'recommended' | 'price_low' | 'price_high' | 'rating'>('recommended')
   const [cardImageIndexById, setCardImageIndexById] = useState<Record<string, number>>({})
-  const [likedById, setLikedById] = useState<Record<string, boolean>>({})
   const [openSections, setOpenSections] = useState({ city: true, rating: true, budget: true })
   const categories = getEventActivityCategoryConfigs()
 
@@ -617,13 +617,10 @@ export default function EventActivityPage() {
                         >
                           Compare
                         </button>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); setLikedById((prev) => ({ ...prev, [cardId]: !prev[cardId] })) }}
+                        <WishlistHeart
+                          listingId={String(cardId)}
                           className="absolute top-2.5 right-2.5 z-[3] w-8 h-8 bg-white/95 rounded-full flex items-center justify-center hover:bg-white hover:-translate-y-0.5 active:scale-95 transition-all shadow border border-[#e2e8f0]"
-                        >
-                          <Heart className={`h-4 w-4 ${likedById[cardId] ? 'text-red-500 fill-red-500' : 'text-slate-500'}`} />
-                        </button>
+                        />
                         <div className="absolute bottom-2.5 right-2.5 z-[3] bg-[#16a34a] text-white text-[10px] font-semibold px-2.5 h-6 rounded-full inline-flex items-center gap-1 shadow-md">
                           <span>{activity.rating.toFixed(1)}</span>
                           <Star className="h-3 w-3 fill-white" />

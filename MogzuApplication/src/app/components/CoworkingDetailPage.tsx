@@ -1,5 +1,6 @@
 import { useNavigate, useParams } from 'react-router';
-import { ChevronRight, MapPin, Users, Star, Heart, Wifi, Coffee, Printer, Car, Video, Phone, Mail, Shield, Calendar, Clock, Share2, Check } from 'lucide-react';
+import { ChevronRight, MapPin, Users, Star, Wifi, Coffee, Printer, Car, Video, Phone, Mail, Shield, Calendar, Clock, Share2, Check } from 'lucide-react';
+import { WishlistHeart } from './global/WishlistHeart';
 import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
@@ -114,7 +115,6 @@ export default function CoworkingDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams();
   const [selectedImage, setSelectedImage] = useState(0);
-  const [isFavorite, setIsFavorite] = useState(false);
   const space = mockCoworkingDetail;
 
   const getAmenityIcon = (iconName: string) => {
@@ -229,16 +229,10 @@ export default function CoworkingDetailPage() {
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setIsFavorite(!isFavorite)}
-                          aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-                          className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
-                            isFavorite ? 'bg-[#fee2e2] text-[#ef4444]' : 'bg-gray-100 text-[#878e9e] hover:bg-gray-200'
-                          }`}
-                        >
-                          <Heart className={`w-5 h-5 ${isFavorite ? 'fill-current' : ''}`} />
-                        </button>
+                        <WishlistHeart
+                          listingId={String(id ?? space.id)}
+                          className="w-10 h-10 rounded-full flex items-center justify-center transition-all bg-gray-100 text-[#878e9e] hover:bg-gray-200"
+                        />
                         <button
                           type="button"
                           onClick={handleShare}

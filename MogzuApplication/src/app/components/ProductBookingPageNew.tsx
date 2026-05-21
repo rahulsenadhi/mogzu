@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Search, ChevronDown, ChevronLeft, Bell, HelpCircle, ShoppingCart, Heart, Star, Phone, Mail, Info, FileText, CheckCircle2, XCircle } from 'lucide-react';
+import { Search, ChevronDown, ChevronLeft, Bell, HelpCircle, ShoppingCart, Star, Phone, Mail, Info, FileText, CheckCircle2, XCircle } from 'lucide-react';
+import { WishlistHeart } from './global/WishlistHeart';
 import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
@@ -331,18 +332,10 @@ BELLA+CANVAS also uses sustainable manufacturing processes with Blue Sign certif
                       <h1 className="text-2xl font-bold text-[#0e1e3f] mb-2 leading-tight">{product.name}</h1>
                       <p className="text-sm text-[#64748b]">Customizable with your company logo and branding options</p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setGridUiNotice(
-                          `Wishlist for "${product.name}" will be available in a future release.`,
-                        )
-                      }
-                      aria-label="Add to wishlist"
+                    <WishlistHeart
+                      listingId={String(product.id)}
                       className="p-2.5 hover:bg-[#f1f5f9] rounded-lg transition-colors"
-                    >
-                      <Heart className="w-6 h-6 text-[#64748b]" />
-                    </button>
+                    />
                   </div>
 
                   {/* Rating */}

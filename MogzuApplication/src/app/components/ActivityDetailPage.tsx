@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router';
-import { ArrowLeft, MapPin, Users, Star, Clock, Calendar, Shield, Heart, Share2, ChevronRight, Check, Info, FileText, CheckCircle2, XCircle } from 'lucide-react';
+import { ArrowLeft, MapPin, Users, Star, Clock, Calendar, Shield, Share2, ChevronRight, Check, Info, FileText, CheckCircle2, XCircle } from 'lucide-react';
+import { WishlistHeart } from './global/WishlistHeart';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
@@ -285,7 +286,6 @@ const getActivityImageUrl = (activityId: number) => {
 export default function ActivityDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [liked, setLiked] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedTab, setSelectedTab] = useState('overview');
   const [vendorNotice, setVendorNotice] = useState('');
@@ -425,16 +425,10 @@ export default function ActivityDetailPage() {
                         <p className="text-sm text-[#878e9e]">{activity.description}</p>
                       </div>
                       <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setLiked(!liked)}
-                          aria-label={liked ? 'Remove from favorites' : 'Add to favorites'}
-                          className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
-                            liked ? 'bg-[#fee2e2] text-[#ef4444]' : 'bg-gray-100 text-[#878e9e] hover:bg-gray-200'
-                          }`}
-                        >
-                          <Heart className={`w-5 h-5 ${liked ? 'fill-current' : ''}`} />
-                        </button>
+                        <WishlistHeart
+                          listingId={String(activity.id)}
+                          className="w-10 h-10 rounded-full flex items-center justify-center transition-all bg-gray-100 text-[#878e9e] hover:bg-gray-200"
+                        />
                         <button
                           type="button"
                           onClick={handleShare}

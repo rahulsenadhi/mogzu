@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router';
 import { Search, ChevronDown, Heart, GitCompare, Home, ShoppingBag, Sparkles, PartyPopper, Building2, WandSparkles, Package, CreditCard, MapPin, Gift } from 'lucide-react';
+import { WishlistHeart } from './global/WishlistHeart';
 import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
@@ -1315,16 +1316,10 @@ export default function CelebrationsPage() {
                           </div>
                         )}
                         <div className="absolute top-3 right-3 flex gap-2">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setGridUiNotice(`Wishlist for "${product.name}" will be available in a future release.`);
-                            }}
+                          <WishlistHeart
+                            listingId={String(product.id)}
                             className="w-8 h-8 bg-white/95 rounded-full flex items-center justify-center hover:bg-white hover:-translate-y-0.5 active:scale-95 transition-all shadow border border-[#e2e8f0]"
-                          >
-                            <Heart className="w-4 h-4" />
-                          </button>
+                          />
                           <button
                             type="button"
                             onClick={(e) => {

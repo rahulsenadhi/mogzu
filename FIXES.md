@@ -2,6 +2,31 @@
 
 > One line per file touched. Newest at top.
 
+## 2026-05-21 — Batch 2c: Heart sweep completion
+
+Card-surface (listing pages, swap local heart -> canonical `<WishlistHeart>`):
+- `MogzuApplication/src/app/components/StaySearchPage.tsx` — mount `<WishlistHeart listingId={stay.id} />` on image well + inline `<RatingBadge listingId={stay.id} showCount={false} />` next to vendor name; image well container made `relative` to anchor overlay
+- `MogzuApplication/src/app/components/ActivitiesPage.tsx` — replace stub heart button with `<WishlistHeart listingId={String(activity.id)} />`; drop `Heart` lucide import
+- `MogzuApplication/src/app/components/CelebrationsPage.tsx` — replace card heart button (line ~1326) with `<WishlistHeart>` carrying custom className for the existing rounded-button styling; keep filter-tab Heart icon (line 897) untouched
+- `MogzuApplication/src/app/components/CoworkingPage.tsx` — replace card heart with `<WishlistHeart listingId={String(space.id)} />`; remove `favorites` state + `toggleFavorite` helper; drop `Heart` import
+- `MogzuApplication/src/app/components/PromotionsPage.tsx` — replace static heart button with `<WishlistHeart listingId={String(promo.id)} />`; drop `Heart` import
+- `MogzuApplication/src/app/components/EventActivityPage.tsx` — replace card heart with `<WishlistHeart listingId={String(cardId)} className=…/>`; remove `likedById`/`setLikedById` state; drop `Heart` import
+
+Detail-page (canonicalize header heart):
+- `MogzuApplication/src/app/components/ActivityDetailPage.tsx` — header heart -> `<WishlistHeart listingId={String(activity.id)} className=…/>`; drop `liked`/`setLiked` state + `Heart` import
+- `MogzuApplication/src/app/components/CelebrationDetailPage.tsx` — header heart -> `<WishlistHeart listingId={String(product.id)} className=…/>`; drop `liked` state + `Heart` import
+- `MogzuApplication/src/app/components/CoworkingDetailPage.tsx` — header heart -> `<WishlistHeart listingId={String(id ?? space.id)} className=…/>`; drop `isFavorite` state + `Heart` import
+- `MogzuApplication/src/app/components/ProductBookingPageNew.tsx` — header heart -> `<WishlistHeart listingId={String(product.id)} className=…/>`; drop `Heart` import
+- `MogzuApplication/src/app/components/ProductBookingPage.tsx` — drop unused `Heart` import (no usage in file)
+
+Skipped (intentionally):
+- `EventsPage` — no card heart present
+- `GiftingShopPage` — `Heart` is a category icon (line 2642), not a save action
+- `CelebrationsPage` filter-tab heart at line 897 — semantic filter chip, not a save action
+- `ComparePage`/`WishlistPage`/`FavouritesPage`/`ReportsPage`/`RelatedProducts`/`VendorPassportPage`/`WhyMogzuPage`/`vendor/VendorPerformanceStatsDrawer` — Heart is decorative/icon-only, no toggle semantics
+
+Verified: `npm run build` exit 0, `built in 13.46s`.
+
 ## 2026-05-21 — Batch 2b: Heart sprinkle (partial)
 
 - `MogzuApplication/src/app/components/global/WishlistHeart.tsx` — UUID guard: real db writes only when `listingId` matches UUID v4 shape; mock ids fall back to local-only optimistic state (no Postgres FK errors). Defensive helper `isPersistable`.

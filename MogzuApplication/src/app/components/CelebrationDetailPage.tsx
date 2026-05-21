@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
-import { Heart, Share2, Star, ChevronRight, Info, FileText, CheckCircle2, XCircle } from 'lucide-react';
+import { Share2, Star, ChevronRight, Info, FileText, CheckCircle2, XCircle } from 'lucide-react';
+import { WishlistHeart } from './global/WishlistHeart';
 import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
@@ -180,7 +181,6 @@ export default function CelebrationDetailPage() {
   const [selectedTab, setSelectedTab] = useState('overview');
   const [selectedImage, setSelectedImage] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [liked, setLiked] = useState(false);
   const [shareFeedback, setShareFeedback] = useState('');
   const [vendorNotice, setVendorNotice] = useState('');
 
@@ -296,17 +296,10 @@ export default function CelebrationDetailPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setLiked(!liked)}
-                    className={`p-2.5 border border-[#ececec] rounded-lg transition-colors ${
-                      liked ? 'bg-red-50 border-red-200 text-red-600' : 'hover:bg-gray-50 text-[#64748b]'
-                    }`}
-                    aria-pressed={liked}
-                    aria-label={liked ? 'Remove from favorites' : 'Add to favorites'}
-                  >
-                    <Heart className={`w-5 h-5 ${liked ? 'fill-current' : ''}`} />
-                  </button>
+                  <WishlistHeart
+                    listingId={String(product.id)}
+                    className="p-2.5 border border-[#ececec] rounded-lg transition-colors hover:bg-gray-50 text-[#64748b]"
+                  />
                   <button
                     type="button"
                     onClick={handleShare}

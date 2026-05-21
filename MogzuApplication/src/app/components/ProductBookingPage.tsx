@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
-import { Search, ChevronDown, ChevronLeft, Bell, HelpCircle, ShoppingCart, Heart, Star, Phone, Mail, Upload, Book, Package, Info, FileText, CheckCircle2, XCircle } from 'lucide-react';
+import { Search, ChevronDown, ChevronLeft, Bell, HelpCircle, ShoppingCart, Star, Phone, Mail, Upload, Book, Package, Info, FileText, CheckCircle2, XCircle } from 'lucide-react';
 import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
