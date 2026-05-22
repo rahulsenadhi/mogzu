@@ -1,0 +1,71 @@
+{
+  "common": {
+    "ok": "ठीक है",
+    "cancel": "रद्द करें",
+    "save": "सहेजें",
+    "delete": "हटाएँ",
+    "loading": "लोड हो रहा है…",
+    "search": "खोजें",
+    "next": "अगला",
+    "back": "पीछे",
+    "submit": "जमा करें",
+    "no_image": "कोई छवि नहीं",
+    "dash": "—"
+  },
+  "auth": {
+    "sign_in": "साइन इन",
+    "sign_up": "साइन अप",
+    "sign_out": "साइन आउट",
+    "email": "ईमेल",
+    "password": "पासवर्ड",
+    "get_started": "शुरू करें"
+  },
+  "catalogue": {
+    "request_quote": "क़ीमत पूछें",
+    "sign_up_to_book": "बुक करने के लिए साइन अप",
+    "view_details": "विवरण देखें",
+    "no_results": "कोई लिस्टिंग नहीं मिली",
+    "explore_prefix": "खोजें",
+    "subtitle": "Mogzu की क्यूरेटेड सूची देखें। बुक करने या क़ीमत के लिए साइन अप करें।",
+    "search_placeholder_prefix": "खोजें",
+    "empty_prefix": "अभी सार्वजनिक लिस्टिंग नहीं है",
+    "empty_hint": "वेंडर और एडमिन सूची को सक्रिय कर सकते हैं",
+    "empty_hint_suffix": "ताकि यहाँ दिखे।",
+    "mogzu_direct": "Mogzu डायरेक्ट"
+  },
+  "leads": {
+    "request_quote_title": "क़ीमत के लिए अनुरोध",
+    "request_quote_hint": "हमें बताइए क्या चाहिए; खाता ज़रूरी नहीं।",
+    "name_placeholder": "आपका नाम *",
+    "company_placeholder": "कंपनी",
+    "email_placeholder": "कार्य ईमेल *",
+    "phone_placeholder": "फ़ोन",
+    "budget_placeholder": "बजट",
+    "timeline_placeholder": "समय",
+    "requirement_placeholder": "आप क्या ढूँढ रहे हैं?",
+    "thanks_title": "धन्यवाद — हम संपर्क करेंगे",
+    "thanks_hint": "Mogzu सेल्स एजेंट एक कार्यदिवस में संपर्क करेगा।",
+    "name_email_required": "नाम और ईमेल ज़रूरी हैं",
+    "verification_required": "कृपया सत्यापन पूरा करें"
+  },
+  "profile": {
+    "lang_currency_title": "भाषा और मुद्रा",
+    "lang_currency_hint": "मूल्य प्रदर्शन और संख्या स्वरूपण को प्रभावित करता है।",
+    "locale_label": "स्थानीयता",
+    "display_currency_label": "प्रदर्शन मुद्रा",
+    "save_preferences": "वरीयताएँ सहेजें",
+    "saved": "सहेजा गया"
+  },
+  "billing": {
+    "subtotal": "उपयोग",
+    "tax": "कर",
+    "total": "कुल",
+    "due_now": "अभी देय",
+    "balance": "शेष"
+  },
+  "errors": {
+    "required": "यह फ़ील्ड आवश्यक है",
+    "invalid_email": "सही ईमेल दर्ज करें",
+    "generic": "कुछ गलत हो गया। पुनः प्रयास करें।"
+  }
+}

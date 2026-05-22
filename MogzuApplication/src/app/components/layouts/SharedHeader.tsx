@@ -9,6 +9,7 @@ import { NotificationBell } from '@/app/components/global/NotificationBell';
 import { RoleBanner } from '@/app/components/global/RoleBanner';
 import { RoleTopNavItems } from '@/app/components/global/RoleTopNavItems';
 import { HeyGenieLauncher } from '@/app/components/global/HeyGenieLauncher';
+import { LocalePicker } from '@/app/components/global/LocalePicker';
 import { useDemoRole } from '@/app/lib/demoRole';
 
 export type SharedHeaderBrandPlacement = 'always' | 'mobileOnly';
@@ -150,6 +151,8 @@ export function SharedHeader({
         <RoleSwitcher />
 
         <AuthRoleSwitcher />
+
+        <LocalePicker />
 
         <NotificationBell />
 

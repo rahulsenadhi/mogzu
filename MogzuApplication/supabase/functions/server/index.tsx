@@ -106,6 +106,65 @@ ${items}
   });
 });
 
+// ─── sitemap.xml ─────────────────────────────────────────────────────────────
+// Search-engine crawlable index of public listings + static routes. Reads
+// listings where status='active' AND public_visible=true; uses the same
+// anon key surface as the rss.xml route so this works pre-login.
+
+app.get("/make-server-56765691/sitemap.xml", async (c) => {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+  const siteOrigin = Deno.env.get("MOGZU_SITE_ORIGIN") ?? "https://mogzu.in";
+
+  const STATIC: string[] = [
+    "/",
+    "/explore",
+    "/explore/events",
+    "/explore/gifting",
+    "/explore/spacex_coworking",
+    "/explore/spacex_stay",
+    "/security",
+    "/blog",
+  ];
+
+  let listings: { id: string; updated_at: string }[] = [];
+  try {
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/listings?select=id,updated_at&status=eq.active&public_visible=eq.true&order=updated_at.desc&limit=2000`,
+      {
+        headers: {
+          "apikey": anonKey,
+          "Authorization": `Bearer ${anonKey}`,
+        },
+      },
+    );
+    if (res.ok) listings = (await res.json()) as { id: string; updated_at: string }[];
+  } catch {
+    // best-effort; sitemap still emits the static section.
+  }
+
+  const urlEl = (loc: string, lastmod?: string) =>
+    `  <url><loc>${loc}</loc>${lastmod ? `<lastmod>${lastmod.split("T")[0]}</lastmod>` : ""}</url>`;
+
+  const body =
+    `<?xml version="1.0" encoding="UTF-8"?>\n` +
+    `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+    STATIC.map((p) => urlEl(`${siteOrigin}${p}`)).join("\n") +
+    "\n" +
+    listings
+      .map((l) => urlEl(`${siteOrigin}/listings/${l.id}`, l.updated_at))
+      .join("\n") +
+    "\n</urlset>\n";
+
+  return new Response(body, {
+    status: 200,
+    headers: {
+      "Content-Type": "application/xml; charset=utf-8",
+      "Cache-Control": "public, max-age=3600",
+    },
+  });
+});
+
 // ─── Razorpay create order ───────────────────────────────────────────────────
 // POST /razorpay-create-order { amount, currency, kind, booking_id?,
 // request_id? }. Calls Razorpay Orders API with key/secret pair and
