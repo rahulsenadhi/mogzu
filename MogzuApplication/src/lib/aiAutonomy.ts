@@ -41,6 +41,18 @@ export async function upsertSettings(payload: {
   return { error: error?.message ?? null }
 }
 
+export async function listAllSettings(): Promise<{
+  data: AiAutonomySettings[]
+  error: string | null
+}> {
+  const { data, error } = await supabase
+    .from('ai_autonomy_settings')
+    .select('*')
+    .order('updated_at', { ascending: false })
+  if (error) return { data: [], error: error.message }
+  return { data: (data ?? []) as AiAutonomySettings[], error: null }
+}
+
 // Pure policy check used by booking guards. Returns the reason an
 // autonomous booking should be blocked, or null when it may proceed.
 export function evaluatePolicy(

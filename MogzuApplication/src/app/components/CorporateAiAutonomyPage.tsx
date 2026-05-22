@@ -1,7 +1,7 @@
 // Phase 5 Feature 5 — corporate L3 autonomy settings page.
 
 import { useCallback, useEffect, useState } from 'react'
-import { Bot, Loader2, ShieldAlert } from 'lucide-react'
+import { Bot, Loader2, ShieldAlert, ShieldCheck, ShieldOff } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import {
   getSettings,
@@ -21,6 +21,27 @@ export default function CorporateAiAutonomyPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
+  const [killBusy, setKillBusy] = useState(false)
+
+  const toggleKill = async (next: boolean) => {
+    if (!corporateId) return
+    setKillBusy(true)
+    setError('')
+    const blocked_categories = blocked
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter((s) => s.length > 0)
+    const { error: err } = await upsertSettings({
+      corporate_id: corporateId,
+      is_enabled: next,
+      spend_cap_inr: cap,
+      blocked_categories,
+      updated_by: profile?.id ?? null,
+    })
+    setKillBusy(false)
+    if (err) setError(err)
+    else setEnabled(next)
+  }
 
   const load = useCallback(async () => {
     if (!corporateId) return
@@ -95,16 +116,61 @@ export default function CorporateAiAutonomyPage() {
             <Loader2 className="size-6 animate-spin text-slate-400" />
           </div>
         ) : (
-          <form onSubmit={onSave} className="mt-6 space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <label className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                checked={enabled}
-                onChange={(e) => setEnabled(e.target.checked)}
-                className="size-4"
-              />
-              <span className="text-sm font-medium text-slate-900">Allow autonomous bookings</span>
-            </label>
+          <>
+          <section
+            className={`mt-6 rounded-2xl border-2 p-6 shadow-sm ${
+              enabled
+                ? 'border-emerald-300 bg-emerald-50'
+                : 'border-rose-300 bg-rose-50'
+            }`}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                {enabled ? (
+                  <ShieldCheck className="mt-1 size-8 text-emerald-600" />
+                ) : (
+                  <ShieldOff className="mt-1 size-8 text-rose-600" />
+                )}
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-slate-500">
+                    Autonomy status
+                  </p>
+                  <h2
+                    className={`text-2xl font-bold ${
+                      enabled ? 'text-emerald-900' : 'text-rose-900'
+                    }`}
+                  >
+                    {enabled ? 'AI autonomy ON' : 'KILL SWITCH ENGAGED'}
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {enabled
+                      ? 'Agents may book within the policy below. Disable instantly to halt all autonomous activity.'
+                      : 'No agent can book without human approval. Re-enable when ready.'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={killBusy}
+                onClick={() => void toggleKill(!enabled)}
+                className={`shrink-0 rounded-full px-5 py-2 text-sm font-bold text-white shadow disabled:opacity-50 ${
+                  enabled
+                    ? 'bg-rose-600 hover:bg-rose-700'
+                    : 'bg-emerald-600 hover:bg-emerald-700'
+                }`}
+              >
+                {killBusy ? '…' : enabled ? 'Engage kill switch' : 'Re-enable autonomy'}
+              </button>
+            </div>
+          </section>
+
+          <form
+            onSubmit={onSave}
+            className="mt-6 space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+          >
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Policy
+            </p>
 
             <label className="block text-sm">
               <span className="mb-1 block font-medium text-slate-700">Per-booking spend cap (INR)</span>
@@ -147,6 +213,7 @@ export default function CorporateAiAutonomyPage() {
               )}
             </div>
           </form>
+          </>
         )}
       </div>
     </div>

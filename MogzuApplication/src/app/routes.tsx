@@ -150,6 +150,9 @@ import AdminContractFormPage from "@/app/components/AdminContractFormPage";
 import AdminSubscriptionsPage from "@/app/components/AdminSubscriptionsPage";
 import AdminFinanceReconciliationPage from "@/app/components/AdminFinanceReconciliationPage";
 import AdminFinanceFxPage from "@/app/components/AdminFinanceFxPage";
+import AdminAiConversationsPage from "@/app/components/AdminAiConversationsPage";
+import AdminAiPolicyPage from "@/app/components/AdminAiPolicyPage";
+import AdminSoc2EvidencePage from "@/app/components/AdminSoc2EvidencePage";
 import AdminApiKeysPage from "@/app/components/AdminApiKeysPage";
 import AdminWebhooksPage from "@/app/components/AdminWebhooksPage";
 import AdminVendorPayoutsPage from "@/app/components/AdminVendorPayoutsPage";
@@ -501,6 +504,8 @@ export const router = createBrowserRouter([
       { path: "branding/approvals", element: <AdminBrandingApprovalsPage /> },
       { path: "cms", element: <AdminCmsPage /> },
       { path: "ai-agents", element: <AdminAiAgentsPage /> },
+      { path: "ai-conversations", element: <AdminAiConversationsPage /> },
+      { path: "ai-policy", element: <AdminAiPolicyPage /> },
       { path: "sso", element: <AdminSsoPage /> },
       { path: "listings/public", element: <AdminPublicListingsPage /> },
       { path: "leads", element: <AdminLeadsPage /> },
@@ -518,6 +523,8 @@ export const router = createBrowserRouter([
       { path: "vendor-applications", element: <AdminVendorApplicationsPage /> },
       { path: "white-label", element: <AdminWhiteLabelPage /> },
       { path: "access-reviews", element: <AdminAccessReviewsPage /> },
+      { path: "compliance/access-review", element: <AdminAccessReviewsPage /> },
+      { path: "compliance/soc2", element: <AdminSoc2EvidencePage /> },
       { path: "dspace", element: <AdminDspacePage /> },
       { path: "dspace/spaces/:id", element: <AdminSpaceDetailPage /> },
       { path: "dspace/bookings", element: <AdminDspaceBookings /> },

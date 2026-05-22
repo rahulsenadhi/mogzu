@@ -205,6 +205,44 @@ export async function listConversations(
   return { data: (data ?? []) as AiAgentConversation[], error: null }
 }
 
+export type AiAgentMessage = {
+  id: string
+  conversation_id: string
+  role: 'user' | 'assistant' | 'system'
+  body: string
+  metadata: Record<string, unknown> | null
+  created_at: string
+}
+
+export async function listAllConversations(options?: {
+  status?: AiAgentConversationStatus
+  channel?: AiAgentChannel
+  limit?: number
+}): Promise<{ data: AiAgentConversation[]; error: string | null }> {
+  let q = supabase
+    .from('ai_agent_conversations')
+    .select('*')
+    .order('last_message_at', { ascending: false })
+    .limit(options?.limit ?? 100)
+  if (options?.status) q = q.eq('status', options.status)
+  if (options?.channel) q = q.eq('channel', options.channel)
+  const { data, error } = await q
+  if (error) return { data: [], error: error.message }
+  return { data: (data ?? []) as AiAgentConversation[], error: null }
+}
+
+export async function listMessages(
+  conversationId: string,
+): Promise<{ data: AiAgentMessage[]; error: string | null }> {
+  const { data, error } = await supabase
+    .from('ai_agent_messages')
+    .select('*')
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: true })
+  if (error) return { data: [], error: error.message }
+  return { data: (data ?? []) as AiAgentMessage[], error: null }
+}
+
 export async function escalateConversation(id: string): Promise<{ error: string | null }> {
   const { error } = await supabase.rpc('escalate_ai_conversation', { p_conversation_id: id })
   return { error: error?.message ?? null }
