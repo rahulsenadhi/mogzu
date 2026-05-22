@@ -430,9 +430,22 @@ export interface Listing {
   location_address: string | null
   cancellation_policy: string | null
   confirmation_sla_hours: number
+  buffer_minutes: number
   is_mogzu_direct: boolean
   public_visible: boolean
   metadata: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface VendorAvailabilityRule {
+  id: string
+  vendor_id: string
+  listing_id: string | null
+  day_of_week: number // 0=Sun .. 6=Sat
+  start_minute: number // 0..1439
+  end_minute: number // 1..1440
+  is_active: boolean
   created_at: string
   updated_at: string
 }
@@ -1258,6 +1271,11 @@ export interface Database {
         Row: ApprovalWorkflowRule
         Insert: Omit<ApprovalWorkflowRule, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<ApprovalWorkflowRule, 'id' | 'created_at'>>
+      }
+      vendor_availability_rules: {
+        Row: VendorAvailabilityRule
+        Insert: Omit<VendorAvailabilityRule, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<VendorAvailabilityRule, 'id' | 'created_at'>>
       }
       booking_status_events: {
         Row: BookingStatusEvent

@@ -2,6 +2,37 @@
 
 > One line per file touched. Newest at top.
 
+## 2026-05-22 — Batch 10: listings.buffer_minutes + vendor availability rules (plan Batch 3 slice 2)
+
+**New migration (requires Supabase apply):**
+
+- `supabase/migrations/20260522000001_listings_buffer_and_avail_rules.sql`:
+  - `ALTER public.listings ADD buffer_minutes INT NOT NULL DEFAULT 0 CHECK (0..720)`.
+  - `CREATE TABLE public.vendor_availability_rules` (id, vendor_id FK, listing_id FK NULL = all-listings template, day_of_week 0-6, start_minute / end_minute 0..1440 with `start < end` CHECK, is_active, timestamps). `idx_avail_rules_vendor` partial-active. RLS: vendor manages own (via `vendors.user_id = auth.uid()`), authenticated SELECT (so corp side can later render vendor working hours), mogzu_admin all. `trg_var_touch_updated_at` trigger.
+
+**Types + service:**
+
+- `MogzuApplication/src/lib/database.types.ts` — added `buffer_minutes: number` to `Listing` interface; new `VendorAvailabilityRule` interface; schema map entry for `vendor_availability_rules`.
+- `MogzuApplication/src/lib/vendorAvailability.ts` (new) — `DAY_LABELS` constant, `minutesToHHMM` / `hhmmToMinutes` helpers, `listRules(vendorId)` (active only), `createRule(vendorId, draft)` with start<end guard, `deleteRule(id)`, `isWithinWorkingHours(rules, when, listingId)` client-side predicate (rules empty = always within; rules with listing_id=null apply globally).
+
+**UI wiring:**
+
+- `MogzuApplication/src/app/components/VendorEventsServicesPage.tsx`:
+  - `FormState` extended with `bufferMinutes: string`; `EMPTY_FORM` default '0'; edit-mode preload reads `initial.buffer_minutes`.
+  - `basePayload` writes `buffer_minutes: Math.max(0, Math.min(720, Number(form.bufferMinutes) || 0))`.
+  - New form field next to cancellation policy: number input, 0-720 range, help text "Idle minutes the calendar will hold around each confirmed slot. Max 720 (12h)."
+- `MogzuApplication/src/app/components/VendorCalendarPage.tsx`:
+  - New `<AvailabilityRulesPanel>` section mounted below the weekly grid. List grouped by day-of-week showing time chip(s) with listing scope label (`All listings` vs specific listing title). Inline add row: Day select + Start time + End time + Listing select (default "All listings") + Add button. Per-rule × removes via `deleteRule`. Errors + success notice.
+
+Carry-over (plan Batch 3 still pending):
+- Drag-to-block grid on `VendorCalendarPage` (currently click-modal).
+- Notify booker on availability-change-after-confirm — vendor blocks a confirmed slot → fire `db.notifications.notify`.
+- Vendor performance: drawer stats + PDF export.
+- VendorGiftingProductFormPage + SpaceX listing forms not yet updated with buffer_minutes (events form only).
+- `isWithinWorkingHours` is exported but not yet enforced anywhere — booking-submit + slot-block sites need to consume it.
+
+Verified: `npm run build` exit 0, `built in 13.46s`. Migration not yet applied to Supabase — until applied, `/vendor/calendar` rules panel will error on first load (table missing) and edit-form buffer_minutes save will error.
+
 ## 2026-05-22 — Batch 9: Vendor settings page (plan Batch 3 slice 1)
 
 - `MogzuApplication/src/app/components/VendorSettingsPage.tsx` (new, ~500 lines) — replaces 6-line `VendorSettingsStep12Placeholder` ("future release Step 12") with a full 3-tab settings page:

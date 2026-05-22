@@ -12,7 +12,15 @@ import { VendorAppShell } from './layouts/VendorAppShell'
 import { useAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { subscribeToTable } from '@/lib/realtime'
-import type { CalendarSlot, Listing } from '@/lib/database.types'
+import type { CalendarSlot, Listing, VendorAvailabilityRule } from '@/lib/database.types'
+import {
+  DAY_LABELS,
+  createRule,
+  deleteRule,
+  hhmmToMinutes,
+  listRules,
+  minutesToHHMM,
+} from '@/lib/vendorAvailability'
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 
@@ -614,6 +622,10 @@ export default function VendorCalendarPage() {
               </div>
             </div>
           </section>
+
+          <section className="mx-auto mt-6 max-w-[1400px] px-4 pb-12 sm:px-6 lg:px-8">
+            <AvailabilityRulesPanel vendorId={vendorId} listings={listings} />
+          </section>
         </main>
       </VendorAppShell>
 
@@ -638,5 +650,215 @@ export default function VendorCalendarPage() {
         />
       )}
     </>
+  )
+}
+
+// ─── Availability Rules Panel ────────────────────────────────────────────────
+
+function AvailabilityRulesPanel({
+  vendorId,
+  listings,
+}: {
+  vendorId: string | null
+  listings: Listing[]
+}) {
+  const [rules, setRules] = useState<VendorAvailabilityRule[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+
+  const [draftDay, setDraftDay] = useState(1) // Mon
+  const [draftStart, setDraftStart] = useState('09:00')
+  const [draftEnd, setDraftEnd] = useState('18:00')
+  const [draftListing, setDraftListing] = useState<string>('') // '' = all listings
+  const [adding, setAdding] = useState(false)
+
+  const load = useCallback(async () => {
+    if (!vendorId) return
+    setLoading(true)
+    const { data, error: err } = await listRules(vendorId)
+    setLoading(false)
+    if (err) {
+      setError(err)
+      return
+    }
+    setRules(data)
+  }, [vendorId])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const handleAdd = async () => {
+    setError('')
+    setNotice('')
+    if (!vendorId) return
+    const start = hhmmToMinutes(draftStart)
+    const end = hhmmToMinutes(draftEnd)
+    if (start >= end) {
+      setError('Start must be before end.')
+      return
+    }
+    setAdding(true)
+    const { error: err } = await createRule(vendorId, {
+      day_of_week: draftDay,
+      start_minute: start,
+      end_minute: end,
+      listing_id: draftListing || null,
+    })
+    setAdding(false)
+    if (err) {
+      setError(err)
+      return
+    }
+    setNotice('Rule added.')
+    load()
+  }
+
+  const handleDelete = async (id: string) => {
+    setError('')
+    const { error: err } = await deleteRule(id)
+    if (err) setError(err)
+    else load()
+  }
+
+  const grouped = rules.reduce<Record<number, VendorAvailabilityRule[]>>((acc, r) => {
+    (acc[r.day_of_week] ??= []).push(r)
+    return acc
+  }, {})
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-slate-900">Recurring availability</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Default working hours per day. Used to validate booking-time slots and surface "outside hours" warnings.
+          </p>
+        </div>
+        {loading && <Loader2 className="size-4 animate-spin text-slate-400" />}
+      </div>
+
+      {error && (
+        <p className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+          {error}
+        </p>
+      )}
+      {notice && (
+        <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          {notice}
+        </p>
+      )}
+
+      <div className="mt-4 grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-5">
+        <div>
+          <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-500">
+            Day
+          </label>
+          <select
+            value={draftDay}
+            onChange={(e) => setDraftDay(Number(e.target.value))}
+            className="h-9 w-full rounded-md border border-slate-200 px-2 text-sm"
+          >
+            {DAY_LABELS.map((d, i) => (
+              <option key={d} value={i}>
+                {d}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-500">
+            Start
+          </label>
+          <input
+            type="time"
+            value={draftStart}
+            onChange={(e) => setDraftStart(e.target.value)}
+            className="h-9 w-full rounded-md border border-slate-200 px-2 text-sm"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-500">
+            End
+          </label>
+          <input
+            type="time"
+            value={draftEnd}
+            onChange={(e) => setDraftEnd(e.target.value)}
+            className="h-9 w-full rounded-md border border-slate-200 px-2 text-sm"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-500">
+            Listing
+          </label>
+          <select
+            value={draftListing}
+            onChange={(e) => setDraftListing(e.target.value)}
+            className="h-9 w-full rounded-md border border-slate-200 px-2 text-sm"
+          >
+            <option value="">All listings</option>
+            {listings.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.title}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-end">
+          <button
+            type="button"
+            onClick={handleAdd}
+            disabled={adding}
+            className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md bg-[#2563eb] px-3 text-sm font-semibold text-white hover:bg-[#1d4ed8] disabled:opacity-60"
+          >
+            <Plus className="size-4" />
+            {adding ? 'Adding…' : 'Add rule'}
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-5 space-y-3">
+        {DAY_LABELS.map((day, idx) => {
+          const dayRules = grouped[idx] ?? []
+          if (dayRules.length === 0) return null
+          return (
+            <div key={day} className="rounded-lg border border-slate-200 bg-white p-3">
+              <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-600">{day}</p>
+              <div className="flex flex-wrap gap-2">
+                {dayRules.map((r) => {
+                  const listingLabel = r.listing_id
+                    ? listings.find((l) => l.id === r.listing_id)?.title ?? 'Specific listing'
+                    : 'All listings'
+                  return (
+                    <span
+                      key={r.id}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-800"
+                    >
+                      {minutesToHHMM(r.start_minute)}–{minutesToHHMM(r.end_minute)}
+                      <span className="text-[10px] text-blue-600/70">· {listingLabel}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(r.id)}
+                        className="ml-1 text-rose-500 hover:text-rose-700"
+                        title="Remove"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </span>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+        {rules.length === 0 && !loading && (
+          <p className="rounded-lg border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500">
+            No recurring rules yet. Add one above to set default working hours.
+          </p>
+        )}
+      </div>
+    </div>
   )
 }
