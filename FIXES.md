@@ -2,6 +2,30 @@
 
 > One line per file touched. Newest at top.
 
+## 2026-05-22 — Batch 11: Notify-on-availability-change + SpaceX buffer_minutes (plan Batch 3 slice 3)
+
+- `MogzuApplication/src/app/components/VendorCalendarPage.tsx`:
+  - `handleBlock()` post-insert: queries `bookings` for rows where `vendor_id=current`, `listing_id=blocked listing`, `status='confirmed'`, time range overlaps the new blocked window (`start_time < end` AND `end_time > start`).
+  - For each matching booking, fires `db.notifications.notify({type:'system', title:'Vendor changed availability…', linkUrl:'/bookings/:id'})` so the booker gets in-app + email-queued alert.
+  - Setblock notice reads "Block saved — N confirmed booking(s) were affected and the booker(s) were notified." when notifications fire.
+  - `system` is in `CRITICAL_NOTIFICATION_TYPES` so it bypasses any booker-side opt-out.
+- `MogzuApplication/src/app/components/VendorSpaceXServicesPage.tsx`:
+  - `FormState` + `EMPTY_FORM` extended with `bufferMinutes`; edit-mode preload + `basePayload` write parallel to events page.
+  - New form field after Location with 0-720 min range + help text.
+
+Why: plan Batch 3 acceptance "Notify booker on availability-change-after-confirm" (trust pipeline for L3 enterprise buyers — blocked vendor slots silently breaking confirmed bookings is the top class of disputes). SpaceX form parity with events form so buffer_minutes works for time-bookable space rentals too.
+
+Carry-over (plan Batch 3 remaining):
+- Drag-to-block grid on `VendorCalendarPage` (currently click-modal — biggest UX rework left).
+- Vendor performance: `VendorPerformancePage` is a 24-line stub; needs full build with drawer stats + PDF export.
+- `isWithinWorkingHours` predicate from `vendorAvailability.ts` not yet consumed by booking-submit / slot-block sites.
+
+Skipped intentionally:
+- VendorGiftingProductFormPage — gifting orders aren't time-slotted; buffer_minutes irrelevant.
+- DB trigger version of notify-on-change: client-side detection is sufficient for demo; trigger would need SECURITY DEFINER + auth.uid() shenanigans not worth the complexity now.
+
+Verified: `npm run build` exit 0, `built in 22.35s`.
+
 ## 2026-05-22 — Batch 10: listings.buffer_minutes + vendor availability rules (plan Batch 3 slice 2)
 
 **New migration (requires Supabase apply):**

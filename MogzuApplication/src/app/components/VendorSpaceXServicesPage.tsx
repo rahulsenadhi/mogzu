@@ -37,6 +37,7 @@ type FormState = {
   basePrice: string
   priceUnit: NonNullable<Listing['price_unit']>
   locationCity: string
+  bufferMinutes: string
 }
 
 const EMPTY_FORM: FormState = {
@@ -48,6 +49,7 @@ const EMPTY_FORM: FormState = {
   basePrice: '',
   priceUnit: 'per_hour',
   locationCity: '',
+  bufferMinutes: '0',
 }
 
 function statusBadge(s: ListingStatus): { label: string; className: string } {
@@ -100,6 +102,7 @@ function ListingFormModal({
           basePrice: initial.base_price != null ? String(initial.base_price) : '',
           priceUnit: initial.price_unit ?? 'per_hour',
           locationCity: initial.location_city ?? '',
+          bufferMinutes: String(initial.buffer_minutes ?? 0),
         }
       : { ...EMPTY_FORM, categoryId: categories[0]?.id ?? '' },
   )
@@ -159,6 +162,7 @@ function ListingFormModal({
       location_address: null,
       cancellation_policy: null,
       confirmation_sla_hours: 24,
+      buffer_minutes: Math.max(0, Math.min(720, Number(form.bufferMinutes) || 0)),
       is_mogzu_direct: false,
       metadata: {},
     }
@@ -312,6 +316,24 @@ function ListingFormModal({
                 placeholder="e.g., Bengaluru"
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
               />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                Buffer between bookings (minutes)
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={720}
+                value={form.bufferMinutes}
+                onChange={(e) => set('bufferMinutes', e.target.value)}
+                placeholder="0"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+              />
+              <p className="mt-1 text-[11px] text-slate-500">
+                Idle minutes held around each confirmed slot. Max 720 (12h).
+              </p>
             </div>
 
             {form.pricingType === 'transparent' && (

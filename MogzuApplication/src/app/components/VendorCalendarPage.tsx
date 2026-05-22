@@ -11,6 +11,7 @@ import {
 import { VendorAppShell } from './layouts/VendorAppShell'
 import { useAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { supabase } from '@/lib/supabase'
 import { subscribeToTable } from '@/lib/realtime'
 import type { CalendarSlot, Listing, VendorAvailabilityRule } from '@/lib/database.types'
 import {
@@ -373,6 +374,37 @@ export default function VendorCalendarPage() {
     if (error) {
       setBlockError(error.message)
     } else {
+      // Notify any booker whose confirmed booking overlaps the newly-blocked window.
+      type ConflictRow = {
+        id: string
+        user_id: string
+        listings: { title: string | null } | { title: string | null }[] | null
+      }
+      const { data: conflicts } = await supabase
+        .from('bookings')
+        .select('id, user_id, listings(title)')
+        .eq('vendor_id', vendorId)
+        .eq('listing_id', form.listingId)
+        .eq('status', 'confirmed')
+        .lt('start_time', end.toISOString())
+        .gt('end_time', start.toISOString())
+      let notified = 0
+      for (const b of (conflicts ?? []) as ConflictRow[]) {
+        const lst = Array.isArray(b.listings) ? b.listings[0] : b.listings
+        await db.notifications.notify({
+          userId: b.user_id,
+          type: 'system',
+          title: 'Vendor changed availability for your booking',
+          body: `${lst?.title ?? 'Your booking'} slot was blocked. Vendor will reach out — please confirm or reschedule.`,
+          linkUrl: `/bookings/${b.id}`,
+        })
+        notified += 1
+      }
+      if (notified > 0) {
+        setBlockError(
+          `Block saved — ${notified} confirmed booking${notified !== 1 ? 's were' : ' was'} affected and the booker${notified !== 1 ? 's were' : ' was'} notified.`,
+        )
+      }
       setBlockTarget(null)
       loadSlots()
     }
