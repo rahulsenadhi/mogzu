@@ -19,8 +19,19 @@ import {
 import {
   linkProfileToCorporate,
   saveCorporateOnboardingDraft,
+  setCorporateRegion,
   validateCorporateEmailDomain,
 } from '@/app/lib/corporateOnboarding';
+
+const REGION_OPTIONS: Array<{ code: string; label: string; currency: string }> = [
+  { code: 'IN', label: 'India', currency: 'INR' },
+  { code: 'SG', label: 'Singapore', currency: 'SGD' },
+  { code: 'AE', label: 'UAE', currency: 'AED' },
+  { code: 'SA', label: 'Saudi Arabia', currency: 'SAR' },
+  { code: 'US', label: 'United States', currency: 'USD' },
+  { code: 'GB', label: 'United Kingdom', currency: 'GBP' },
+  { code: 'EU', label: 'European Union', currency: 'EUR' },
+];
 import { useAuth } from '@/lib/auth';
 
 export default function CorporateCompanyDetails() {
@@ -44,6 +55,7 @@ export default function CorporateCompanyDetails() {
     companyName: '',
     registrationNumber: '',
     countryCode: '+91',
+    region: 'IN',
     gstNumber: '',
     panNumber: '',
     industry: '',
@@ -131,6 +143,10 @@ export default function CorporateCompanyDetails() {
         if (linkError) {
           setError(linkError);
           return;
+        }
+        const region = REGION_OPTIONS.find((r) => r.code === formData.region);
+        if (region) {
+          await setCorporateRegion(domainCheck.corporateId, region.code, region.currency);
         }
       }
       saveCorporateOnboardingDraft({
@@ -403,6 +419,29 @@ export default function CorporateCompanyDetails() {
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
             </div>
+          </div>
+
+          {/* Region */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-slate-700">Operating region</label>
+            <div className="relative">
+              <select
+                name="region"
+                value={formData.region}
+                onChange={handleInputChange}
+                className={selectClass}
+              >
+                {REGION_OPTIONS.map((r) => (
+                  <option key={r.code} value={r.code}>
+                    {r.label} ({r.currency})
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+            </div>
+            <p className="text-[11px] text-slate-500">
+              Determines default currency and payment methods on checkout.
+            </p>
           </div>
 
           {/* Company Size */}

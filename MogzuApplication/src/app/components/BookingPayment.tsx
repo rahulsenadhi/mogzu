@@ -6,10 +6,20 @@ import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
 import imgImage25005 from 'figma:asset/f6108faddc403caf1eea34c754f31b43ab0fb55b.png';
 import { buildClassicBookingBaseState, computeGrandTotal } from '@/app/lib/classicBookingFlow';
+import { useAuth } from '@/lib/auth';
+
+const REGIONAL_METHODS: Record<string, { id: string; label: string; hint: string }> = {
+  SG: { id: 'paynow', label: 'PayNow', hint: 'Singapore real-time transfer' },
+  SA: { id: 'mada', label: 'Mada', hint: 'Saudi Arabia debit network' },
+  AE: { id: 'mada', label: 'Mada', hint: 'GCC debit network' },
+};
 
 export default function BookingPayment() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { corporateAccount } = useAuth();
+  const region = (corporateAccount as { region?: string | null } | null)?.region ?? 'IN';
+  const regionalMethod = REGIONAL_METHODS[region] ?? null;
   const category = location.state?.category || 'default';
   const bookingFlow = buildClassicBookingBaseState(location.state);
   const vendorOrderIdFromOffer =
@@ -699,6 +709,43 @@ export default function BookingPayment() {
                       </div>
                     )}
                   </div>
+
+                  {regionalMethod && (
+                    <div className="mb-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <input
+                          type="radio"
+                          id={`${regionalMethod.id}-payment`}
+                          name="payment-method"
+                          className="w-4 h-4 text-[#2563eb]"
+                          checked={paymentMethod === regionalMethod.id}
+                          onChange={() => setPaymentMethod(regionalMethod.id)}
+                        />
+                        <label
+                          htmlFor={`${regionalMethod.id}-payment`}
+                          className="text-base font-medium text-gray-900 cursor-pointer"
+                        >
+                          Pay with {regionalMethod.label}
+                        </label>
+                        <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700">
+                          {region}
+                        </span>
+                      </div>
+                      {paymentMethod === regionalMethod.id && (
+                        <div className="ml-6 animate-in fade-in duration-200">
+                          <div className="bg-emerald-50 border border-emerald-200/60 rounded-lg p-4">
+                            <p className="text-sm font-medium text-emerald-900">
+                              {regionalMethod.label} checkout
+                            </p>
+                            <p className="text-xs text-emerald-800 mt-1">
+                              {regionalMethod.hint}. You will be redirected to the {regionalMethod.label}{' '}
+                              flow after confirming.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Empanelled Vendor */}
                   <div className="mb-6">

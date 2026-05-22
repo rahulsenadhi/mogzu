@@ -43,6 +43,45 @@ export function formatPrice(amountInInr: number, target: Currency): string {
   return `${target.symbol}${fmt.format(converted)}`
 }
 
+export async function listAllCurrencies(): Promise<{
+  data: Currency[]
+  error: string | null
+}> {
+  const { data, error } = await supabase
+    .from('currencies')
+    .select('*')
+    .order('display_order')
+  if (error) return { data: [], error: error.message }
+  return { data: (data ?? []) as Currency[], error: null }
+}
+
+export async function updateCurrencyFxRate(
+  code: string,
+  fxRate: number,
+): Promise<{ error: string | null }> {
+  if (!Number.isFinite(fxRate) || fxRate <= 0) {
+    return { error: 'fx_rate must be positive' }
+  }
+  const { error } = await supabase
+    .from('currencies')
+    .update({ fx_rate: fxRate, fx_updated_at: new Date().toISOString() })
+    .eq('code', code)
+  if (!error) currencyCache = null
+  return { error: error?.message ?? null }
+}
+
+export async function setCurrencyActive(
+  code: string,
+  isActive: boolean,
+): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from('currencies')
+    .update({ is_active: isActive })
+    .eq('code', code)
+  if (!error) currencyCache = null
+  return { error: error?.message ?? null }
+}
+
 export async function setUserLocale(
   userId: string,
   locale: string,

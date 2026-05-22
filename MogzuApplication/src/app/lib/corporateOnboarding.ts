@@ -88,6 +88,19 @@ export async function validateCorporateEmailDomain(email: string): Promise<{
   return { ok: true, corporateId: data.id }
 }
 
+export async function setCorporateRegion(
+  corporateId: string,
+  region: string,
+  defaultCurrency: string | null,
+): Promise<{ error: string | null }> {
+  const { supabase } = await import('@/lib/supabase')
+  const { error } = await supabase
+    .from('corporate_accounts')
+    .update({ region, default_currency: defaultCurrency })
+    .eq('id', corporateId)
+  return { error: error?.message ?? null }
+}
+
 export async function linkProfileToCorporate(
   userId: string,
   corporateId: string,

@@ -113,6 +113,7 @@ import CorporateGiftingProgrammePage from "@/app/components/CorporateGiftingProg
 import GiftingSendPage from "@/app/components/GiftingSendPage";
 import SpaceBookingPage from "@/app/components/SpaceBookingPage";
 import VendorPayoutsPage from "@/app/components/VendorPayoutsPage";
+import VendorPayoutMethodsPage from "@/app/components/VendorPayoutMethodsPage";
 import EmployeeImportPage from "@/app/components/EmployeeImportPage";
 import NotificationsPage from "@/app/components/NotificationsPage";
 import NotificationPreferencesPage from "@/app/components/NotificationPreferencesPage";
@@ -148,6 +149,7 @@ import AdminContractsPage from "@/app/components/AdminContractsPage";
 import AdminContractFormPage from "@/app/components/AdminContractFormPage";
 import AdminSubscriptionsPage from "@/app/components/AdminSubscriptionsPage";
 import AdminFinanceReconciliationPage from "@/app/components/AdminFinanceReconciliationPage";
+import AdminFinanceFxPage from "@/app/components/AdminFinanceFxPage";
 import AdminApiKeysPage from "@/app/components/AdminApiKeysPage";
 import AdminWebhooksPage from "@/app/components/AdminWebhooksPage";
 import AdminVendorPayoutsPage from "@/app/components/AdminVendorPayoutsPage";
@@ -509,6 +511,7 @@ export const router = createBrowserRouter([
       { path: "invoice-runs/:id", element: <AdminInvoiceRunPage /> },
       { path: "subscriptions", element: <AdminSubscriptionsPage /> },
       { path: "finance/reconciliation", element: <AdminFinanceReconciliationPage /> },
+      { path: "finance/fx", element: <AdminFinanceFxPage /> },
       { path: "api-keys", element: <AdminApiKeysPage /> },
       { path: "webhooks", element: <AdminWebhooksPage /> },
       { path: "vendor-payouts", element: <AdminVendorPayoutsPage /> },
@@ -871,6 +874,11 @@ export const router = createBrowserRouter([
   {
     path: "/vendor/payouts",
     element: vend(<VendorPayoutsPage />),
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/vendor/payout-methods",
+    element: vend(<VendorPayoutMethodsPage />),
     errorElement: <ErrorPage />,
   },
   {
