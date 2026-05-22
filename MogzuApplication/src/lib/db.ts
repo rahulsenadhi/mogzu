@@ -149,6 +149,9 @@ export const vendors = {
   listActive: async () =>
     supabase.from('vendors').select('*').eq('status', 'active').order('business_name'),
 
+  listByStatus: async (status: Vendor['status']) =>
+    supabase.from('vendors').select('*').eq('status', status).order('created_at', { ascending: false }),
+
   create: async (data: Omit<Vendor, 'id' | 'created_at' | 'updated_at'>) =>
     supabase.from('vendors').insert(data).select().single(),
 

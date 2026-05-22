@@ -18,6 +18,7 @@ import {
 } from '@/app/lib/vendorOnboardingStorage';
 import { authActions } from '@/lib/authActions';
 import { db } from '@/lib/db';
+import type { ModuleId as DbModuleId } from '@/lib/database.types';
 import {
   CorporateOnboardingPageShell,
   CorporateOnboardingHeader,
@@ -38,6 +39,27 @@ function emptySelection(): SelectionMap {
     m[mod.id] = new Set();
   }
   return m;
+}
+
+// vendor_modules.module accepts only the 4 DB ModuleIds. Catalog has
+// finer-grained categories; collapse them here.
+function mapVendorModuleToDbModule(id: VendorModuleId): DbModuleId | null {
+  switch (id) {
+    case 'spacex_meeting':
+    case 'spacex_promotions':
+      return 'spacex_coworking';
+    case 'spacex_stay':
+      return 'spacex_stay';
+    case 'spacex_activities':
+    case 'giev_events_activity':
+    case 'giev_events_services':
+      return 'events';
+    case 'giev_gifting':
+    case 'hey_genie':
+      return 'gifting';
+    default:
+      return null;
+  }
 }
 
 const fieldClass =
@@ -214,8 +236,6 @@ export default function VendorOnboardingPage() {
       })
       .join(' · ');
 
-    const primaryModule = selectionItems[0]?.module ?? 'events';
-
     setIsSubmitting(true);
     setError(null);
 
@@ -238,21 +258,33 @@ export default function VendorOnboardingPage() {
     // 2. Create vendor row
     if (userId) {
       const { data: vendorRow } = await db.vendors.create({
+        user_id: userId,
         business_name: businessName.trim(),
-        contact_email: email.trim().toLowerCase(),
-        contact_phone: phone.trim(),
         city: city.trim(),
         state: stateRegion.trim(),
         gst_number: gstOptional.trim() || null,
         description: pitch.trim() || null,
-        primary_module: primaryModule,
         status: 'pending',
-        rating: null,
-        total_bookings: 0,
+        bank_account_verified: false,
+        rejection_reasons: null,
         logo_url: null,
       });
 
-      // 3. Create user_profiles row
+      // 3. Persist module selection -> vendor_modules
+      if (vendorRow?.id) {
+        const dbModules = Array.from(
+          new Set(
+            selectionItems
+              .map((s) => mapVendorModuleToDbModule(s.module))
+              .filter((m): m is DbModuleId => m !== null),
+          ),
+        );
+        if (dbModules.length > 0) {
+          await db.vendors.setModules(vendorRow.id, dbModules);
+        }
+      }
+
+      // 4. Create user_profiles row
       await db.userProfiles.upsert({
         id: userId,
         email: email.trim().toLowerCase(),
