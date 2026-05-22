@@ -61,7 +61,7 @@ export function VendorVerificationGate({ children }: { children: ReactNode }) {
   }
 
   if (status === 'rejected') {
-    return <Navigate to="/vendor/welcome" replace />
+    return <Navigate to="/vendor/verification-pending" replace />
   }
 
   return <>{children}</>
