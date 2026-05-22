@@ -22,6 +22,8 @@ import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurfa
 import { useAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { storageService } from '@/lib/storage'
+import { listRules as listAvailRules, isWithinWorkingHours } from '@/lib/vendorAvailability'
+import type { VendorAvailabilityRule } from '@/lib/database.types'
 import {
   computeResaleMargin,
   loadResaleContext,
@@ -130,6 +132,7 @@ export default function SpaceBookingPage() {
   const [startHour, setStartHour] = useState<number>(10)
   const [endHour, setEndHour] = useState<number>(13)
   const [slotError, setSlotError] = useState('')
+  const [availabilityRules, setAvailabilityRules] = useState<VendorAvailabilityRule[]>([])
 
   const [attendees, setAttendees] = useState<number>(0)
   const [attendeesError, setAttendeesError] = useState('')
@@ -193,6 +196,13 @@ export default function SpaceBookingPage() {
         ['blocked', 'booked'].includes(s.slot_type),
       ),
     )
+
+    if (l.vendor_id) {
+      const { data: rules } = await listAvailRules(l.vendor_id)
+      setAvailabilityRules(rules)
+    } else {
+      setAvailabilityRules([])
+    }
 
     setLoading(false)
   }, [params.listingId, corporateId, searchParams])
@@ -313,6 +323,22 @@ export default function SpaceBookingPage() {
     })
     return set
   }, [selectedDate, bookedSlots])
+
+  // Soft warning when the picked slot falls outside the vendor's recurring
+  // working hours. Not a hard block — vendor may accept off-hours.
+  const outOfHoursWarning: string = useMemo(() => {
+    if (!selectedDate || availabilityRules.length === 0 || !listing) return ''
+    if (endHour <= startHour) return ''
+    for (let h = startHour; h < endHour; h += 1) {
+      const when = new Date(selectedDate)
+      when.setHours(h, 0, 0, 0)
+      if (!isWithinWorkingHours(availabilityRules, when, listing.id)) {
+        return `Vendor's standard hours don't cover ${formatHour(h)} on this day — they may still accept, but expect a slower response.`
+      }
+    }
+    return ''
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, startHour, endHour, availabilityRules, listing?.id])
 
   const validateSlot = (): boolean => {
     if (!selectedDate) {
@@ -582,6 +608,7 @@ export default function SpaceBookingPage() {
                         }}
                         blockedHours={blockedHours}
                         error={slotError}
+                        warning={outOfHoursWarning}
                       />
                     )}
                     {step === 'attendees' && (
@@ -697,6 +724,7 @@ function StepSlot({
   setEndHour,
   blockedHours,
   error,
+  warning,
 }: {
   listing: Listing
   calendarMonth: Date
@@ -713,6 +741,7 @@ function StepSlot({
   setEndHour: (h: number) => void
   blockedHours: Set<number>
   error: string
+  warning?: string
 }) {
   const isDaily = listing.price_unit === 'per_day'
   return (
@@ -821,6 +850,12 @@ function StepSlot({
       {error && (
         <p className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
           {error}
+        </p>
+      )}
+
+      {!error && warning && (
+        <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          {warning}
         </p>
       )}
 

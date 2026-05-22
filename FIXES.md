@@ -2,6 +2,28 @@
 
 > One line per file touched. Newest at top.
 
+## 2026-05-22 — Batch 14: Out-of-hours warning on booking-submit (plan Batch 3 final slice)
+
+- `MogzuApplication/src/app/components/SpaceBookingPage.tsx`:
+  - Imports `listRules` (aliased `listAvailRules`) + `isWithinWorkingHours` from `@/lib/vendorAvailability` and `VendorAvailabilityRule` type.
+  - New `availabilityRules` state; `loadAll` calls `listAvailRules(l.vendor_id)` after listing fetch (when vendor_id present) → populates rules.
+  - New `outOfHoursWarning` `useMemo` checks every hour in `[startHour, endHour)` against the rules. Returns prose if any hour falls outside (`"Vendor's standard hours don't cover 8 PM on this day — they may still accept, but expect a slower response."`) — empty rules array means no warning ever fires (predicate semantics: empty = always within).
+  - `StepSlot` signature extended with optional `warning?: string`; renders amber-bg banner below the slot-error red banner, gated on `!error && warning` so error always wins.
+- `MogzuApplication/src/app/components/EventBookingPage.tsx`:
+  - Same imports + `availabilityRules` state + load-side `listAvailRules` call.
+  - `outOfHoursWarning` uses the fixed event window (10:00-18:00) — checks every hour against rules.
+  - `StepDate` signature extended with optional `warning?: string`; banner rendered under "Selected: …" line.
+
+Why: plan Batch 3 final acceptance — `isWithinWorkingHours` predicate was exported in Batch 10 but unused. Bookers now see a soft amber heads-up when their picked time falls outside the vendor's recurring template, reducing the surprise-rejection rate. Soft warning by design — not a hard block since vendors can still accept off-hours.
+
+Plan Batch 3 status: **all 6 items shipped** across slices 1-final (commits `bd6f7c6` 9 / `79a12da` 10 / `51db344` 11 / `81e1e44` 12 / `3339ee7` 13 / this batch 14).
+
+Carry-over (out of plan Batch 3 scope):
+- Listing-form buffer_minutes field still only mounted on Events + SpaceX forms; gifting intentionally skipped (not time-slotted).
+- Drawer view counts still use `getPerformanceMock` because no `listing_view_events` table exists.
+
+Verified: `npm run build` exit 0, `built in 1m`.
+
 ## 2026-05-22 — Batch 13: Vendor performance page real build (plan Batch 3 slice 5)
 
 - `MogzuApplication/src/app/components/VendorPerformancePage.tsx` — replaces 24-line "in development" stub with a full real-data page:

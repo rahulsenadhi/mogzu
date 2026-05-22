@@ -18,6 +18,8 @@ import { SharedSidebar } from './layouts/SharedSidebar'
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface'
 import { useAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { listRules as listAvailRules, isWithinWorkingHours } from '@/lib/vendorAvailability'
+import type { VendorAvailabilityRule } from '@/lib/database.types'
 import { storageService } from '@/lib/storage'
 import {
   computeResaleMargin,
@@ -106,6 +108,7 @@ export default function EventBookingPage() {
 
   const [listing, setListing] = useState<ListingDetail | null>(null)
   const [bookedSlots, setBookedSlots] = useState<CalendarSlot[]>([])
+  const [availabilityRules, setAvailabilityRules] = useState<VendorAvailabilityRule[]>([])
   const [budgets, setBudgets] = useState<BudgetRule[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
@@ -178,6 +181,13 @@ export default function EventBookingPage() {
         ['blocked', 'booked'].includes(s.slot_type),
       ),
     )
+
+    if (l.vendor_id) {
+      const { data: rules } = await listAvailRules(l.vendor_id)
+      setAvailabilityRules(rules)
+    } else {
+      setAvailabilityRules([])
+    }
 
     setLoading(false)
   }, [params.listingId, corporateId, searchParams])
@@ -292,6 +302,20 @@ export default function EventBookingPage() {
     const idx = order.indexOf(step)
     if (idx > 0) setStep(order[idx - 1])
   }
+
+  // Soft warning when the picked date falls outside the vendor's recurring
+  // working hours for the fixed event window (10am-6pm). Not a hard block.
+  const outOfHoursWarning: string = useMemo(() => {
+    if (!selectedDate || availabilityRules.length === 0 || !listing) return ''
+    for (let h = 10; h < 18; h += 1) {
+      const when = new Date(selectedDate)
+      when.setHours(h, 0, 0, 0)
+      if (!isWithinWorkingHours(availabilityRules, when, listing.id)) {
+        return `Vendor's standard hours don't cover ${h}:00 on this day — they may still accept, but expect a slower response.`
+      }
+    }
+    return ''
+  }, [selectedDate, availabilityRules, listing])
 
   // ─── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
@@ -497,6 +521,7 @@ export default function EventBookingPage() {
                         today={today}
                         selectedDate={selectedDate}
                         onPick={(d) => setSelectedDate(d)}
+                        warning={outOfHoursWarning}
                       />
                     )}
 
@@ -608,6 +633,7 @@ function StepDate({
   today,
   selectedDate,
   onPick,
+  warning,
 }: {
   listingTitle: string
   calendarMonth: Date
@@ -618,6 +644,7 @@ function StepDate({
   today: Date
   selectedDate: Date | null
   onPick: (d: Date) => void
+  warning?: string
 }) {
   return (
     <div>
@@ -684,6 +711,11 @@ function StepDate({
       {selectedDate && (
         <p className="mt-3 text-sm text-emerald-700">
           Selected: <strong>{formatDateFull(selectedDate)}</strong>
+        </p>
+      )}
+      {warning && (
+        <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          {warning}
         </p>
       )}
     </div>
