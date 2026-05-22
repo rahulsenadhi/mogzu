@@ -11,6 +11,8 @@ import { resolveMogzuDirectDisplayListing } from '@/utils/catalogueDetailHelpers
 import { useDemoRole } from '@/app/lib/demoRole';
 import { findAdminListingById } from '@/app/lib/adminListingResolve';
 import AdminListingActionPanel from '@/app/pages/admin/AdminListingActionPanel';
+import { submitLead } from '@/lib/publicLeads';
+import { useAuth } from '@/lib/auth';
 
 function isModule(s: string | undefined): s is MogzuListingModule {
   return s === 'dspace' || s === 'gifting' || s === 'events';
@@ -44,6 +46,7 @@ export default function MogzuDirectCorporateDetailPage() {
   // that read from the cache re-run and pick them up.
   const [refreshKey, setRefreshKey] = useState(0);
   const { activeRole } = useDemoRole();
+  const { profile } = useAuth();
 
   const idDecoded = idParam ? decodeURIComponent(idParam) : '';
 
@@ -87,29 +90,51 @@ export default function MogzuDirectCorporateDetailPage() {
     setAdminResolved(activeRole === 'admin' ? findAdminListingById(idDecoded) : null);
   }, [activeRole, idDecoded]);
 
-  const submitBookingRequest = () => {
+  const submitBookingRequest = async () => {
     if (!listing) return;
-    const orders = loadMogzuOrders();
+    setBookingNotice('Submitting…');
+
+    // Real-data path: drop the enquiry into public_leads so it joins
+    // the sales-agent queue (Phase 3 Feature 3). Falls back to the
+    // localStorage MogzuOrder log on failure so the existing demo
+    // surfaces still show the request.
+    const summary = `Mogzu Direct enquiry: ${listing.title} (${listing.module})`;
+    const { id: leadId, error } = await submitLead({
+      listing_id: listing.id,
+      source_slug: 'mogzu_direct',
+      client_name: profile?.full_name ?? 'Corporate user',
+      client_email: profile?.email ?? 'unknown@mogzu',
+      client_phone: profile?.phone ?? null,
+      requirement_summary: summary,
+      metadata: {
+        listing_id: listing.id,
+        module: listing.module,
+        pricing_mode: listing.pricing_mode,
+        quoted_price: listing.price,
+      },
+    });
+
     const now = new Date().toISOString();
-    const total =
-      listing.pricing_mode === 'on_request' || listing.pricing_mode === 'negotiable'
-        ? listing.price
-        : listing.price;
     const order: MogzuOrder = {
-      id: `ord-${Date.now()}`,
-      enquiry_id: `direct-${listing.id}`,
-      corporate_user_id: 'corporate-demo',
+      id: leadId ? `lead-${leadId}` : `ord-${Date.now()}`,
+      enquiry_id: leadId ?? `direct-${listing.id}`,
+      corporate_user_id: profile?.id ?? 'corporate-demo',
       listing_id: listing.id,
       listing_type: 'mogzu_direct',
       status: 'received',
-      total_amount: total,
+      total_amount: listing.price,
       event_date: '',
-      requirements: `Mogzu Direct booking request: ${listing.title} (${listing.module})`,
+      requirements: summary,
       created_at: now,
       updated_at: now,
     };
-    saveMogzuOrders([...orders, order]);
-    setBookingNotice('Request submitted. Mogzu will confirm details and payment with you shortly.');
+    saveMogzuOrders([...loadMogzuOrders(), order]);
+
+    setBookingNotice(
+      error
+        ? `Request queued locally — could not reach Mogzu sales pipeline (${error}).`
+        : 'Request submitted. Mogzu will confirm details and payment with you shortly.',
+    );
   };
 
   return (
