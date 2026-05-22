@@ -1,3 +1,7 @@
+// LEGACY — classic booking flow (RequestToBook → AddOns → Review → Payment).
+// Superseded by the unified BookingFlow + BookingPayment chain. Kept routed
+// for back-compat with deep links from notification emails. Do not extend.
+// Plan to retire once email templates updated to point at /book/:id directly.
 import { useState } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router';
 import { ChevronLeft, ChevronDown, Star, MapPin, Users, AlertCircle } from 'lucide-react';

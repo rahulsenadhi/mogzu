@@ -1,3 +1,7 @@
+// LEGACY — localStorage-backed vendor promo board. Superseded by the
+// AdminPromotionsApprovalPage + listings.promotion_* columns flow.
+// Kept routed for vendors that still have unsynced drafts in their
+// browser storage. Do not extend.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Bell, Eye, HelpCircle, Megaphone, Percent, Plus, Search, X } from 'lucide-react';
