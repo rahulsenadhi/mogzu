@@ -162,6 +162,17 @@ export const vendors = {
       })
       .eq('id', id),
 
+  updateProfile: async (
+    id: string,
+    patch: Partial<Pick<Vendor, 'business_name' | 'description' | 'logo_url' | 'gst_number' | 'city' | 'state'>>,
+  ) =>
+    supabase
+      .from('vendors')
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('*')
+      .single(),
+
   setModules: async (vendorId: string, modules: ModuleId[]) => {
     await supabase.from('vendor_modules').delete().eq('vendor_id', vendorId)
     if (modules.length === 0) return { error: null }

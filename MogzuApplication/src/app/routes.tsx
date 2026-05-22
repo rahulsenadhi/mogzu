@@ -224,6 +224,7 @@ import AdminBookingsPage from "@/app/components/AdminBookingsPage";
 import AdminReportsPage from "@/app/components/AdminReportsPage";
 import AdminSettingsPage from "@/app/components/AdminSettingsPage";
 import VendorPerformancePage from "@/app/components/VendorPerformancePage";
+import VendorSettingsPage from "@/app/components/VendorSettingsPage";
 import AdminEventsPage from "@/app/components/AdminEventsPage";
 import AdminEventDetailPage from "@/app/components/AdminEventDetailPage";
 import AdminEventsBookings from "@/app/components/AdminEventsBookings";
@@ -248,15 +249,6 @@ function VendorListingsRouteRedirect() {
   return <Navigate to="/vendor/dashboard" replace />;
 }
 
-function VendorSettingsStep12Placeholder() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-[#FFFDF9] px-4 font-['Inter'] text-slate-700">
-      <p className="max-w-md text-center text-sm">
-        Vendor account settings will be available in a future release (Step 12).
-      </p>
-    </div>
-  );
-}
 
 export const router = createBrowserRouter([
   {
@@ -1312,7 +1304,7 @@ export const router = createBrowserRouter([
   },
   {
     path: "/vendor/settings",
-    element: vend(<VendorSettingsStep12Placeholder />),
+    element: vend(<VendorSettingsPage />),
     errorElement: <ErrorPage />,
   },
   {

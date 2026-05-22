@@ -2,6 +2,26 @@
 
 > One line per file touched. Newest at top.
 
+## 2026-05-22 — Batch 9: Vendor settings page (plan Batch 3 slice 1)
+
+- `MogzuApplication/src/app/components/VendorSettingsPage.tsx` (new, ~500 lines) — replaces 6-line `VendorSettingsStep12Placeholder` ("future release Step 12") with a full 3-tab settings page:
+  - **Business profile** tab: editable `business_name`, `gst_number`, `city`, `state`, `logo_url`, `description`. Save → `db.vendors.updateProfile()`. Status pill + bank-verified badge.
+  - **Payouts** tab: list `vendor_payout_methods` via `vendorPayouts.listMethods(vendorId)`. Inline "Add method" panel with rail (razorpay_x/wise/ach/fast_sg/sepa/manual), currency, account holder, account number, primary flag. Per-method actions: Set primary (`setPrimary`), Remove (`removeMethod`). Account number masked (last-4). Primary + verified badges.
+  - **Notifications** tab: 7 toggles mapped to `NotificationType` array (`booking_confirmed`, `booking_cancelled`, `approval_required`, `payment_received`, `refund_initiated`, `support_reply`, `reminder_24h`). Save → `db.notificationPreferences.upsert` with critical types (`gift_received`, `gift_pending_approval`, `system`) always force-included.
+- `MogzuApplication/src/lib/db.ts` — added `vendors.updateProfile(id, patch)` (partial-pick of business_name/description/logo_url/gst_number/city/state) writing `updated_at = NOW()`.
+- `MogzuApplication/src/app/routes.tsx` — deleted `VendorSettingsStep12Placeholder` inline component; route `/vendor/settings` now resolves `VendorSettingsPage` (imported alongside `VendorPerformancePage`).
+
+Why: plan Batch 3 first deliverable ("Replace `/vendor/settings` placeholder with real profile/payout/notification settings"). Highest visibility on vendor side — anyone clicking the sidebar Settings tab hit a "coming soon" stub.
+
+Carry-over (plan Batch 3 remaining — defer to next slice):
+- Drag-to-block grid on `VendorCalendarPage` (currently click-modal only).
+- Recurring availability rule editor — `CalendarSlot.recurrence_rule` column already exists; only UI missing.
+- Buffer time field on listings (`buffer_minutes`) — needs ALTER + listing form field.
+- Notify booker on availability-change-after-confirm — trigger logic on calendar_slots insert vs confirmed bookings.
+- Vendor performance drawer stats + PDF export.
+
+Verified: `npm run build` exit 0, `built in 14.32s`.
+
 ## 2026-05-21 — Batch 8: Approval workflow rules + bulk invite + 72h expiry
 
 **New migrations (require Supabase apply):**
