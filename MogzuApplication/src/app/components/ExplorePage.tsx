@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { Loader2, Search } from 'lucide-react'
 import { listPublicListings, PUBLIC_MODULES, type PublicListingCard } from '@/lib/publicCatalogue'
+import { realtimeService } from '@/lib/realtime'
 import { storageService } from '@/lib/storage'
 import { t } from '@/lib/i18n'
 import type { ModuleId } from '@/lib/database.types'
@@ -49,6 +50,18 @@ export default function ExplorePage() {
   useEffect(() => {
     load()
   }, [load])
+
+  // Cascade reactivity: admin enable/disable on listing_categories cascades
+  // to listings.public_visible via the DB trigger. Refetch on either change
+  // so the consumer-facing catalogue stays inside the 60s SLA.
+  useEffect(() => {
+    const offCat = realtimeService.watchCategories(() => load())
+    const offListings = realtimeService.watchListings(activeModule, () => load())
+    return () => {
+      offCat()
+      offListings()
+    }
+  }, [activeModule, load])
 
   const moduleLabel = PUBLIC_MODULES.find((m) => m.value === activeModule)?.label ?? activeModule
 

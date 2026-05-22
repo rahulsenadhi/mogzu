@@ -89,4 +89,27 @@ export const realtimeService = {
       filter: `listing_id=eq.${listingId}`,
       onData,
     }),
+
+  // Watch listing_categories so consumer surfaces cascade an admin
+  // enable/disable/reorder within seconds instead of waiting for a
+  // page refresh. Stage 1 trigger: refetch the category list.
+  watchCategories: <T extends Record<string, unknown>>(
+    onData: SubscriptionOptions<T>['onData'],
+  ) =>
+    subscribeToTable<T>('listing-categories', {
+      table: 'listing_categories',
+      onData,
+    }),
+
+  // Watch listings module-scoped (used by Mogzu Direct browse + module
+  // tabs to mirror new admin-side activations within seconds).
+  watchListings: <T extends Record<string, unknown>>(
+    module: string,
+    onData: SubscriptionOptions<T>['onData'],
+  ) =>
+    subscribeToTable<T>(`listings-${module}`, {
+      table: 'listings',
+      filter: `module=eq.${module}`,
+      onData,
+    }),
 }
