@@ -13,6 +13,7 @@ import { SharedSidebar } from './layouts/SharedSidebar'
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface'
 import { useAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { createRazorpayOrder, openRazorpayCheckout } from '@/lib/razorpay'
 import type {
   Booking,
   Listing,
@@ -47,7 +48,6 @@ export default function BookingPaymentPage() {
   const [loadError, setLoadError] = useState('')
 
   const [method, setMethod] = useState<Method>('wallet')
-  const [reference, setReference] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [actionError, setActionError] = useState('')
   const [actionSuccess, setActionSuccess] = useState('')
@@ -90,35 +90,67 @@ export default function BookingPaymentPage() {
         )
         return
       }
-    } else if (!reference.trim()) {
-      setActionError('Enter the Razorpay payment id / UTR after completing the gateway flow.')
-      return
     }
 
     setSubmitting(true)
 
-    const ref =
-      method === 'wallet'
-        ? `wallet-debit-${booking.id.slice(0, 8)}`
-        : reference.trim()
+    // Card / UPI: open Razorpay Checkout. payment_status flips to 'paid'
+    // when the razorpay-webhook edge function receives payment.captured
+    // and PATCHes the booking. Frontend just opens the modal and waits.
+    if (method !== 'wallet') {
+      const order = await createRazorpayOrder({
+        amount: total,
+        kind: 'booking_payment',
+        bookingId: booking.id,
+      })
+      if (!order.ok) {
+        setActionError(order.error ?? 'Could not start Razorpay checkout.')
+        setSubmitting(false)
+        return
+      }
+      try {
+        await openRazorpayCheckout({
+          order,
+          buyerName: profile?.full_name ?? undefined,
+          buyerEmail: profile?.email ?? undefined,
+          description: `Booking ${booking.id.slice(0, 8)} — ${booking.listings?.title ?? ''}`,
+          onSuccess: (resp) => {
+            setActionSuccess(
+              `Razorpay returned ${resp.razorpay_payment_id}. Webhook will confirm payment + receipt within a few seconds.`,
+            )
+            setSubmitting(false)
+            // Poll once after a short delay; webhook PATCHes payment_status.
+            setTimeout(() => load(), 4000)
+          },
+          onDismiss: () => {
+            setActionError('Razorpay checkout closed before completion.')
+            setSubmitting(false)
+          },
+        })
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : 'Razorpay error.')
+        setSubmitting(false)
+      }
+      return
+    }
 
     // Wallet path: atomic debit RPC (single transaction, row lock,
     // balance check). Runs BEFORE marking the booking paid so a
     // race / insufficient-balance / unauthorized error blocks the
     // status flip.
-    if (method === 'wallet') {
-      const { error: debitErr } = await db.wallet.debitAtomic(
-        walletRow.corporate_id,
-        total,
-        booking.id,
-        `Booking payment ${booking.id.slice(0, 8)} — ${booking.listings?.title ?? ''}`,
-      )
-      if (debitErr) {
-        setActionError(debitErr.message)
-        setSubmitting(false)
-        return
-      }
+    const { error: debitErr } = await db.wallet.debitAtomic(
+      walletRow.corporate_id,
+      total,
+      booking.id,
+      `Booking payment ${booking.id.slice(0, 8)} — ${booking.listings?.title ?? ''}`,
+    )
+    if (debitErr) {
+      setActionError(debitErr.message)
+      setSubmitting(false)
+      return
     }
+
+    const ref = `wallet-debit-${booking.id.slice(0, 8)}`
 
     // Mark booking as paid
     const { error: bookingErr } = await db.bookings.updateStatus(booking.id, booking.status, {
@@ -235,21 +267,11 @@ export default function BookingPaymentPage() {
                   </div>
 
                   {method !== 'wallet' && (
-                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
-                      <p className="text-sm font-semibold text-amber-900">
-                        ⚠ Razorpay gateway not yet wired
+                    <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-xs text-slate-700">
+                        Razorpay Checkout opens in a popup. Payment status updates once the
+                        Razorpay webhook confirms the capture (usually within seconds).
                       </p>
-                      <p className="mt-1 text-xs text-amber-800">
-                        Complete payment in your Razorpay sandbox and paste the payment id / UTR
-                        below to mark the booking as paid. Real Razorpay checkout + webhook
-                        confirmation lands in a follow-up sprint.
-                      </p>
-                      <input
-                        value={reference}
-                        onChange={(e) => setReference(e.target.value)}
-                        placeholder="pay_xxxxxxxxxxxxxx"
-                        className="mt-3 w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-mono text-amber-900 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-                      />
                     </div>
                   )}
 

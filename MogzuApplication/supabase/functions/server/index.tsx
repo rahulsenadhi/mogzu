@@ -106,6 +106,64 @@ ${items}
   });
 });
 
+// ─── Razorpay create order ───────────────────────────────────────────────────
+// POST /razorpay-create-order { amount, currency, kind, booking_id?,
+// request_id? }. Calls Razorpay Orders API with key/secret pair and
+// returns the order_id + amount for the frontend to hand to Checkout.js.
+// Notes (kind, booking_id, request_id) are carried into payment.captured
+// webhook so the existing handler routes to the right RPC / update.
+
+app.post("/make-server-56765691/razorpay-create-order", async (c) => {
+  const keyId = Deno.env.get("RAZORPAY_KEY_ID");
+  const keySecret = Deno.env.get("RAZORPAY_KEY_SECRET");
+  if (!keyId || !keySecret) {
+    return c.json({ ok: false, error: "Razorpay keys not configured" }, 500);
+  }
+
+  let body: {
+    amount?: number;
+    currency?: string;
+    kind?: string;
+    booking_id?: string;
+    request_id?: string;
+  };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ ok: false, error: "bad json" }, 400);
+  }
+
+  const amount = Number(body.amount);
+  if (!amount || amount <= 0) return c.json({ ok: false, error: "bad amount" }, 400);
+  const currency = body.currency ?? "INR";
+
+  const notes: Record<string, string> = { kind: body.kind ?? "" };
+  if (body.booking_id) notes.booking_id = body.booking_id;
+  if (body.request_id) notes.request_id = body.request_id;
+
+  const basic = btoa(`${keyId}:${keySecret}`);
+  const res = await fetch("https://api.razorpay.com/v1/orders", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Basic ${basic}`,
+    },
+    body: JSON.stringify({
+      amount: Math.round(amount * 100), // paise
+      currency,
+      notes,
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    return c.json({ ok: false, error: `razorpay: ${text}` }, 502);
+  }
+
+  const order = (await res.json()) as { id?: string; amount?: number; currency?: string };
+  return c.json({ ok: true, order_id: order.id, amount: order.amount, currency: order.currency, key_id: keyId });
+});
+
 // ─── Razorpay webhook ────────────────────────────────────────────────────────
 // Verifies HMAC-SHA256 signature with RAZORPAY_WEBHOOK_SECRET, then routes
 // the event based on notes.kind on the order:
