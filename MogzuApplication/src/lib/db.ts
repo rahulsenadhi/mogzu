@@ -665,6 +665,7 @@ export const wallet = {
   recordTransaction: async (data: Omit<WalletTransaction, 'id' | 'created_at'>) =>
     supabase.from('wallet_transactions').insert(data).select().single(),
 
+  /** @deprecated Use debitAtomic / topupRequest. Kept for refund flow only. */
   adjustBalance: async (corporateId: string, delta: number) => {
     const { data: w, error: fetchErr } = await supabase
       .from('wallets')
@@ -677,6 +678,40 @@ export const wallet = {
       .update({ balance: w.balance + delta, updated_at: new Date().toISOString() })
       .eq('corporate_id', corporateId)
   },
+
+  debitAtomic: async (
+    corporateId: string,
+    amount: number,
+    bookingId: string,
+    description: string,
+  ) =>
+    supabase.rpc('wallet_debit_atomic', {
+      p_corporate_id: corporateId,
+      p_amount: amount,
+      p_booking_id: bookingId,
+      p_description: description,
+    }),
+
+  topupRequest: async (
+    corporateId: string,
+    amount: number,
+    method: string,
+    externalRef: string | null,
+  ) =>
+    supabase.rpc('wallet_topup_request', {
+      p_corporate_id: corporateId,
+      p_amount: amount,
+      p_method: method,
+      p_external_ref: externalRef,
+    }),
+
+  listTopupRequests: async (corporateId: string, limit = 20) =>
+    supabase
+      .from('wallet_topup_requests')
+      .select('*')
+      .eq('corporate_id', corporateId)
+      .order('created_at', { ascending: false })
+      .limit(limit),
 
   setLowBalanceThreshold: async (corporateId: string, threshold: number) =>
     supabase

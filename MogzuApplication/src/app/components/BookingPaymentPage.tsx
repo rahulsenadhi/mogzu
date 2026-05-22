@@ -102,6 +102,24 @@ export default function BookingPaymentPage() {
         ? `wallet-debit-${booking.id.slice(0, 8)}`
         : reference.trim()
 
+    // Wallet path: atomic debit RPC (single transaction, row lock,
+    // balance check). Runs BEFORE marking the booking paid so a
+    // race / insufficient-balance / unauthorized error blocks the
+    // status flip.
+    if (method === 'wallet') {
+      const { error: debitErr } = await db.wallet.debitAtomic(
+        walletRow.corporate_id,
+        total,
+        booking.id,
+        `Booking payment ${booking.id.slice(0, 8)} — ${booking.listings?.title ?? ''}`,
+      )
+      if (debitErr) {
+        setActionError(debitErr.message)
+        setSubmitting(false)
+        return
+      }
+    }
+
     // Mark booking as paid
     const { error: bookingErr } = await db.bookings.updateStatus(booking.id, booking.status, {
       payment_method: method,
@@ -112,20 +130,6 @@ export default function BookingPaymentPage() {
       setActionError(bookingErr.message)
       setSubmitting(false)
       return
-    }
-
-    if (method === 'wallet') {
-      // Debit wallet + record transaction
-      await db.wallet.recordTransaction({
-        wallet_id: walletRow.id,
-        corporate_id: walletRow.corporate_id,
-        type: 'debit',
-        amount: total,
-        reference_id: booking.id,
-        booking_id: booking.id,
-        description: `Booking payment ${booking.id.slice(0, 8)} — ${booking.listings?.title ?? ''}`,
-      })
-      await db.wallet.adjustBalance(walletRow.corporate_id, -total)
     }
 
     setActionSuccess(

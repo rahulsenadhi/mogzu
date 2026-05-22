@@ -108,30 +108,24 @@ export default function WalletPage() {
     setSubmitError('')
     setSubmitting(true)
 
-    const { error: txErr } = await db.wallet.recordTransaction({
-      wallet_id: walletRow.id,
-      corporate_id: corporateId,
-      type: 'topup',
-      amount: amt,
-      reference_id: topUpRef.trim() || null,
-      booking_id: null,
-      description: `Top-up via ${METHOD_LABEL[topUpMethod]}${topUpRef.trim() ? ` (ref ${topUpRef.trim()})` : ''}`,
-    })
-    if (txErr) {
-      setSubmitError(txErr.message)
+    const { error: reqErr } = await db.wallet.topupRequest(
+      corporateId,
+      amt,
+      topUpMethod,
+      topUpRef.trim() || null,
+    )
+    if (reqErr) {
+      setSubmitError(reqErr.message)
       setSubmitting(false)
       return
     }
-
-    // Stopgap: bump balance now. Real flow waits for Razorpay webhook to confirm.
-    await db.wallet.adjustBalance(corporateId, amt)
 
     setSubmitting(false)
     setTopUpOpen(false)
     setTopUpAmount('10000')
     setTopUpRef('')
     setNotice(
-      `Top-up of ₹${amt.toLocaleString('en-IN')} recorded. Live flow will wait for Razorpay webhook to confirm.`,
+      `Top-up request for ₹${amt.toLocaleString('en-IN')} recorded. Balance updates after Razorpay confirms payment.`,
     )
     load()
   }
