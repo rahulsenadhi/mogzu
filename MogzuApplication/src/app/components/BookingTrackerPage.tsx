@@ -7,6 +7,7 @@ import {
   FileText,
   Loader2,
   MapPin,
+  Printer,
   ShieldAlert,
 } from 'lucide-react'
 import { MogzuLogo } from '@/app/components/branding/MogzuLogo'
@@ -152,8 +153,15 @@ export default function BookingTrackerPage() {
   const canSubmitProof = isAdmin || isVendorOfBooking || isFieldAgent
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-8">
-      <header className="mb-6 flex items-center justify-between">
+    <div className="mx-auto max-w-3xl px-6 py-8 print:max-w-none print:px-0 print:py-0">
+      <style>{`
+        @media print {
+          body { background: white !important; }
+          .print\\:hidden, [data-no-print] { display: none !important; }
+          .print\\:break-before-page { break-before: page; }
+        }
+      `}</style>
+      <header className="mb-6 flex items-center justify-between print:hidden">
         <button
           type="button"
           onClick={() => navigate(-1)}
@@ -179,7 +187,7 @@ export default function BookingTrackerPage() {
         </div>
       </section>
 
-      <nav className="my-4 flex gap-2">
+      <nav className="my-4 flex flex-wrap items-center gap-2 print:hidden">
         <button
           type="button"
           onClick={() => setTab('status')}
@@ -198,10 +206,20 @@ export default function BookingTrackerPage() {
         >
           Proof of conditions
         </button>
+        {tab === 'proof' && (
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="ml-auto inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          >
+            <Printer className="size-3" />
+            Download PDF
+          </button>
+        )}
       </nav>
 
       {tab === 'status' && (
-        <section className="space-y-3">
+        <section className="space-y-3 print:hidden">
           {pipeline.map((stage) => {
             const ev = eventByStage.get(stage.key)
             return <StageRow key={stage.key} stage={stage} event={ev} isAdmin={isAdmin} busy={busyId === ev?.id} onOverride={handleAdminOverride} />
@@ -328,6 +346,17 @@ function ProofTab({
 }) {
   return (
     <section className="space-y-4">
+      <div className="hidden print:block">
+        <h2 className="text-lg font-semibold text-slate-900">Proof of Conditions</h2>
+        <p className="text-xs text-slate-600">
+          Booking {booking.id} · {booking.listings?.title ?? 'Booking'} ·{' '}
+          {booking.corporate_accounts?.name ?? '—'}
+          <br />
+          Generated {new Date().toLocaleString('en-IN')}
+        </p>
+        <hr className="my-3 border-slate-300" />
+      </div>
+
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <h3 className="text-sm font-semibold text-slate-900">Agreed scope</h3>
         <p className="mt-1 whitespace-pre-wrap text-xs text-slate-700">
