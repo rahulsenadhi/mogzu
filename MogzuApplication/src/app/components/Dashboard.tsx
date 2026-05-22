@@ -17,6 +17,7 @@ import { useCorporateDashboardPreferences } from '@/app/lib/useCorporateDashboar
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import type { FulfilmentStage, ModuleId } from '@/lib/database.types';
+import { getSubscriptionByCorporate, type SubscriptionWithPlan } from '@/lib/subscriptions';
 
 const MODULE_BADGE_LABEL: Record<ModuleId, string> = {
   events: 'Event',
@@ -109,6 +110,32 @@ export default function Dashboard() {
   const [orderHubShipments, setOrderHubShipments] = useState<ShipmentRow[]>([]);
   const [shipmentCounts, setShipmentCounts] = useState({ delivered: 0, inTransit: 0, processing: 0 });
   const [retryTick, setRetryTick] = useState(0);
+  const [subscription, setSubscription] = useState<SubscriptionWithPlan | null>(null);
+
+  useEffect(() => {
+    if (!corporateId) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await getSubscriptionByCorporate(corporateId);
+      if (!cancelled) setSubscription(data);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [corporateId, retryTick]);
+
+  const subBanner = useMemo(() => {
+    if (!subscription) return null;
+    const pastDue = subscription.status === 'past_due';
+    const willDowngrade = subscription.dunning_attempts >= 3;
+    if (!pastDue && !willDowngrade) return null;
+    return {
+      title: willDowngrade ? 'Your plan will downgrade to Free soon' : 'Payment past due',
+      body: willDowngrade
+        ? `${subscription.dunning_attempts} retry attempts failed. Resolve billing before the 14-day window closes to keep your current plan.`
+        : 'A recent payment failed. Update your billing details to avoid service interruption.',
+    };
+  }, [subscription]);
 
   useEffect(() => {
     if (!corporateId) return;
@@ -448,6 +475,21 @@ export default function Dashboard() {
           </div>
 
           <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
+            {subBanner && (
+              <div className="mb-6 flex items-center justify-between gap-4 rounded-xl border border-rose-200 bg-gradient-to-r from-rose-50 to-rose-100 p-5">
+                <div>
+                  <h3 className="mb-1 text-lg font-bold text-rose-900">{subBanner.title}</h3>
+                  <p className="text-sm text-rose-800">{subBanner.body}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate('/account/billing')}
+                  className="whitespace-nowrap rounded-lg bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-rose-700"
+                >
+                  Update Billing
+                </button>
+              </div>
+            )}
             {/* Conditional Plan Banners */}
             {dashPrefs.planBanners && currentPlan === 'starter' && (
               <div className="mb-6 bg-gradient-to-r from-orange-50 to-orange-100 border border-orange-200 rounded-xl p-5 flex items-center justify-between">

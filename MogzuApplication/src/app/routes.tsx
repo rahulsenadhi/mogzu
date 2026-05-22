@@ -147,6 +147,7 @@ import AdminAuditPage from "@/app/components/AdminAuditPage";
 import AdminContractsPage from "@/app/components/AdminContractsPage";
 import AdminContractFormPage from "@/app/components/AdminContractFormPage";
 import AdminSubscriptionsPage from "@/app/components/AdminSubscriptionsPage";
+import AdminFinanceReconciliationPage from "@/app/components/AdminFinanceReconciliationPage";
 import AdminApiKeysPage from "@/app/components/AdminApiKeysPage";
 import AdminWebhooksPage from "@/app/components/AdminWebhooksPage";
 import AdminVendorPayoutsPage from "@/app/components/AdminVendorPayoutsPage";
@@ -175,6 +176,7 @@ import MyProfilePage from "@/app/components/MyProfilePage";
 import CompanySettingsPage from "@/app/components/CompanySettingsPage";
 import CorporateDashboardLayoutPage from "@/app/components/CorporateDashboardLayoutPage";
 import BillingInvoicesPage from "@/app/components/BillingInvoicesPage";
+import AccountBillingPage from "@/app/components/AccountBillingPage";
 import WalletPage from "@/app/components/WalletPage";
 import CommunicationPage from "@/app/components/CommunicationPage";
 import FavouritesPage from "@/app/components/FavouritesPage";
@@ -506,6 +508,7 @@ export const router = createBrowserRouter([
       { path: "contracts/:id/edit", element: <AdminContractFormPage /> },
       { path: "invoice-runs/:id", element: <AdminInvoiceRunPage /> },
       { path: "subscriptions", element: <AdminSubscriptionsPage /> },
+      { path: "finance/reconciliation", element: <AdminFinanceReconciliationPage /> },
       { path: "api-keys", element: <AdminApiKeysPage /> },
       { path: "webhooks", element: <AdminWebhooksPage /> },
       { path: "vendor-payouts", element: <AdminVendorPayoutsPage /> },
@@ -1161,6 +1164,16 @@ export const router = createBrowserRouter([
   {
     path: "/billing-invoices",
     element: corp(<BillingInvoicesPage />),
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/account/invoices",
+    element: corp(<BillingInvoicesPage />),
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/account/billing",
+    element: corp(<AccountBillingPage />),
     errorElement: <ErrorPage />,
   },
   {

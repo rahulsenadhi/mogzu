@@ -150,6 +150,39 @@ export async function listInvoiceRuns(
   return { data: (data ?? []) as InvoiceRun[], error: null }
 }
 
+export type InvoiceRunWithContract = InvoiceRun & {
+  contract?: Pick<Contract, 'id' | 'name' | 'corporate_id' | 'payment_terms_days'> | null
+}
+
+export async function listCorporateInvoices(
+  corporateId: string,
+): Promise<{ data: InvoiceRunWithContract[]; error: string | null }> {
+  const { data: contracts, error: cErr } = await supabase
+    .from('contracts')
+    .select('id, name, corporate_id, payment_terms_days')
+    .eq('corporate_id', corporateId)
+  if (cErr) return { data: [], error: cErr.message }
+  const list = (contracts ?? []) as Array<
+    Pick<Contract, 'id' | 'name' | 'corporate_id' | 'payment_terms_days'>
+  >
+  if (list.length === 0) return { data: [], error: null }
+  const byId = new Map(list.map((c) => [c.id, c]))
+  const { data: runs, error: rErr } = await supabase
+    .from('invoice_runs')
+    .select('*')
+    .in(
+      'contract_id',
+      list.map((c) => c.id),
+    )
+    .order('period_starts_on', { ascending: false })
+  if (rErr) return { data: [], error: rErr.message }
+  const out = ((runs ?? []) as InvoiceRun[]).map((r) => ({
+    ...r,
+    contract: byId.get(r.contract_id) ?? null,
+  }))
+  return { data: out, error: null }
+}
+
 export async function createInvoiceRun(
   contractId: string,
   periodStartsOn: string,
