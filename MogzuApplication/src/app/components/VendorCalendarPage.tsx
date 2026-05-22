@@ -91,7 +91,7 @@ function slotStyle(type: CalendarSlot['slot_type']): string {
 
 // ─── Block Slot Modal ─────────────────────────────────────────────────────────
 
-type BlockTarget = { day: Date; hour: number }
+type BlockTarget = { day: Date; hour: number; durationHours?: number }
 
 type BlockForm = {
   listingId: string
@@ -116,7 +116,7 @@ function BlockSlotModal({
 }) {
   const [form, setForm] = useState<BlockForm>({
     listingId: listings[0]?.id ?? '',
-    durationHours: '1',
+    durationHours: target.durationHours ? String(target.durationHours) : '1',
     notes: '',
   })
   const [validationError, setValidationError] = useState('')
@@ -140,6 +140,10 @@ function BlockSlotModal({
   }
 
   const startLabel = `${dayLabel(target.day)} ${formatHour(target.hour)}`
+  const rangeLabel =
+    target.durationHours && target.durationHours > 1
+      ? `${startLabel} – ${formatHour(target.hour + target.durationHours)} (${target.durationHours}h)`
+      : startLabel
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/30 p-4">
@@ -147,7 +151,7 @@ function BlockSlotModal({
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
           <div>
             <h2 className="text-base font-bold text-slate-900">Block time slot</h2>
-            <p className="text-xs text-slate-500">Starting {startLabel}</p>
+            <p className="text-xs text-slate-500">{rangeLabel}</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">
             <X className="size-5" />
@@ -310,6 +314,11 @@ export default function VendorCalendarPage() {
   const [unblockSlot, setUnblockSlot] = useState<CalendarSlot | null>(null)
   const [unblockSaving, setUnblockSaving] = useState(false)
 
+  // Drag-to-block selection
+  const [dragAnchor, setDragAnchor] = useState<{ dayIdx: number; hour: number } | null>(null)
+  const [dragCurrent, setDragCurrent] = useState<{ dayIdx: number; hour: number } | null>(null)
+  const [suppressNextClick, setSuppressNextClick] = useState(false)
+
   const weekEnd = addDays(weekStart, 7)
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
 
@@ -421,18 +430,95 @@ export default function VendorCalendarPage() {
     loadSlots()
   }
 
-  // Cell click handler
+  // Cell click handler — kept for blocked cell click (unblock modal)
   const handleCellClick = (day: Date, hour: number) => {
+    if (suppressNextClick) {
+      setSuppressNextClick(false)
+      return
+    }
     const cellSlots = slotsForCell(slots, day, hour)
     const blocked = cellSlots.find((s) => s.slot_type === 'blocked')
     if (blocked) {
       setUnblockSlot(blocked)
       return
     }
+    // Single-click on empty cell = 1-hour block.
     const booked = cellSlots.find((s) => s.slot_type === 'booked')
-    if (booked) return // booked — read-only
-    setBlockTarget({ day, hour })
+    if (booked) return
+    setBlockTarget({ day, hour, durationHours: 1 })
     setBlockError('')
+  }
+
+  // Drag-to-block: track mouse-down on an empty cell, mouse-enter extends
+  // selection within same day, mouse-up commits a multi-hour blockTarget.
+  const cellIsFree = (dayIdx: number, hour: number): boolean => {
+    const cellSlots = slotsForCell(slots, weekDays[dayIdx], hour)
+    return !cellSlots.some((s) => s.slot_type === 'blocked' || s.slot_type === 'booked')
+  }
+
+  const handleCellMouseDown = (dayIdx: number, hour: number, e: React.MouseEvent) => {
+    if (e.button !== 0) return
+    if (!cellIsFree(dayIdx, hour)) return // let click handler deal with blocked/booked
+    setDragAnchor({ dayIdx, hour })
+    setDragCurrent({ dayIdx, hour })
+  }
+
+  const handleCellMouseEnter = (dayIdx: number, hour: number) => {
+    if (!dragAnchor) return
+    // Restrict drag to the same day column.
+    if (dayIdx !== dragAnchor.dayIdx) return
+    setDragCurrent({ dayIdx, hour })
+  }
+
+  const handleDragEnd = useCallback(() => {
+    if (!dragAnchor || !dragCurrent) {
+      setDragAnchor(null)
+      setDragCurrent(null)
+      return
+    }
+    const dayIdx = dragAnchor.dayIdx
+    const lo = Math.min(dragAnchor.hour, dragCurrent.hour)
+    const hi = Math.max(dragAnchor.hour, dragCurrent.hour)
+    const isMultiHourDrag = hi > lo
+    // Skip the drag if it crossed a non-free cell along the way; user intent
+    // is ambiguous so default to the anchor hour as a 1-hour single block.
+    let blocked = false
+    for (let h = lo; h <= hi; h += 1) {
+      if (!cellIsFree(dayIdx, h)) {
+        blocked = true
+        break
+      }
+    }
+    setDragAnchor(null)
+    setDragCurrent(null)
+    if (blocked) {
+      // Let single-click handler open unblock modal / handle the booked cell.
+      return
+    }
+    if (isMultiHourDrag) {
+      setSuppressNextClick(true)
+      setBlockTarget({ day: weekDays[dayIdx], hour: lo, durationHours: hi - lo + 1 })
+      setBlockError('')
+    }
+    // Single-hour drag (no movement) falls through to onClick which will open
+    // the 1-hour block modal — avoids opening twice.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dragAnchor, dragCurrent, slots])
+
+  // Listen for mouse-up anywhere so a drag ending outside the grid still commits.
+  useEffect(() => {
+    if (!dragAnchor) return
+    const onUp = () => handleDragEnd()
+    window.addEventListener('mouseup', onUp)
+    return () => window.removeEventListener('mouseup', onUp)
+  }, [dragAnchor, handleDragEnd])
+
+  const isCellInDrag = (dayIdx: number, hour: number): boolean => {
+    if (!dragAnchor || !dragCurrent) return false
+    if (dayIdx !== dragAnchor.dayIdx) return false
+    const lo = Math.min(dragAnchor.hour, dragCurrent.hour)
+    const hi = Math.max(dragAnchor.hour, dragCurrent.hour)
+    return hour >= lo && hour <= hi
   }
 
   // Listing title lookup
@@ -560,14 +646,19 @@ export default function VendorCalendarPage() {
                         {HOURS.map((h) => {
                           const cellSlots = slotsForCell(slots, day, h)
                           const dominated = cellSlots[0]
+                          const inDrag = isCellInDrag(dayIdx, h)
                           return (
                             <div
                               key={h}
                               onClick={() => handleCellClick(day, h)}
-                              className={`relative h-14 border-b border-slate-100 cursor-pointer transition-colors ${
-                                dominated
-                                  ? ''
-                                  : 'hover:bg-slate-50'
+                              onMouseDown={(e) => handleCellMouseDown(dayIdx, h, e)}
+                              onMouseEnter={() => handleCellMouseEnter(dayIdx, h)}
+                              className={`relative h-14 border-b border-slate-100 cursor-pointer transition-colors select-none ${
+                                inDrag
+                                  ? 'bg-rose-100/70 ring-1 ring-inset ring-rose-300'
+                                  : dominated
+                                    ? ''
+                                    : 'hover:bg-slate-50'
                               }`}
                             >
                               {dominated && (
@@ -611,7 +702,7 @@ export default function VendorCalendarPage() {
                       <div className="flex flex-col items-center gap-2 py-8 text-center">
                         <CalendarDays className="size-6 text-slate-200" />
                         <p className="text-xs text-slate-400">No slots this week.</p>
-                        <p className="text-[10px] text-slate-300">Click a cell to block time.</p>
+                        <p className="text-[10px] text-slate-300">Click or drag across cells to block time.</p>
                       </div>
                     ) : (
                       <div className="space-y-2">

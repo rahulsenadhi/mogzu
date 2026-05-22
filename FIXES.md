@@ -2,6 +2,27 @@
 
 > One line per file touched. Newest at top.
 
+## 2026-05-22 — Batch 12: Drag-to-block grid (plan Batch 3 slice 4)
+
+- `MogzuApplication/src/app/components/VendorCalendarPage.tsx`:
+  - `BlockTarget` type extended with optional `durationHours: number`. `BlockSlotModal` initialises `form.durationHours` from `target.durationHours ?? 1` and prints range header `"Mon 9 AM – 12 PM (3h)"` when multi-hour.
+  - New drag state: `dragAnchor`, `dragCurrent`, `suppressNextClick`.
+  - `cellIsFree(dayIdx, hour)` predicate (no blocked/booked overlap). `handleCellMouseDown` opens drag iff cell is free + left button. `handleCellMouseEnter` extends `dragCurrent` only when same day column as anchor. `handleDragEnd` on mouse-up:
+    - Both endpoints + every cell in between must be free (otherwise abort — let the existing click handler resolve to unblock modal).
+    - Single-hour drag (no movement) falls through to onClick → opens 1-hour modal once.
+    - Multi-hour drag → sets `blockTarget` with `durationHours = hi - lo + 1` + flags `suppressNextClick` so the trailing click event doesn't reopen the modal.
+  - Window-level `mouseup` listener (active only while dragging) so a drag ending outside the grid still commits.
+  - Cell render: new `inDrag = isCellInDrag(dayIdx, h)` highlight (`bg-rose-100/70 ring-1 ring-inset ring-rose-300`); `select-none` to prevent text-select during drag; `onMouseDown` / `onMouseEnter` wired alongside existing `onClick`.
+  - Sidebar hint copy: "Click a cell to block time." → "Click or drag across cells to block time."
+
+Why: plan Batch 3 acceptance "Drag-to-block grid on `VendorCalendarPage`". Vendor side gets calendar parity with Outlook/Calendly-style multi-cell selection so blocking a 4-hour maintenance window is one gesture instead of four modal trips.
+
+Carry-over (plan Batch 3 remaining):
+- Vendor performance page — 24-line stub; needs full build with drawer stats + PDF export.
+- `isWithinWorkingHours` predicate not yet enforced at booking-submit (warn when picking time outside vendor hours).
+
+Verified: `npm run build` exit 0, `built in 22.78s`.
+
 ## 2026-05-22 — Batch 11: Notify-on-availability-change + SpaceX buffer_minutes (plan Batch 3 slice 3)
 
 - `MogzuApplication/src/app/components/VendorCalendarPage.tsx`:
