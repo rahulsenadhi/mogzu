@@ -1,6 +1,7 @@
 // Phase 5 Feature 4 — admin white-label partners console.
 
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router'
 import { Loader2, ShieldAlert } from 'lucide-react'
 import { AdminPageTitleRow } from '@/app/components/admin/AdminPageChrome'
 import { useAuth } from '@/lib/auth'
@@ -218,17 +219,25 @@ export default function AdminWhiteLabelPage() {
                     )}
                   </td>
                   <td className="px-4 py-2 text-right">
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const { error: err } = await setActive(p.id, !p.is_active)
-                        if (err) setError(err)
-                        else load()
-                      }}
-                      className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
-                    >
-                      {p.is_active ? 'Pause' : 'Resume'}
-                    </button>
+                    <div className="inline-flex gap-1">
+                      <Link
+                        to={`/admin/white-label/${p.id}`}
+                        className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                      >
+                        Edit
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const { error: err } = await setActive(p.id, !p.is_active)
+                          if (err) setError(err)
+                          else load()
+                        }}
+                        className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                      >
+                        {p.is_active ? 'Pause' : 'Resume'}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

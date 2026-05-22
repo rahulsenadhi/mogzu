@@ -102,6 +102,9 @@ export async function ensureUserProfile(user: User): Promise<UserProfile | null>
     invited_at: null,
     locale: 'en-IN',
     preferred_currency: null,
+    push_subscription: null,
+    push_opt_in_at: null,
+    push_declined_at: null,
     created_at: now,
     updated_at: now,
   }

@@ -1,0 +1,26 @@
+{
+  "name": "Mogzu Corporate",
+  "short_name": "Mogzu",
+  "description": "Corporate events, gifting, and spaces booking platform.",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFFDF9",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/branding/mogzu-mark-m.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/branding/mogzu-mark-m.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"]
+}

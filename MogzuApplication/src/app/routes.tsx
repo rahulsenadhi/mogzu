@@ -159,6 +159,7 @@ import AdminVendorPayoutsPage from "@/app/components/AdminVendorPayoutsPage";
 import PublicVendorApplyPage from "@/app/components/PublicVendorApplyPage";
 import AdminVendorApplicationsPage from "@/app/components/AdminVendorApplicationsPage";
 import AdminWhiteLabelPage from "@/app/components/AdminWhiteLabelPage";
+import AdminWhiteLabelDetailPage from "@/app/components/AdminWhiteLabelDetailPage";
 import CorporateAiAutonomyPage from "@/app/components/CorporateAiAutonomyPage";
 import AdminAccessReviewsPage from "@/app/components/AdminAccessReviewsPage";
 import AdminInvoiceRunPage from "@/app/components/AdminInvoiceRunPage";
@@ -522,6 +523,7 @@ export const router = createBrowserRouter([
       { path: "vendor-payouts", element: <AdminVendorPayoutsPage /> },
       { path: "vendor-applications", element: <AdminVendorApplicationsPage /> },
       { path: "white-label", element: <AdminWhiteLabelPage /> },
+      { path: "white-label/:partnerId", element: <AdminWhiteLabelDetailPage /> },
       { path: "access-reviews", element: <AdminAccessReviewsPage /> },
       { path: "compliance/access-review", element: <AdminAccessReviewsPage /> },
       { path: "compliance/soc2", element: <AdminSoc2EvidencePage /> },

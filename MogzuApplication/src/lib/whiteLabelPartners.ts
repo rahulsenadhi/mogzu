@@ -74,6 +74,29 @@ export async function upsertPartner(
   return { error: error?.message ?? null }
 }
 
+export async function getById(
+  id: string,
+): Promise<{ data: WhiteLabelPartner | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from('white_label_partners')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) return { data: null, error: error.message }
+  return { data: (data ?? null) as WhiteLabelPartner | null, error: null }
+}
+
+export async function updatePartner(
+  id: string,
+  patch: Partial<WhiteLabelPartner>,
+): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from('white_label_partners')
+    .update(patch)
+    .eq('id', id)
+  return { error: error?.message ?? null }
+}
+
 export async function setActive(
   id: string,
   isActive: boolean,

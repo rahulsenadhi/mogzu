@@ -370,6 +370,9 @@ export interface UserProfile {
   invited_at: string | null
   locale: string
   preferred_currency: string | null
+  push_subscription: unknown | null
+  push_opt_in_at: string | null
+  push_declined_at: string | null
   created_at: string
   updated_at: string
 }
