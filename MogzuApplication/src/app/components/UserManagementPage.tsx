@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Search, ChevronDown, Filter, SlidersHorizontal, Plus, MoreVertical } from 'lucide-react';
 import { SharedHeader } from './layouts/SharedHeader';
@@ -18,7 +18,15 @@ import imgImage2742 from 'figma:asset/3343fab6d9b912e4151b80a43a23a01889ac749c.p
 import imgFrame26 from 'figma:asset/f89db83641bb906adb1604f260e8fe4b09ed6652.png';
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import type { UserProfile, UserRole } from '@/lib/database.types';
+import type { UserProfile, UserRole, UserInviteWithStatus } from '@/lib/database.types';
+import {
+  listInvitesByCorporate,
+  createInvite,
+  createInvitesBulk,
+  parseInviteCsv,
+  resendInvite,
+  revokeInvite,
+} from '@/lib/userInvites';
 
 type UiUser = {
   id?: string;
@@ -75,10 +83,15 @@ const navItems = [
 
 export default function UserManagementPage() {
   const navigate = useNavigate();
-  const { corporateId } = useAuth();
+  const { corporateId, profile } = useAuth();
   const [users, setUsers] = useState<UiUser[]>(DEMO_USERS);
   const [hasRealUsers, setHasRealUsers] = useState(false);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [invites, setInvites] = useState<UserInviteWithStatus[]>([]);
+  const [isLoadingInvites, setIsLoadingInvites] = useState(false);
+  const [inviteNotice, setInviteNotice] = useState('');
+  const [inviteError, setInviteError] = useState('');
+  const csvInputRef = useRef<HTMLInputElement | null>(null);
   const [activeTab, setActiveTab] = useState<'users' | 'vendors'>('users');
   const [checkedRows, setCheckedRows] = useState<Set<number>>(new Set());
   const [headerChecked, setHeaderChecked] = useState(false);
@@ -224,7 +237,98 @@ export default function UserManagementPage() {
     };
   }, [corporateId]);
 
-  const handleAddSingleUserNext = () => {
+  const loadInvites = async () => {
+    if (!corporateId) return;
+    setIsLoadingInvites(true);
+    const { data, error } = await listInvitesByCorporate(corporateId);
+    setIsLoadingInvites(false);
+    if (error) {
+      setInviteError(error);
+      return;
+    }
+    setInvites(data);
+  };
+
+  useEffect(() => {
+    if (!corporateId) return;
+    loadInvites();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [corporateId]);
+
+  const handleCsvFile = async (file: File) => {
+    setInviteError('');
+    setInviteNotice('');
+    if (!corporateId || !profile) {
+      setInviteError('Sign in as an L3 admin first.');
+      return;
+    }
+    const text = await file.text();
+    const drafts = parseInviteCsv(text);
+    if (drafts.length === 0) {
+      setInviteError('No valid rows found in CSV. Expected columns: email,full_name,role,department');
+      return;
+    }
+    const { result, error } = await createInvitesBulk(corporateId, profile.id, drafts);
+    if (error) {
+      setInviteError(error);
+      return;
+    }
+    const skippedMsg = result.skipped.length > 0 ? ` Skipped ${result.skipped.length}.` : '';
+    setInviteNotice(`Created ${result.created} invite${result.created !== 1 ? 's' : ''}.${skippedMsg}`);
+    await loadInvites();
+  };
+
+  const handleResendInvite = async (id: string) => {
+    setInviteError('');
+    setInviteNotice('');
+    const { error } = await resendInvite(id);
+    if (error) {
+      setInviteError(error);
+      return;
+    }
+    setInviteNotice('Invite resent. New token + 72h expiry.');
+    await loadInvites();
+  };
+
+  const handleRevokeInvite = async (id: string) => {
+    setInviteError('');
+    setInviteNotice('');
+    const { error } = await revokeInvite(id);
+    if (error) {
+      setInviteError(error);
+      return;
+    }
+    setInviteNotice('Invite revoked.');
+    await loadInvites();
+  };
+
+  const handleAddSingleInvite = async (email: string, fullName: string, role: UserRole, department: string) => {
+    setInviteError('');
+    setInviteNotice('');
+    if (!corporateId || !profile) {
+      setInviteError('Sign in as an L3 admin first.');
+      return false;
+    }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) {
+      setInviteError('Enter a valid email.');
+      return false;
+    }
+    const { error } = await createInvite(corporateId, profile.id, {
+      email,
+      full_name: fullName,
+      role,
+      department,
+    });
+    if (error) {
+      setInviteError(error);
+      return false;
+    }
+    setInviteNotice(`Invite sent to ${email.trim().toLowerCase()}. Expires in 72h.`);
+    await loadInvites();
+    return true;
+  };
+
+  const handleAddSingleUserNext = async () => {
     setAddUserError('');
     setAddUserSuccess('');
     if (isAddUserSubmitting) return;
@@ -297,16 +401,29 @@ export default function UserManagementPage() {
 
     setIsAddUserSubmitting(true);
     setAddUserError('');
-    setTimeout(() => {
-      setIsAddUserSubmitting(false);
-      setAddUserSuccess('User added successfully.');
-      setIsAddSingleUserOpen(false);
-      setAddUserActiveTab('personal');
-      setAddPersonalForm({ name: 'Kapil Dev', email: '', contact: '' });
-      setAddAddressForm({ streetAddress: '', city: '', zipPostalCode: '' });
-      setAddBudget1Form({ type: '', amount: '', startDate: '', endDate: '' });
-      setAddUserError('');
-    }, 700);
+    // Map permissionLevel + userBudgetRole to UserRole. permissionLevel:
+    // 'editor' ~ l2_manager, 'admin' ~ l3_admin, default l1_employee.
+    const inviteRole: UserRole =
+      permissionLevel === 'admin'
+        ? 'l3_admin'
+        : permissionLevel === 'editor'
+          ? 'l2_manager'
+          : 'l1_employee';
+    const ok = await handleAddSingleInvite(
+      addPersonalForm.email,
+      addPersonalForm.name,
+      inviteRole,
+      addBudget1Form.type, // "department" field name was reused as budget type label; OK for demo
+    );
+    setIsAddUserSubmitting(false);
+    if (!ok) return;
+    setAddUserSuccess('Invite sent.');
+    setIsAddSingleUserOpen(false);
+    setAddUserActiveTab('personal');
+    setAddPersonalForm({ name: 'Kapil Dev', email: '', contact: '' });
+    setAddAddressForm({ streetAddress: '', city: '', zipPostalCode: '' });
+    setAddBudget1Form({ type: '', amount: '', startDate: '', endDate: '' });
+    setAddUserError('');
   };
 
   const handleSaveProfilePersonal = () => {
@@ -500,14 +617,27 @@ export default function UserManagementPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        setListDemoNotice('Bulk upload (CSV) will be available in a future release. This screen is demo-only.');
+                        csvInputRef.current?.click();
                         setIsAddUsersOpen(false);
                       }}
                       className="w-full text-left px-5 py-2.5 hover:bg-slate-50 text-gray-700 text-[14px] transition-colors font-medium flex items-center gap-3"
                     >
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                      Bulk Upload
+                      Bulk Upload (CSV)
                     </button>
+                    <input
+                      ref={csvInputRef}
+                      type="file"
+                      accept=".csv,text/csv"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) {
+                          handleCsvFile(f);
+                          e.target.value = '';
+                        }
+                      }}
+                    />
                     <button 
                       onClick={() => {
                         setIsAddSingleUserOpen(true);
@@ -807,6 +937,94 @@ export default function UserManagementPage() {
               Next
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
             </button>
+            </div>
+
+            {/* Pending invites panel */}
+            <div className="mt-10 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                <div>
+                  <h2 className="font-['Inter'] font-bold text-[16px] text-slate-900">Invites</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {invites.length === 0
+                      ? 'No invites issued yet.'
+                      : `${invites.filter((i) => i.status === 'pending').length} pending · ${invites.filter((i) => i.status === 'accepted').length} accepted · ${invites.filter((i) => i.status === 'expired').length} expired`}
+                  </p>
+                </div>
+                {isLoadingInvites && (
+                  <span className="text-xs text-slate-400">Loading…</span>
+                )}
+              </div>
+              {inviteError && (
+                <div className="mx-6 mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                  {inviteError}
+                </div>
+              )}
+              {inviteNotice && (
+                <div className="mx-6 mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                  {inviteNotice}
+                </div>
+              )}
+              {invites.length > 0 && (
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50">
+                    <tr className="text-left text-xs uppercase tracking-wider text-slate-500">
+                      <th className="px-6 py-2.5 font-medium">Email</th>
+                      <th className="px-6 py-2.5 font-medium">Role</th>
+                      <th className="px-6 py-2.5 font-medium">Department</th>
+                      <th className="px-6 py-2.5 font-medium">Status</th>
+                      <th className="px-6 py-2.5 font-medium">Expires</th>
+                      <th className="px-6 py-2.5 font-medium text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {invites.map((inv) => {
+                      const statusColor =
+                        inv.status === 'accepted'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : inv.status === 'expired'
+                            ? 'bg-rose-50 text-rose-700 border-rose-200'
+                            : 'bg-amber-50 text-amber-700 border-amber-200';
+                      return (
+                        <tr key={inv.id} className="hover:bg-slate-50/50">
+                          <td className="px-6 py-3 font-medium text-slate-800">{inv.email}</td>
+                          <td className="px-6 py-3 text-slate-600 capitalize">{inv.role.replace(/_/g, ' ')}</td>
+                          <td className="px-6 py-3 text-slate-600">{inv.department ?? '—'}</td>
+                          <td className="px-6 py-3">
+                            <span className={`inline-block px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide rounded-full border ${statusColor}`}>
+                              {inv.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-3 text-slate-500 text-xs">
+                            {new Date(inv.expires_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                          <td className="px-6 py-3 text-right">
+                            <div className="flex justify-end gap-2">
+                              {inv.status !== 'accepted' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleResendInvite(inv.id)}
+                                  className="text-xs text-blue-600 hover:text-blue-700 font-medium hover:underline"
+                                >
+                                  Resend
+                                </button>
+                              )}
+                              {inv.status !== 'accepted' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRevokeInvite(inv.id)}
+                                  className="text-xs text-rose-600 hover:text-rose-700 font-medium hover:underline"
+                                >
+                                  Revoke
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         </MogzuCorporateScrollSurface>

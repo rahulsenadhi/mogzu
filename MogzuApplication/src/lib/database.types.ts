@@ -295,11 +295,31 @@ export interface UserInvite {
   email: string
   role: UserRole
   full_name: string | null
+  department: string | null
+  corporate_id: string | null
   token: string
   invited_by: string | null
   expires_at: string
   accepted_at: string | null
   created_at: string
+}
+
+export type UserInviteStatus = 'pending' | 'accepted' | 'expired'
+
+export interface UserInviteWithStatus extends UserInvite {
+  status: UserInviteStatus
+}
+
+export interface ApprovalWorkflowRule {
+  id: string
+  corporate_id: string
+  threshold: number
+  required_levels: ('L1' | 'L2' | 'L3')[]
+  exception_note: string | null
+  display_order: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
 }
 
 export type ModuleId = 'events' | 'gifting' | 'spacex_coworking' | 'spacex_stay'
@@ -1233,6 +1253,11 @@ export interface Database {
         Row: UserInvite
         Insert: Omit<UserInvite, 'id' | 'created_at'>
         Update: Partial<Omit<UserInvite, 'id' | 'created_at'>>
+      }
+      approval_workflow_rules: {
+        Row: ApprovalWorkflowRule
+        Insert: Omit<ApprovalWorkflowRule, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<ApprovalWorkflowRule, 'id' | 'created_at'>>
       }
       booking_status_events: {
         Row: BookingStatusEvent

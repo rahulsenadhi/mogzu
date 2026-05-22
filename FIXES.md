@@ -2,6 +2,38 @@
 
 > One line per file touched. Newest at top.
 
+## 2026-05-21 — Batch 8: Approval workflow rules + bulk invite + 72h expiry
+
+**New migrations (require Supabase apply):**
+
+- `supabase/migrations/20260521000002_approval_workflow_rules.sql` — adds `approval_workflow_rules` table (`id`, `corporate_id` FK→corporate_accounts, `threshold` NUMERIC(12,2), `required_levels` TEXT[] of L1/L2/L3, `exception_note`, `display_order`, `is_active`, timestamps). RLS: L3 admin manages own corp; corp members read; mogzu_admin all. `idx_awr_corp_active` covering index for active rules sorted by display_order. `trg_awr_touch_updated_at` trigger. `NOTIFY pgrst, 'reload schema'`.
+- `supabase/migrations/20260521000003_user_invites_corporate.sql` — extends `user_invites` with `corporate_id` (FK→corporate_accounts ON DELETE CASCADE) + `department`. Default expiry tightened 14 days → 72 hours per Batch 5 acceptance. New RLS policy `user_invites l3 admin manages own corp` lets L3 admins issue invites for their own corporate (mogzu_admin policy from `20260516000021_rbac_sub_users.sql` left in place). `accept_user_invite()` RPC patched to COALESCE `corporate_id` and `department` from the invite onto `user_profiles`. New `user_invites_with_status` view exposes derived `pending`/`accepted`/`expired` status. New `resend_user_invite(p_invite_id UUID)` RPC rotates token + refreshes `expires_at = NOW() + 72h`; SECURITY INVOKER so RLS gates the underlying UPDATE.
+
+**New services:**
+
+- `MogzuApplication/src/lib/approvalWorkflow.ts` — `listRules(corporateId)` (active only, ordered by display_order); `saveRules(corporateId, drafts)` uses replace-strategy (`UPDATE ... is_active=false WHERE is_active=true` then INSERT new rows — keeps history without per-row diff). `resolveLevelsForAmount(rules, amount)` helper for booking-submit side: picks the highest-threshold rule the amount meets, returns its `required_levels`. Empty rules → no approval required.
+- `MogzuApplication/src/lib/userInvites.ts` — `listInvitesByCorporate(corporateId)` reads from `user_invites_with_status` view; `createInvite(corporateId, invitedBy, draft)` generates 24-byte hex token via `crypto.getRandomValues`; `createInvitesBulk(corporateId, invitedBy, drafts)` validates emails + dedupes within upload (returns `{created, skipped: [{email, reason}]}`); `resendInvite(id)` calls `resend_user_invite` RPC; `revokeInvite(id)` DELETE-by-id (RLS-gated); `parseInviteCsv(text)` parses `email,full_name,role,department` rows with optional header detection.
+
+**Types:**
+
+- `MogzuApplication/src/lib/database.types.ts` — extends `UserInvite` interface with `department: string | null` + `corporate_id: string | null`. New `UserInviteStatus` union + `UserInviteWithStatus` interface (UserInvite + `status`). New `ApprovalWorkflowRule` interface. Schema map entry added for `approval_workflow_rules`.
+
+**Wired UI:**
+
+- `MogzuApplication/src/app/components/ApprovalWorkflowPage.tsx` — full rewrite of data layer. Drops local hardcoded `rules` state + fake `setSaveMessage()`-only Save. Loads `listRules(corporateId)` on mount; empty result falls back to `DEFAULT_RULES` template (0 / 50k / 200k thresholds with L1, L1+L2, L1+L2+L3 chains + exception note). All inputs now editable: threshold `<input type=number>`, level chips toggle (click to add/remove from `required_levels`), exception text input. Save calls `saveRules()`; non-L3 viewers see read-only banner + disabled controls. Validation: every rule must have ≥1 level + non-negative threshold.
+- `MogzuApplication/src/app/components/UserManagementPage.tsx`:
+  - Bulk Upload dropdown item now opens hidden `<input type=file accept=".csv">` (via `csvInputRef`). On file pick: `parseInviteCsv` → `createInvitesBulk` → `loadInvites()` refresh + notice ("Created N invites. Skipped M."). CSV columns: `email,full_name,role,department` with optional header.
+  - Add Single User modal final Submit (`handleAddSingleUserNext` finalize branch) now calls `createInvite()` via shared `handleAddSingleInvite` helper. Maps page `permissionLevel` ('editor' → `l2_manager`, 'admin' → `l3_admin`, default → `l1_employee`). Reuses `addBudget1Form.type` as department label for demo simplicity (the modal's own "department" field lives in the budget tab).
+  - New "Invites" panel below users table: real-data table from `user_invites_with_status` view. Columns: email / role / department / status pill / expires-at / actions. Status pill colors: pending→amber, accepted→emerald, expired→rose. Actions: Resend (calls `resend_user_invite` RPC) and Revoke (DELETE) for non-accepted rows. Notice/error banners persist until next action.
+
+Verified: `npm run build` exit 0, `built in 23.42s`.
+
+**Action required:** Apply migrations `20260521000002_approval_workflow_rules.sql` and `20260521000003_user_invites_corporate.sql` to Supabase before testing — until applied, `/settings/workflow` Save will throw (table missing) and `/user-management` invite panel will throw (view + corporate_id column missing).
+
+Carry-over:
+- The Add Single User modal still has 4 tabs of irrelevant-for-invite fields (address, budget, permissions matrix). Final submit only sends `email + full_name + role + department`; the rest is discarded. Acceptable for invite issuance but the modal copy mis-sells.
+- Bulk CSV upload accepts any L3-admin-visible email; no domain-match enforcement (UserProfile domain is set on accept_user_invite via `corporate_id` binding, so cross-domain invites bind to the corporate anyway — by design for guest invites).
+
 ## 2026-05-21 — Batch 7: Corp user-mgmt + MyProfile real-data wiring
 
 - `MogzuApplication/src/app/components/MyProfilePage.tsx`:
