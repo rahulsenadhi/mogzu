@@ -3,11 +3,13 @@
 // checklist that lands on vendors.rejection_reasons for resubmit feedback.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, Loader2, ShieldAlert, XCircle } from 'lucide-react'
+import { CheckCircle2, FileText, Loader2, ShieldAlert, XCircle } from 'lucide-react'
 import { AdminPageTitleRow } from '@/app/components/admin/AdminPageChrome'
 import { useAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import type { Vendor } from '@/lib/database.types'
+import type { Vendor, VendorKycStatus } from '@/lib/database.types'
+
+const KYC_STATUSES: VendorKycStatus[] = ['not_started', 'submitted', 'review', 'approved', 'rejected']
 
 type StatusFilter = 'pending' | 'active' | 'rejected'
 
@@ -46,8 +48,20 @@ export default function AdminVendorApplicationsPage() {
   }, [isAdmin, load])
 
   const approve = async (v: Vendor) => {
+    if (v.kyc_status !== 'approved') {
+      setError(`Cannot approve ${v.business_name}: KYC must be approved first.`)
+      return
+    }
     setBusyId(v.id)
     const { error: err } = await db.vendors.updateStatus(v.id, 'active')
+    setBusyId(null)
+    if (err) setError(err.message)
+    else load()
+  }
+
+  const setKyc = async (id: string, status: VendorKycStatus) => {
+    setBusyId(id)
+    const { error: err } = await db.vendors.updateKycStatus(id, status)
     setBusyId(null)
     if (err) setError(err.message)
     else load()
@@ -135,6 +149,7 @@ export default function AdminVendorApplicationsPage() {
                   <th className="px-4 py-2">Business</th>
                   <th className="px-4 py-2">Location</th>
                   <th className="px-4 py-2">GST</th>
+                  <th className="px-4 py-2">KYC</th>
                   <th className="px-4 py-2">Submitted</th>
                   <th className="px-4 py-2 text-right">Action</th>
                 </tr>
@@ -160,6 +175,31 @@ export default function AdminVendorApplicationsPage() {
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-slate-600">
                       {v.gst_number || <span className="text-amber-600">missing</span>}
+                    </td>
+                    <td className="px-4 py-3 text-xs">
+                      <select
+                        value={v.kyc_status}
+                        onChange={(e) => setKyc(v.id, e.target.value as VendorKycStatus)}
+                        disabled={busyId === v.id}
+                        className="rounded-md border border-slate-200 px-2 py-1 text-xs"
+                      >
+                        {KYC_STATUSES.map((k) => (
+                          <option key={k} value={k}>
+                            {k}
+                          </option>
+                        ))}
+                      </select>
+                      {v.kyc_doc_url && (
+                        <a
+                          href={v.kyc_doc_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-1 flex items-center gap-1 text-[11px] text-[#2563EB] hover:underline"
+                        >
+                          <FileText className="h-3 w-3" />
+                          doc
+                        </a>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-xs text-slate-500">{v.created_at.slice(0, 10)}</td>
                     <td className="px-4 py-3 text-right">
@@ -192,7 +232,7 @@ export default function AdminVendorApplicationsPage() {
                 ))}
                 {vendors.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-xs text-slate-400">
+                    <td colSpan={6} className="px-4 py-8 text-center text-xs text-slate-400">
                       No vendors match this filter.
                     </td>
                   </tr>

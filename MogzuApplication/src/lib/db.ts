@@ -176,6 +176,22 @@ export const vendors = {
       .select('*')
       .single(),
 
+  setKyc: async (id: string, docUrl: string) =>
+    supabase
+      .from('vendors')
+      .update({
+        kyc_doc_url: docUrl,
+        kyc_status: 'submitted',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id),
+
+  updateKycStatus: async (id: string, kycStatus: Vendor['kyc_status']) =>
+    supabase
+      .from('vendors')
+      .update({ kyc_status: kycStatus, updated_at: new Date().toISOString() })
+      .eq('id', id),
+
   setModules: async (vendorId: string, modules: ModuleId[]) => {
     await supabase.from('vendor_modules').delete().eq('vendor_id', vendorId)
     if (modules.length === 0) return { error: null }

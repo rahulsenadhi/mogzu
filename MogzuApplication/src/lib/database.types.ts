@@ -374,6 +374,13 @@ export interface UserProfile {
   updated_at: string
 }
 
+export type VendorKycStatus =
+  | 'not_started'
+  | 'submitted'
+  | 'review'
+  | 'approved'
+  | 'rejected'
+
 export interface Vendor {
   id: string
   user_id: string
@@ -386,6 +393,8 @@ export interface Vendor {
   rejection_reasons: string[] | null
   city: string | null
   state: string | null
+  kyc_doc_url: string | null
+  kyc_status: VendorKycStatus
   created_at: string
   updated_at: string
 }
