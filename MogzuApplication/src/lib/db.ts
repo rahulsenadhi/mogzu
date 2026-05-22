@@ -364,8 +364,34 @@ export const bookings = {
       partner_margin_amount?: number | null
       partner_invoice_token?: string | null
     },
-  ) =>
-    supabase
+  ) => {
+    // GST gate: vendor must have a registered GST number before accepting
+    // bookings. Mogzu Direct listings (no vendor_id) bypass the gate.
+    if (data.vendor_id) {
+      const { data: v } = await supabase
+        .from('vendors')
+        .select('gst_number')
+        .eq('id', data.vendor_id)
+        .single()
+      if (!v?.gst_number || !v.gst_number.trim()) {
+        return {
+          data: null,
+          error: {
+            message:
+              'This vendor must add a GST number before accepting bookings. Please contact them to update their tax details.',
+            details: '',
+            hint: '',
+            code: 'gst_required',
+            name: 'PostgrestError',
+          } as never,
+          count: null,
+          status: 412,
+          statusText: 'Precondition Failed',
+        }
+      }
+    }
+
+    return supabase
       .from('bookings')
       .insert({
         partner_id: null,
@@ -376,7 +402,8 @@ export const bookings = {
         ...data,
       })
       .select()
-      .single(),
+      .single()
+  },
 
   updateStatus: async (id: string, status: BookingStatus, extra?: Partial<Booking>) =>
     supabase
