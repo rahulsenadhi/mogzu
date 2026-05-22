@@ -2,6 +2,28 @@
 
 > One line per file touched. Newest at top.
 
+## 2026-05-22 — Batch 13: Vendor performance page real build (plan Batch 3 slice 5)
+
+- `MogzuApplication/src/app/components/VendorPerformancePage.tsx` — replaces 24-line "in development" stub with a full real-data page:
+  - Header chrome: title + Range chips (7D/30D/90D/All) + CSV export + Print/PDF button (`window.print()`).
+  - Parallel fetch on mount: `db.listings.listByVendor(vendorId)` + `db.bookings.listByVendor(vendorId)` + `db.reviews.listByVendor(vendorId)` + a raw `wishlists` select on the vendor's listing IDs for saves-per-listing aggregation.
+  - 4-KPI strip: Bookings count (range-filtered), Revenue (sum `total_amount` for charged statuses = pending_approval/pending_vendor/confirmed/completed), Avg rating with sample size, Saves total.
+  - Listings table: title / status / bookings / revenue / saves / reviews count / avg rating + per-row "Details" button → opens existing `VendorPerformanceStatsDrawer`.
+  - CSV export rows: listing_id, title, status, bookings, revenue_inr, saves, reviews, avg_rating with RFC-4180 cell escaping (`csvCell`).
+  - Print: `print:hidden` on range chips + actions + table action column so the printed view is a clean snapshot. Generated-at footer always visible.
+  - Drawer integration: maps `Listing.status` enum → drawer's `'Active'|'Paused'|'Draft'|'Rejected'` literal shape; `categoryLabel` from `listing.module`. `coverUrl` empty (no listing-image lookup yet — drawer tolerates empty src). Edit button routes to `/vendor/products/:id`.
+
+Why: plan Batch 3 acceptance "Vendor performance: restore dropped drawer stats + add PDF export". Drawer was already mounted on `VendorDashboardPage` but the dedicated `/vendor/performance` route was a placeholder, so vendors had no aggregate view across listings.
+
+Carry-over (plan Batch 3 — final item):
+- `isWithinWorkingHours` predicate from `vendorAvailability.ts` not yet consumed by booking-submit / slot-block sites to warn about out-of-hours bookings.
+
+Note on data fidelity:
+- Drawer itself still consumes `getPerformanceMock()` for views/conversion/peak — views aren't tracked in schema (no analytics events table). Saves/reviews come from real DB; views remain mock until a `listing_view_events` table lands.
+- KPIs on the page (bookings/revenue/saves/reviews/rating) are 100% real, derived from existing tables only.
+
+Verified: `npm run build` exit 0, `built in 21.24s`.
+
 ## 2026-05-22 — Batch 12: Drag-to-block grid (plan Batch 3 slice 4)
 
 - `MogzuApplication/src/app/components/VendorCalendarPage.tsx`:
