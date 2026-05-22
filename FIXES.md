@@ -2,6 +2,78 @@
 
 > One line per file touched. Newest at top.
 
+## 2026-05-22 — Batch 33 / plan Batch 15: cleanup pass
+
+- Delete `MogzuApplication/src/app/components/ProductBookingPageNew.tsx` (1163 LOC, zero refs confirmed via grep).
+- `MogzuApplication/src/app/components/RequestToBook.tsx`: prepend `// LEGACY` header — classic booking flow superseded by BookingFlow + BookingPayment chain; kept routed for back-compat with email deep links.
+- `MogzuApplication/src/app/components/VendorPromotionsPage.tsx`: prepend `// LEGACY` header — localStorage-backed; superseded by AdminPromotionsApprovalPage + listings.promotion_* columns; kept routed so vendors with unsynced drafts still load.
+
+Why: plan Batch 15 "remove or hide legacy mock routes" + BUILDING RULE 6 "never delete working code". Data-track items (combo occasion metadata, apparel fabric labels, bag XL filter) deferred — dataset work, not code.
+
+Plan Batch 15 status: **all code items shipped**. Build clean (34.54s). Commit `0159c13`.
+
+## 2026-05-22 — Batch 32 / plan Batch 14: white-label detail + PWA + push opt-in
+
+- `MogzuApplication/src/lib/whiteLabelPartners.ts`: add `getById()` + `updatePartner()` helpers.
+- `MogzuApplication/src/app/components/AdminWhiteLabelDetailPage.tsx` (new): branding editor (logo URL + primary/secondary color pickers + business name + contacts) + commercial-model fee fields + subdomain preview card (`https://<slug>.mogzu.app`) + live branded mock that re-renders against draft colors.
+- `MogzuApplication/src/app/components/AdminWhiteLabelPage.tsx`: rows gain Edit link to `/admin/white-label/:partnerId`.
+- `MogzuApplication/src/app/routes.tsx`: add `/admin/white-label/:partnerId` route.
+- `MogzuApplication/public/manifest.webmanifest` (new): PWA manifest with name, theme color, 192/512 icons, standalone display.
+- `MogzuApplication/index.html`: add `<link rel="manifest">`, apple-touch-icon, theme-color meta, updated title.
+- `MogzuApplication/src/app/components/PwaInstallPrompt.tsx` (new): captures `beforeinstallprompt` for installable browsers; falls back to a Safari iOS hint with App Store / Play Store deep links. localStorage dismissal.
+- `MogzuApplication/src/app/App.tsx`: mount `<PwaInstallPrompt />` + `<PushOptInBanner />`.
+- `MogzuApplication/supabase/migrations/20260522000008_push_subscriptions.sql` (new): adds `user_profiles.push_subscription` JSONB + `push_opt_in_at` + `push_declined_at` + partial index. **Needs Supabase dashboard apply.**
+- `MogzuApplication/src/lib/database.types.ts`: extend `UserProfile` with the three new columns.
+- `MogzuApplication/src/lib/auth.ts`: `ensureUserProfile()` defaults the three new columns to null.
+- `MogzuApplication/src/lib/pushNotifications.ts` (new): `getOptInState`, `requestPermission`, `persistOptIn`, `persistDecline` helpers.
+- `MogzuApplication/src/app/components/PushOptInBanner.tsx` (new): 4-second-delayed banner gated on profile.push_opt_in_at / push_declined_at + sessionStorage flag.
+
+Why: plan Batch 14 "white-label + remaining polish" — per-partner subdomain preview, branding editor, mobile install prompt, push notification opt-in. Demo-flag pass on legacy mock pages: existing DEMO_DATA_ + DevMockDataBanner pattern already covers all 14 fallback surfaces — no new flagging needed.
+
+Plan Batch 14 status: **all code items shipped**. Build clean (56.16s). Commit `d7dc2c0`.
+
+## 2026-05-22 — Batch 31 / plan Batch 13: compliance + AI agent surfaces (P5.5 + P5.6)
+
+- `MogzuApplication/src/app/routes.tsx`: add `/admin/compliance/access-review` alias → existing `AdminAccessReviewsPage`; add `/admin/ai-conversations`, `/admin/ai-policy`, `/admin/compliance/soc2`.
+- `MogzuApplication/src/lib/aiAgents.ts`: add `listAllConversations()` + `listMessages()` + `AiAgentMessage` type.
+- `MogzuApplication/src/app/components/AdminAiConversationsPage.tsx` (new): cross-agent list of `ai_agent_conversations` with status/channel filters; transcript drawer reading `ai_agent_messages`; escalate action.
+- `MogzuApplication/src/app/components/CorporateAiAutonomyPage.tsx`: prominent two-state kill-switch card (ShieldCheck/ShieldOff) with one-click toggle that writes `is_enabled` immediately, separated from the policy form (cap + blocklist) which still requires explicit Save.
+- `MogzuApplication/src/lib/aiAutonomy.ts`: add `listAllSettings()`.
+- `MogzuApplication/src/app/components/AdminAiPolicyPage.tsx` (new): platform defaults + per-corporate inline editors (is_enabled / cap / blocklist) + bulk-seed action for unconfigured corporates.
+- `MogzuApplication/src/app/components/AdminSoc2EvidencePage.tsx` (new): per-table CSV downloads for `audit_events_unified` (range-filtered), `access_reviews`, `ai_autonomy_settings`, `security_questionnaires`; one-shot Export full packet button.
+
+Why: plan Batch 13 — auditor-ready compliance surfaces + admin visibility into AI agent activity. No new migrations.
+
+Plan Batch 13 status: **all 5 items shipped**. Build clean (12.09s). Commit `b18dc36`.
+
+## 2026-05-22 — Batch 30 / plan Batch 12: multi-currency + intl scaffolding (P4.3 + P5.1)
+
+- `MogzuApplication/supabase/migrations/20260522000007_corporate_region.sql` (new): adds `corporate_accounts.region` (ISO2) + `default_currency` (FK currencies.code); seeds SAR currency. **Needs Supabase dashboard apply.**
+- `MogzuApplication/src/lib/currencies.ts`: add `listAllCurrencies()` + `updateCurrencyFxRate()` + `setCurrencyActive()` helpers.
+- `MogzuApplication/src/app/components/AdminFinanceFxPage.tsx` (new): editable `fx_rate` per currency + margin vs hardcoded interbank baseline + fx_updated_at staleness badge + is_active toggle.
+- `MogzuApplication/src/app/lib/corporateOnboarding.ts`: add `setCorporateRegion()` helper.
+- `MogzuApplication/src/app/components/CorporateCompanyDetails.tsx`: add Operating region select (7 ISO regions — IN/SG/AE/SA/US/GB/EU); persists region + default_currency on submit.
+- `MogzuApplication/src/app/components/BookingPayment.tsx`: regional payment method picker — PayNow for SG, Mada for SA/AE; reads `corporateAccount.region` (falls back to IN).
+- `MogzuApplication/src/app/components/VendorPayoutMethodsPage.tsx` (new): self-serve form (currency + rail + account_holder + account_number + optional JSON routing_info + is_primary toggle); groups existing methods by currency; set-primary + remove actions.
+- `MogzuApplication/src/app/routes.tsx`: add `/admin/finance/fx`, `/vendor/payout-methods` routes.
+
+Why: plan Batch 12 — international settlement + corporate region selection + region-gated payment methods. Vendor settlement currency UI folded into the multi-currency payout form.
+
+Plan Batch 12 status: **all 5 items shipped**. Build clean (11.75s). Commit `b84f535`.
+
+## 2026-05-22 — Batch 29 / plan Batch 11: enterprise revenue completion (P3.8 + P4.2)
+
+- `MogzuApplication/src/lib/contracts.ts`: add `listCorporateInvoices()` + `InvoiceRunWithContract` type (joins contracts + invoice_runs filtered by corporate_id).
+- `MogzuApplication/src/app/components/BillingInvoicesPage.tsx`: replace stub with real `/account/invoices` page — corporate-wide invoice_runs list with status pills, overdue computation (period_ends_on + payment_terms_days), outstanding-balance card, signed PDF download via `getInvoicePdfSignedUrl`.
+- `MogzuApplication/src/app/components/AccountBillingPage.tsx` (new): `/account/billing` self-serve — current plan tile + inline seat editor (`changePlan` + `setSeats`) + plan upgrade grid with feature flags + dunning preview banner (4-retry / 14-day) when `status=past_due` or `dunning_attempts>0`.
+- `MogzuApplication/src/app/components/AdminFinanceReconciliationPage.tsx` (new): `/admin/finance/reconciliation` cross-checks `stripe_subscription_id` + `razorpay_subscription_id` mirrors; flags past_due / dunning / missing-external / payment-error rows; filter chips for all / needs-attention / reconciled.
+- `MogzuApplication/src/app/components/Dashboard.tsx`: fetches subscription row; surfaces rose auto-downgrade banner with Update Billing CTA when `status=past_due` or `dunning_attempts>=3`.
+- `MogzuApplication/src/app/routes.tsx`: add `/account/invoices`, `/account/billing`, `/admin/finance/reconciliation` routes.
+
+Why: plan Batch 11 — SaaS recurring revenue loop visible end-to-end. Slice 4 (dunning preview) folded into AccountBillingPage; slice 5 (auto-downgrade flag) folded into Dashboard. No new migrations.
+
+Plan Batch 11 status: **all 5 items shipped**. Build clean (12.59s). Commit `8d0c2ff`.
+
 ## 2026-05-22 — Batch 14: Out-of-hours warning on booking-submit (plan Batch 3 final slice)
 
 - `MogzuApplication/src/app/components/SpaceBookingPage.tsx`:
