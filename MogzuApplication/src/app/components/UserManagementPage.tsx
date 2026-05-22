@@ -4,6 +4,7 @@ import { Search, ChevronDown, Filter, SlidersHorizontal, Plus, MoreVertical } fr
 import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
+import { DevMockDataBanner } from './global/DevMockDataBanner';
 import svgPaths from '../../imports/svg-7oj4o74nfw';
 import dashboardSvgPaths from '../../imports/svg-camfkj9vq4';
 import imgImage24877 from 'figma:asset/d016f8256f9617c2da6226bb1fd8682cacd46dae.png';
@@ -15,8 +16,41 @@ import imgEllipse979 from 'figma:asset/e598c936515c3a0ae1f2e58a43ab24f7cb3e9dd1.
 import imgEllipse980 from 'figma:asset/8afe8d9a226435fe3ef4a1aad7d4daf418dc8846.png';
 import imgImage2742 from 'figma:asset/3343fab6d9b912e4151b80a43a23a01889ac749c.png';
 import imgFrame26 from 'figma:asset/f89db83641bb906adb1604f260e8fe4b09ed6652.png';
+import { useAuth } from '@/lib/auth';
+import { db } from '@/lib/db';
+import type { UserProfile, UserRole } from '@/lib/database.types';
 
-const initialUsers = [
+type UiUser = {
+  id?: string;
+  name: string;
+  role: string;
+  group: string;
+  email: string;
+  permissions: string;
+  avatar: string;
+};
+
+const DEMO_AVATARS = [imgAvatar1, imgEllipse978, imgEllipse3282, imgEllipse979, imgEllipse980];
+
+function permissionLabelForRole(r: UserRole | null | undefined): string {
+  if (r === 'l3_admin') return 'Full-permission';
+  if (r === 'l2_manager') return 'Manager';
+  return 'Limited';
+}
+
+function adaptProfile(p: UserProfile, idx: number): UiUser {
+  return {
+    id: p.id,
+    name: p.full_name ?? p.email?.split('@')[0] ?? 'Unknown',
+    role: p.department ?? (p.role === 'l3_admin' ? 'Administrator' : 'Team member'),
+    group: p.department ?? 'Team',
+    email: p.email,
+    permissions: permissionLabelForRole(p.role),
+    avatar: p.avatar_url ?? DEMO_AVATARS[idx % DEMO_AVATARS.length],
+  };
+}
+
+const DEMO_USERS: UiUser[] = [
   { name: 'Kapil Dev', role: 'Software Engineer', group: 'Software team', email: 'kapildev@mail.com', permissions: 'Limited', avatar: imgAvatar1 },
   { name: 'Kapil Dev', role: 'Associate',          group: 'Software team', email: 'kapildev@mail.com', permissions: 'Limited', avatar: imgEllipse978 },
   { name: 'Kapil Dev', role: 'Software Engineer', group: 'Software team', email: 'kapildev@mail.com', permissions: 'Limited', avatar: imgAvatar1 },
@@ -41,7 +75,10 @@ const navItems = [
 
 export default function UserManagementPage() {
   const navigate = useNavigate();
-  const [users, setUsers] = useState(initialUsers);
+  const { corporateId } = useAuth();
+  const [users, setUsers] = useState<UiUser[]>(DEMO_USERS);
+  const [hasRealUsers, setHasRealUsers] = useState(false);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [activeTab, setActiveTab] = useState<'users' | 'vendors'>('users');
   const [checkedRows, setCheckedRows] = useState<Set<number>>(new Set());
   const [headerChecked, setHeaderChecked] = useState(false);
@@ -167,6 +204,25 @@ export default function UserManagementPage() {
     const u = users[selectedUserProfileIdx];
     setProfilePersonalForm({ role: u.role, group: u.group });
   }, [selectedUserProfileIdx, users]);
+
+  useEffect(() => {
+    if (!corporateId) return;
+    let cancelled = false;
+    setIsLoadingUsers(true);
+    db.userProfiles.listByCorporate(corporateId).then(({ data, error }) => {
+      if (cancelled) return;
+      setIsLoadingUsers(false);
+      if (error || !data || data.length === 0) {
+        setHasRealUsers(false);
+        return;
+      }
+      setUsers((data as UserProfile[]).map(adaptProfile));
+      setHasRealUsers(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [corporateId]);
 
   const handleAddSingleUserNext = () => {
     setAddUserError('');
@@ -355,6 +411,7 @@ export default function UserManagementPage() {
 
         {/* ── PAGE CONTENT ── */}
         <MogzuCorporateScrollSurface className="px-8 py-8">
+          {!hasRealUsers && !isLoadingUsers && <DevMockDataBanner />}
           {/* Title + Tabs row */}
           <div className="flex items-center gap-6 mb-2">
             <h1 className="font-['Montserrat'] font-bold text-[28px] text-gray-900 tracking-tight whitespace-nowrap">

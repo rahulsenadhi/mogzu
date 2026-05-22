@@ -1,13 +1,51 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
 import { Download } from 'lucide-react';
 import LocalePickerCard from './LocalePickerCard';
+import { useAuth } from '@/lib/auth';
+import { db } from '@/lib/db';
+import { authActions } from '@/lib/authActions';
+import type { NotificationType } from '@/lib/database.types';
+
+type NotifKey = 'enquiryUpdates' | 'approvalUpdates' | 'paymentUpdates' | 'bookingReminders';
+
+const NOTIF_GROUP: Record<NotifKey, NotificationType[]> = {
+  enquiryUpdates: ['support_reply'],
+  approvalUpdates: ['approval_required', 'approval_decided'],
+  paymentUpdates: ['payment_received', 'payment_failed', 'refund_initiated', 'refund_failed'],
+  bookingReminders: ['booking_confirmed', 'booking_cancelled', 'reminder_24h'],
+};
+
+const ALL_NOTIF_TYPES: NotificationType[] = [
+  'support_reply',
+  'approval_required',
+  'approval_decided',
+  'payment_received',
+  'payment_failed',
+  'refund_initiated',
+  'refund_failed',
+  'booking_confirmed',
+  'booking_cancelled',
+  'reminder_24h',
+  'gift_received',
+  'gift_pending_approval',
+  'system',
+];
+
+function splitName(fullName: string | null | undefined): { firstName: string; lastName: string } {
+  const trimmed = (fullName ?? '').trim();
+  if (!trimmed) return { firstName: '', lastName: '' };
+  const parts = trimmed.split(/\s+/);
+  if (parts.length === 1) return { firstName: parts[0], lastName: '' };
+  return { firstName: parts[0], lastName: parts.slice(1).join(' ') };
+}
 
 export default function MyProfilePage() {
   const navigate = useNavigate();
+  const { profile, refreshProfile } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -19,10 +57,10 @@ export default function MyProfilePage() {
   const [submitSuccess, setSubmitSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [profileForm, setProfileForm] = useState({
-    firstName: 'James',
-    lastName: 'Brown',
-    phone: '9876543210',
-    department: 'Operations',
+    firstName: '',
+    lastName: '',
+    phone: '',
+    department: '',
   });
   const [securityForm, setSecurityForm] = useState({
     currentPassword: '',
@@ -35,35 +73,53 @@ export default function MyProfilePage() {
     paymentUpdates: true,
     bookingReminders: true,
   });
-  const loadTimerRef = useRef<number | null>(null);
 
-  const loadProfile = () => {
+  const loadProfile = async () => {
     setIsLoading(true);
     setLoadError('');
-
-    if (loadTimerRef.current) window.clearTimeout(loadTimerRef.current);
-    loadTimerRef.current = window.setTimeout(() => {
-      if (Math.random() < 0.12) {
-        setLoadError('Unable to load profile right now. Please retry.');
-        setIsLoading(false);
-        return;
-      }
-      setIsProfileEmpty(false);
+    if (!profile) {
+      setIsProfileEmpty(true);
       setIsLoading(false);
-    }, 700);
+      return;
+    }
+    const { firstName, lastName } = splitName(profile.full_name);
+    setProfileForm({
+      firstName,
+      lastName,
+      phone: profile.phone ?? '',
+      department: profile.department ?? '',
+    });
+    const { data: prefs, error: prefsErr } = await db.notificationPreferences.get(profile.id);
+    if (prefsErr) {
+      setLoadError(prefsErr.message);
+      setIsLoading(false);
+      return;
+    }
+    const inAppEnabled = (prefs?.in_app_enabled_types ?? ALL_NOTIF_TYPES) as NotificationType[];
+    const isOn = (key: NotifKey) =>
+      NOTIF_GROUP[key].some((t) => inAppEnabled.includes(t));
+    setNotificationForm({
+      enquiryUpdates: prefs ? isOn('enquiryUpdates') : true,
+      approvalUpdates: prefs ? isOn('approvalUpdates') : true,
+      paymentUpdates: prefs ? isOn('paymentUpdates') : true,
+      bookingReminders: prefs ? isOn('bookingReminders') : true,
+    });
+    setIsProfileEmpty(false);
+    setIsLoading(false);
   };
 
   useEffect(() => {
     loadProfile();
-    return () => {
-      if (loadTimerRef.current) window.clearTimeout(loadTimerRef.current);
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [profile?.id]);
 
-  const handleSavePersonal = () => {
+  const handleSavePersonal = async () => {
     setSubmitError('');
     setSubmitSuccess('');
+    if (!profile) {
+      setSubmitError('Not signed in.');
+      return;
+    }
     if (!profileForm.firstName.trim() || !profileForm.lastName.trim()) {
       setSubmitError('First name and last name are required.');
       return;
@@ -74,13 +130,23 @@ export default function MyProfilePage() {
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setSubmitSuccess('Personal profile updated successfully.');
-    }, 700);
+    const fullName = `${profileForm.firstName.trim()} ${profileForm.lastName.trim()}`;
+    const { error } = await db.userProfiles.upsert({
+      ...profile,
+      full_name: fullName,
+      phone: profileForm.phone.trim(),
+      department: profileForm.department.trim() || null,
+    });
+    setIsSubmitting(false);
+    if (error) {
+      setSubmitError(error.message);
+      return;
+    }
+    await refreshProfile();
+    setSubmitSuccess('Personal profile updated successfully.');
   };
 
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
     setSubmitError('');
     setSubmitSuccess('');
     if (!securityForm.currentPassword.trim()) {
@@ -96,21 +162,44 @@ export default function MyProfilePage() {
       return;
     }
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setSecurityForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      setSubmitSuccess('Password changed successfully.');
-    }, 700);
+    const { error } = await authActions.updatePassword(securityForm.newPassword);
+    setIsSubmitting(false);
+    if (error) {
+      setSubmitError(error.message);
+      return;
+    }
+    setSecurityForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    setSubmitSuccess('Password changed successfully.');
   };
 
-  const handleSaveNotifications = () => {
+  const handleSaveNotifications = async () => {
     setSubmitError('');
     setSubmitSuccess('');
+    if (!profile) {
+      setSubmitError('Not signed in.');
+      return;
+    }
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setSubmitSuccess('Notification preferences saved.');
-    }, 700);
+    const enabledTypes = new Set<NotificationType>();
+    (Object.keys(notificationForm) as NotifKey[]).forEach((key) => {
+      if (notificationForm[key]) NOTIF_GROUP[key].forEach((t) => enabledTypes.add(t));
+    });
+    // Critical types always-on (gift / system) included implicitly
+    enabledTypes.add('gift_received');
+    enabledTypes.add('gift_pending_approval');
+    enabledTypes.add('system');
+    const typesArr = Array.from(enabledTypes);
+    const { error } = await db.notificationPreferences.upsert({
+      user_id: profile.id,
+      in_app_enabled_types: typesArr,
+      email_enabled_types: typesArr,
+    });
+    setIsSubmitting(false);
+    if (error) {
+      setSubmitError(error.message);
+      return;
+    }
+    setSubmitSuccess('Notification preferences saved.');
   };
 
   return (

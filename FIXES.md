@@ -2,6 +2,34 @@
 
 > One line per file touched. Newest at top.
 
+## 2026-05-21 — Batch 7: Corp user-mgmt + MyProfile real-data wiring
+
+- `MogzuApplication/src/app/components/MyProfilePage.tsx`:
+  - Dropped hardcoded `profileForm` defaults (`James Brown / Operations / 9876543210`) and the setTimeout fake loader (incl. 12% random-fail simulator).
+  - Pulls `useAuth().profile` on mount; `splitName()` helper splits `full_name` → `firstName`/`lastName`.
+  - Personal save → `db.userProfiles.upsert({ ...profile, full_name, phone, department })` + `refreshProfile()` from auth context.
+  - Password save → `authActions.updatePassword(newPassword)` (Supabase auth.updateUser). Note: Supabase doesn't verify current password — the "Current Password" field is still client-collected for UX symmetry but isn't sent.
+  - Notifications save → `db.notificationPreferences.upsert({ user_id, in_app_enabled_types, email_enabled_types })`. Page's 4 toggles (`enquiryUpdates`/`approvalUpdates`/`paymentUpdates`/`bookingReminders`) map to NotificationType groups via `NOTIF_GROUP` constant (e.g. `paymentUpdates` → `['payment_received','payment_failed','refund_initiated','refund_failed']`). Critical types (`gift_*`, `system`) always enabled per backend convention.
+  - Load reads existing prefs row; falls back to all-enabled when no row exists (matches backend `notify()` default-allow when prefs are absent).
+  - Billing tab (plan, billing history table, payment method) intentionally left hardcoded — defer to Batch 11 (`/account/billing` per FRONTEND_COMPLETION_PLAN §5).
+- `MogzuApplication/src/app/components/UserManagementPage.tsx`:
+  - `initialUsers` array renamed `DEMO_USERS` (kept as fallback; same 7 fake Kapil Dev rows).
+  - New `UiUser` type + `adaptProfile(p, idx)` mapper translates `UserProfile` row → table-row shape used everywhere on the page (avatar falls back to `DEMO_AVATARS[idx % 5]` figma-asset cycle when `avatar_url` null; permissions derived from `role`: `l3_admin` → `'Full-permission'`, `l2_manager` → `'Manager'`, else `'Limited'`; `role` and `group` both default to `department`).
+  - `useAuth().corporateId` → `db.userProfiles.listByCorporate(corporateId)` on mount. When data populated: `setUsers(...map(adaptProfile))`. Empty result keeps `DEMO_USERS`.
+  - `DevMockDataBanner` mounted at top of scroll surface when `!hasRealUsers && !isLoadingUsers`.
+- `MogzuApplication/src/app/components/CompanySettingsPage.tsx` (no change): page is pure nav hub (6 cards → /my-profile, /user-management, /settings/workflow, /wallet, /company-settings/dashboard). All target routes are real-data wired. Card descriptions still hand-authored but accurate.
+
+Why: glitch #9 — `/user-management` showed 7 identical fake "Kapil Dev" rows, `/my-profile` showed canned "James Brown / Operations" with setTimeout placeholder loader.
+
+Carry-over (Batch 5 in FRONTEND_COMPLETION_PLAN — still pending after this slice):
+- Domain validation on `/signup/corporate` (Story 1.1).
+- Bulk invite CSV upload on `/user-management` (Story 1.2). Page's "Add Users" + "Add Single User" modals still local-state-only; submitting doesn't reach Supabase auth invite RPC.
+- Pending/accepted/expired invite status table.
+- Invite resend + 72h expiry enforcement.
+- Approval workflow editor on `/settings/workflow` (still local rules + fake Save — same carry-over noted under Batch 4).
+
+Verified: `npm run build` exit 0, `built in 1m 6s`.
+
 ## 2026-05-21 — Batch 6: Admin dashboard real-data wiring
 
 - `MogzuApplication/src/app/components/AdminDashboardPage.tsx` — full rewrite of data layer. Drops hardcoded constants `revenueByMonth`, `commissionData`, `toReceiveRows`, `toPayRows`, `loginLog`, `pendingIssues`, `resolvedIssues`, plus the 6 KPI card literals (175 / 64 / 36 / 25 / 15 / 175). Renames to `DEMO_*` and gates behind empty-slice fallback per the demo-data convention. New `loadAdminStats()` fans out 11 parallel queries:
