@@ -15,6 +15,7 @@ import { db } from '@/lib/db'
 import { supabase } from '@/lib/supabase'
 import { storageService } from '@/lib/storage'
 import { findStage, getStagePipeline, type TrackerStage } from '@/lib/bookingTracker'
+import { BookingProofCaptureCard } from '@/app/components/booking/BookingProofCaptureCard'
 import type {
   Booking,
   BookingPaymentMilestone,
@@ -26,6 +27,7 @@ import type {
 type BookingDetail = Booking & {
   listings?: { title: string | null; location_city: string | null } | null
   corporate_accounts?: { name: string | null } | null
+  vendors?: { id: string; user_id: string | null } | null
 }
 
 function fmt(iso: string | null): string {
@@ -69,7 +71,7 @@ export default function BookingTrackerPage() {
     const [{ data: b, error: bErr }, { data: evs }, { data: pr }, { data: ms }] = await Promise.all([
       supabase
         .from('bookings')
-        .select('*, listings(title, location_city), corporate_accounts(name)')
+        .select('*, listings(title, location_city), corporate_accounts(name), vendors(id, user_id)')
         .eq('id', id)
         .maybeSingle(),
       db.bookingTracker.listEvents(id),
@@ -145,6 +147,9 @@ export default function BookingTrackerPage() {
 
   const pipeline = getStagePipeline(booking.module as ModuleId)
   const eventByStage = new Map(events.map((e) => [e.stage, e]))
+  const isVendorOfBooking = profile?.id != null && booking.vendors?.user_id === profile.id
+  const isFieldAgent = role === 'field_agent'
+  const canSubmitProof = isAdmin || isVendorOfBooking || isFieldAgent
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-8">
@@ -203,6 +208,15 @@ export default function BookingTrackerPage() {
           })}
           {pipeline.length === 0 && (
             <p className="text-xs text-slate-500">No pipeline defined for this module.</p>
+          )}
+          {canSubmitProof && profile && (
+            <BookingProofCaptureCard
+              bookingId={booking.id}
+              module={booking.module as ModuleId}
+              submittedKeys={events.map((e) => e.stage)}
+              submittedBy={profile.id}
+              onSubmitted={() => void load()}
+            />
           )}
         </section>
       )}
