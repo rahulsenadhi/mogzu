@@ -76,10 +76,11 @@ export default function AdminLayout() {
   })();
 
   useEffect(() => {
-    if (!getAdminSession()) {
-      navigate('/admin/login', { replace: true });
-      return;
-    }
+    // AdminRoute (parent guard) already enforces Supabase session + admin
+    // role. The previous getAdminSession() localStorage check was a
+    // pre-Supabase artifact and fought the new guard, causing a /admin ↔
+    // /admin/login redirect ping-pong. Mark ready unconditionally; the
+    // guard upstream blocks unauthorised access before we mount here.
     setAuthReady(true);
   }, [navigate]);
 
