@@ -351,6 +351,8 @@ export interface CorporateAccount {
   modules_enabled: Record<ModuleId, boolean>
   referred_by_partner_id: string | null
   referred_at: string | null
+  region: string | null
+  default_currency: string | null
   created_at: string
   updated_at: string
 }

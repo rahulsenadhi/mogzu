@@ -18,7 +18,7 @@ export default function BookingPayment() {
   const navigate = useNavigate();
   const location = useLocation();
   const { corporateAccount } = useAuth();
-  const region = (corporateAccount as { region?: string | null } | null)?.region ?? 'IN';
+  const region = corporateAccount?.region ?? 'IN';
   const regionalMethod = REGIONAL_METHODS[region] ?? null;
   const category = location.state?.category || 'default';
   const bookingFlow = buildClassicBookingBaseState(location.state);
