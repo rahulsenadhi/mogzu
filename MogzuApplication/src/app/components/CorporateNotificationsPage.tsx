@@ -1,23 +1,99 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
 import { SharedHeader } from './layouts/SharedHeader';
-import { 
-  Bell, 
-  CheckCircle2, 
-  Clock, 
-  AlertCircle, 
-  Send, 
-  Search, 
+import {
+  Bell,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  Send,
+  Search,
   Filter,
   Users,
   Megaphone,
   Briefcase,
-  Layers
+  Layers,
+  Gift,
+  CreditCard,
 } from 'lucide-react';
+import { useAuth } from '@/lib/auth';
+import { notifications as notificationsApi } from '@/lib/db';
+import type { Notification as DbNotification, NotificationType } from '@/lib/database.types';
 
-const mockNotifications = [
+type NotifKind = 'action' | 'shared';
+type NotifStatus = 'pending' | 'read';
+
+type DisplayNotification = {
+  id: string;
+  title: string;
+  message: string;
+  date: string;
+  type: NotifKind;
+  status: NotifStatus;
+  icon: ReactNode;
+  avatar?: string;
+  linkUrl: string | null;
+  rawType: NotificationType | null;
+};
+
+const ACTION_TYPES: NotificationType[] = [
+  'approval_required',
+  'payment_failed',
+  'refund_failed',
+  'gift_pending_approval',
+];
+
+const ICON_FOR_TYPE: Record<NotificationType, ReactNode> = {
+  support_reply: <Send className="w-5 h-5 text-blue-500" />,
+  approval_required: <AlertCircle className="w-5 h-5 text-amber-500" />,
+  approval_decided: <CheckCircle2 className="w-5 h-5 text-emerald-500" />,
+  payment_received: <CheckCircle2 className="w-5 h-5 text-emerald-500" />,
+  payment_failed: <AlertCircle className="w-5 h-5 text-rose-500" />,
+  refund_initiated: <Clock className="w-5 h-5 text-amber-500" />,
+  refund_failed: <AlertCircle className="w-5 h-5 text-rose-500" />,
+  booking_confirmed: <CheckCircle2 className="w-5 h-5 text-emerald-500" />,
+  booking_cancelled: <AlertCircle className="w-5 h-5 text-rose-500" />,
+  reminder_24h: <Clock className="w-5 h-5 text-blue-500" />,
+  gift_received: <Gift className="w-5 h-5 text-emerald-500" />,
+  gift_pending_approval: <Gift className="w-5 h-5 text-amber-500" />,
+  system: <Megaphone className="w-5 h-5 text-blue-500" />,
+};
+
+function fmtRelative(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  if (ms < 60_000) return 'Just now';
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 60) return `${mins} min${mins === 1 ? '' : 's'} ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hour${hrs === 1 ? '' : 's'} ago`;
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return `${days} days ago`;
+  return new Date(iso).toLocaleDateString('en-IN', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function mapDbNotification(n: DbNotification): DisplayNotification {
+  const t = (n.type ?? null) as NotificationType | null;
+  return {
+    id: n.id,
+    title: n.title ?? 'Notification',
+    message: n.body ?? '',
+    date: fmtRelative(n.created_at),
+    type: t && ACTION_TYPES.includes(t) ? 'action' : 'shared',
+    status: n.is_read ? 'read' : 'pending',
+    icon: t ? ICON_FOR_TYPE[t] : <Bell className="w-5 h-5 text-slate-500" />,
+    linkUrl: n.link_url ?? null,
+    rawType: t,
+  };
+}
+
+const _mockNotificationsDeprecated = [
   {
     id: 'n1',
     title: 'Booking Approval Required',
@@ -274,15 +350,16 @@ const teamMembers = [
 
 export default function CorporateNotificationsPage() {
   const navigate = useNavigate();
+  const { profile } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  
+
   // Tabs: 'inbox', 'publish'
   const [activeTab, setActiveTab] = useState<'inbox' | 'publish'>('inbox');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const [notifications, setNotifications] = useState(mockNotifications);
+  const [notifications, setNotifications] = useState<DisplayNotification[]>([]);
   const [publishError, setPublishError] = useState('');
   const [publishSuccess, setPublishSuccess] = useState('');
   const [inboxFilterNotice, setInboxFilterNotice] = useState('');
@@ -299,40 +376,30 @@ export default function CorporateNotificationsPage() {
     priority: 'normal'
   });
 
-  const loadNotifications = () => {
+  const loadNotifications = async () => {
+    if (!profile?.id) {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     setLoadError('');
-
-    if (loadTimerRef.current) window.clearTimeout(loadTimerRef.current);
-    loadTimerRef.current = window.setTimeout(() => {
-      if (Math.random() < 0.12) {
-        setLoadError('Unable to load notifications right now. Please retry.');
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        const raw = localStorage.getItem('corporateNotificationStatuses');
-        const parsed: Record<string, string> = raw ? JSON.parse(raw) : {};
-        const hydrated = mockNotifications.map((n) => ({
-          ...n,
-          status: parsed[n.id] === 'read' ? 'read' : n.status,
-        }));
-        setNotifications(hydrated);
-      } catch {
-        setLoadError('Unable to load notifications right now. Please retry.');
-      }
+    const { data, error } = await notificationsApi.listByUser(profile.id, 100);
+    if (error) {
+      setLoadError(error.message);
       setIsLoading(false);
-    }, 700);
+      return;
+    }
+    setNotifications(((data ?? []) as DbNotification[]).map(mapDbNotification));
+    setIsLoading(false);
   };
 
   useEffect(() => {
-    loadNotifications();
+    void loadNotifications();
     return () => {
       if (loadTimerRef.current) window.clearTimeout(loadTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [profile?.id]);
 
   const filteredNotifications = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -391,6 +458,12 @@ export default function CorporateNotificationsPage() {
           : n
       )
     );
+    void notificationsApi.markRead(notificationId);
+
+    if (target.linkUrl) {
+      navigate(target.linkUrl);
+      return;
+    }
 
     const normalizedTitle = target.title.toLowerCase();
 
