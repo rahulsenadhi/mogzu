@@ -9,6 +9,15 @@ import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { authActions } from '@/lib/authActions';
 import type { NotificationType } from '@/lib/database.types';
+import {
+  getSubscriptionByCorporate,
+  type SubscriptionWithPlan,
+} from '@/lib/subscriptions';
+import {
+  listCorporateInvoices,
+  getInvoicePdfSignedUrl,
+  type InvoiceRunWithContract,
+} from '@/lib/contracts';
 
 type NotifKey = 'enquiryUpdates' | 'approvalUpdates' | 'paymentUpdates' | 'bookingReminders';
 
@@ -45,14 +54,16 @@ function splitName(fullName: string | null | undefined): { firstName: string; la
 
 export default function MyProfilePage() {
   const navigate = useNavigate();
-  const { profile, refreshProfile } = useAuth();
+  const { profile, corporateId, refreshProfile } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [isProfileEmpty, setIsProfileEmpty] = useState(false);
   const [profileTopTab, setProfileTopTab] = useState<'personal' | 'billing'>('personal');
+  const [subscription, setSubscription] = useState<SubscriptionWithPlan | null>(null);
+  const [invoiceRuns, setInvoiceRuns] = useState<InvoiceRunWithContract[]>([]);
+  const [billingLoading, setBillingLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'personal' | 'security' | 'notifications'>('personal');
-  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<'visa'>('visa');
   const [submitError, setSubmitError] = useState('');
   const [submitSuccess, setSubmitSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -112,6 +123,31 @@ export default function MyProfilePage() {
     loadProfile();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id]);
+
+  useEffect(() => {
+    if (profileTopTab !== 'billing' || !corporateId) return;
+    let cancelled = false;
+    (async () => {
+      setBillingLoading(true);
+      const [{ data: sub }, { data: runs }] = await Promise.all([
+        getSubscriptionByCorporate(corporateId),
+        listCorporateInvoices(corporateId),
+      ]);
+      if (cancelled) return;
+      setSubscription(sub);
+      setInvoiceRuns(runs);
+      setBillingLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [profileTopTab, corporateId]);
+
+  const openInvoicePdf = async (path: string | null) => {
+    if (!path) return;
+    const { url } = await getInvoicePdfSignedUrl(path);
+    if (url) window.open(url, '_blank', 'noopener,noreferrer');
+  };
 
   const handleSavePersonal = async () => {
     setSubmitError('');
@@ -474,84 +510,179 @@ export default function MyProfilePage() {
 
                   {profileTopTab === 'billing' && (
                     <div className="space-y-10">
-                      <div className="bg-white rounded-2xl p-8 border border-[#ececec] shadow-sm">
-                        <div className="flex items-start justify-between gap-6">
-                          <div>
-                            <h2 className="text-2xl font-bold text-gray-900 mb-2">Standard</h2>
-                            <div className="text-sm text-gray-600">
-                              <span className="font-bold text-gray-900">₹10,201</span> <span>/ month</span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-8">
-                            <button
-                              type="button"
-                              className="text-sm font-medium text-slate-600 hover:text-slate-800"
-                            >
-                              Cancel subscription
-                            </button>
-                            <button
-                              type="button"
-                              className="text-sm font-medium text-[#2563eb] hover:underline"
-                            >
-                              Upgrade
-                            </button>
-                          </div>
+                      {billingLoading ? (
+                        <div className="p-6 border border-[#ececec] rounded-xl bg-slate-50 text-sm text-slate-500">
+                          Loading billing…
                         </div>
-
-                        <div className="mt-8 grid grid-cols-2 gap-8 text-sm">
-                          <div>
-                            <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                              Start date
-                            </div>
-                            <div className="mt-1 font-medium text-slate-900">25 July 2024</div>
-                          </div>
-                          <div>
-                            <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                              Renewal date
-                            </div>
-                            <div className="mt-1 font-medium text-slate-900">25 August 2024</div>
-                          </div>
-                        </div>
-
-                        <div className="mt-6 rounded-lg border border-[#2563eb]/20 bg-[#ebf1ff] px-5 py-3 flex items-start gap-3">
-                          <div className="mt-0.5 h-5 w-5 rounded-full bg-[#2563eb] flex items-center justify-center text-white text-[11px] font-bold">
-                            i
-                          </div>
-                          <p className="text-sm text-slate-700">
-                            Your subscription will be automatically renewed for 1 month on 25 August 2024.
+                      ) : !subscription ? (
+                        <div className="p-6 border border-[#ececec] rounded-xl bg-slate-50">
+                          <p className="text-sm text-slate-700 mb-3">
+                            No active subscription on this corporate. Contact sales or pick a plan.
                           </p>
+                          <button
+                            type="button"
+                            onClick={() => navigate('/account/billing')}
+                            className="px-4 py-2 bg-[#2563eb] text-white rounded-md text-sm hover:bg-[#1d4ed8] transition-colors"
+                          >
+                            View plans
+                          </button>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="bg-white rounded-2xl p-8 border border-[#ececec] shadow-sm">
+                          <div className="flex items-start justify-between gap-6">
+                            <div>
+                              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                                {subscription.plan?.name ?? 'Plan'}
+                              </h2>
+                              <div className="text-sm text-gray-600">
+                                <span className="font-bold text-gray-900">
+                                  ₹
+                                  {Math.round(
+                                    (subscription.plan?.monthly_per_seat ?? 0) *
+                                      (subscription.seat_count ?? 1),
+                                  ).toLocaleString('en-IN')}
+                                </span>{' '}
+                                <span>
+                                  / month · {subscription.seat_count} seat
+                                  {subscription.seat_count === 1 ? '' : 's'}
+                                </span>
+                              </div>
+                              <span
+                                className={`mt-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                                  subscription.status === 'active'
+                                    ? 'bg-emerald-100 text-emerald-700'
+                                    : subscription.status === 'past_due'
+                                      ? 'bg-rose-100 text-rose-700'
+                                      : 'bg-amber-100 text-amber-700'
+                                }`}
+                              >
+                                {subscription.status}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-8">
+                              <button
+                                type="button"
+                                onClick={() => navigate('/account/billing')}
+                                className="text-sm font-medium text-slate-600 hover:text-slate-800"
+                              >
+                                Manage seats
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => navigate('/account/billing')}
+                                className="text-sm font-medium text-[#2563eb] hover:underline"
+                              >
+                                Upgrade
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="mt-8 grid grid-cols-2 gap-8 text-sm">
+                            <div>
+                              <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                                Period start
+                              </div>
+                              <div className="mt-1 font-medium text-slate-900">
+                                {subscription.current_period_starts_on}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                                Renewal date
+                              </div>
+                              <div className="mt-1 font-medium text-slate-900">
+                                {subscription.current_period_ends_on}
+                              </div>
+                            </div>
+                          </div>
+
+                          {subscription.dunning_attempts > 0 && (
+                            <div className="mt-6 rounded-lg border border-rose-200 bg-rose-50 px-5 py-3">
+                              <p className="text-sm font-bold text-rose-900">
+                                Payment retries pending ({subscription.dunning_attempts}/4)
+                              </p>
+                              <p className="text-xs text-rose-800 mt-1">
+                                {subscription.last_payment_error ?? 'Resolve via /account/billing.'}
+                              </p>
+                            </div>
+                          )}
+
+                          {subscription.status === 'active' &&
+                            subscription.dunning_attempts === 0 && (
+                              <div className="mt-6 rounded-lg border border-[#2563eb]/20 bg-[#ebf1ff] px-5 py-3 flex items-start gap-3">
+                                <div className="mt-0.5 h-5 w-5 rounded-full bg-[#2563eb] flex items-center justify-center text-white text-[11px] font-bold">
+                                  i
+                                </div>
+                                <p className="text-sm text-slate-700">
+                                  Auto-renews on {subscription.current_period_ends_on}.
+                                </p>
+                              </div>
+                            )}
+                        </div>
+                      )}
 
                       <div>
-                        <h2 className="text-lg font-bold text-gray-900 mb-4">Billing History</h2>
+                        <h2 className="text-lg font-bold text-gray-900 mb-4">Billing history</h2>
                         <div className="bg-white rounded-2xl border border-[#ececec] shadow-sm overflow-hidden">
                           <table className="w-full text-sm">
                             <thead className="bg-white">
                               <tr className="border-b border-[#ececec] text-xs text-slate-500">
-                                <th className="text-left px-6 py-4 font-medium">Invoice ID</th>
-                                <th className="text-left px-6 py-4 font-medium">Plan</th>
+                                <th className="text-left px-6 py-4 font-medium">Invoice</th>
+                                <th className="text-left px-6 py-4 font-medium">Contract</th>
+                                <th className="text-left px-6 py-4 font-medium">Period</th>
                                 <th className="text-left px-6 py-4 font-medium">Amount</th>
-                                <th className="text-left px-6 py-4 font-medium">Date</th>
+                                <th className="text-left px-6 py-4 font-medium">Status</th>
                                 <th className="text-right px-6 py-4 font-medium"> </th>
                               </tr>
                             </thead>
                             <tbody>
-                              {[
-                                { id: '12444632', plan: 'Standard', amount: '₹10,201', date: 'Jul 25, 2024' },
-                                { id: '23446132', plan: 'Standard', amount: '₹10,201', date: 'Jun 25, 2024' },
-                                { id: '21445463', plan: 'Standard', amount: '₹10,201', date: 'May 25, 2024' },
-                                { id: '143534113', plan: 'Standard', amount: '₹10,201', date: 'Apr 25, 2024' },
-                              ].map((row) => (
-                                <tr key={row.id} className="border-b border-[#ececec] last:border-b-0">
-                                  <td className="px-6 py-4 font-medium text-slate-800">{row.id}</td>
-                                  <td className="px-6 py-4 text-slate-700">{row.plan}</td>
-                                  <td className="px-6 py-4 text-slate-700">{row.amount}</td>
-                                  <td className="px-6 py-4 text-slate-700">{row.date}</td>
+                              {invoiceRuns.length === 0 && (
+                                <tr>
+                                  <td
+                                    colSpan={6}
+                                    className="px-6 py-10 text-center text-slate-400"
+                                  >
+                                    No invoices yet.
+                                  </td>
+                                </tr>
+                              )}
+                              {invoiceRuns.map((row) => (
+                                <tr
+                                  key={row.id}
+                                  className="border-b border-[#ececec] last:border-b-0"
+                                >
+                                  <td className="px-6 py-4 font-mono text-xs text-slate-800">
+                                    {row.id.slice(0, 12)}
+                                  </td>
+                                  <td className="px-6 py-4 text-slate-700">
+                                    {row.contract?.name ?? '—'}
+                                  </td>
+                                  <td className="px-6 py-4 text-slate-700">
+                                    {row.period_starts_on} → {row.period_ends_on}
+                                  </td>
+                                  <td className="px-6 py-4 text-slate-700">
+                                    ₹{Math.round(row.total).toLocaleString('en-IN')}
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <span
+                                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
+                                        row.status === 'paid'
+                                          ? 'bg-emerald-100 text-emerald-700'
+                                          : row.status === 'overdue'
+                                            ? 'bg-rose-100 text-rose-700'
+                                            : 'bg-amber-100 text-amber-700'
+                                      }`}
+                                    >
+                                      {row.status}
+                                    </span>
+                                  </td>
                                   <td className="px-6 py-4 text-right">
                                     <button
                                       type="button"
-                                      className="inline-flex items-center justify-center rounded p-2 text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+                                      disabled={!row.pdf_storage_path}
+                                      onClick={() => void openInvoicePdf(row.pdf_storage_path)}
+                                      className="inline-flex items-center justify-center rounded p-2 text-slate-400 hover:bg-slate-50 hover:text-slate-600 disabled:opacity-30"
+                                      title={row.pdf_storage_path ? 'Download PDF' : 'No PDF yet'}
                                     >
                                       <Download className="h-4 w-4" />
                                     </button>
@@ -564,34 +695,18 @@ export default function MyProfilePage() {
                       </div>
 
                       <div>
-                        <h2 className="text-lg font-bold text-gray-900 mb-4">Payment Methods</h2>
-                        <div className="bg-white rounded-2xl border border-[#ececec] shadow-sm overflow-hidden p-6">
-                          <div className="rounded-xl border border-[#ececec] p-4">
-                            <label className="flex items-center gap-4 cursor-pointer">
-                              <input
-                                type="radio"
-                                name="paymentMethod"
-                                checked={selectedPaymentMethodId === 'visa'}
-                                onChange={() => setSelectedPaymentMethodId('visa')}
-                                className="accent-[#2563eb]"
-                              />
-                              <div className="flex items-center gap-3">
-                                <div className="h-8 w-14 rounded border border-slate-200 flex items-center justify-center">
-                                  <span className="text-xs font-bold text-[#2563eb]">VISA</span>
-                                </div>
-                                <div className="text-sm text-slate-600">
-                                  <span className="font-medium text-slate-800">**** ****</span> 9272
-                                </div>
-                              </div>
-                            </label>
-                          </div>
-
+                        <h2 className="text-lg font-bold text-gray-900 mb-4">Payment methods</h2>
+                        <div className="bg-white rounded-2xl border border-[#ececec] shadow-sm p-6 text-sm text-slate-600">
+                          Saved cards are managed at checkout via Razorpay. Wallet balance and
+                          top-ups live on{' '}
                           <button
                             type="button"
-                            className="mt-4 text-sm font-medium text-[#2563eb] hover:underline"
+                            onClick={() => navigate('/wallet')}
+                            className="font-medium text-[#2563eb] hover:underline"
                           >
-                            + New payment method
+                            /wallet
                           </button>
+                          .
                         </div>
                       </div>
                     </div>
