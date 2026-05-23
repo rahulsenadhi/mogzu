@@ -73,14 +73,18 @@ export default function AdminLoginPage() {
     }
   };
 
+  // Do NOT auto-signOut on render: that caused a flicker loop when a
+  // corporate/vendor session landed on this page (signOut → state change
+  // → re-render → effect re-fires before isAuthenticated settles). Just
+  // surface a sticky banner; the user clicks "Sign out other account" to
+  // explicitly drop the wrong session.
+  const isWrongRole =
+    !isLoading && isAuthenticated && role !== null && !isAdminRole(role);
   useEffect(() => {
-    if (!isLoading && isAuthenticated && !isAdminRole(role) && role !== null) {
-      // Same guard for OAuth / restored sessions that land here without the
-      // admin role. Sign out and surface the error.
+    if (isWrongRole) {
       setFormError('This account does not have administrator access.');
-      void signOut();
     }
-  }, [isLoading, isAuthenticated, role, signOut]);
+  }, [isWrongRole]);
 
   const handleGoogleLogin = async () => {
     await authActions.signInWithOAuth('google');
@@ -196,6 +200,15 @@ export default function AdminLoginPage() {
           {formError && (
             <div className="mb-3 p-2.5 rounded-md border border-[#dde2e4] bg-[#f9f9f9]">
               <p className="text-[11px] text-[#0e1e3f]">{formError}</p>
+              {isWrongRole && (
+                <button
+                  type="button"
+                  onClick={() => void signOut()}
+                  className="mt-2 inline-flex items-center rounded border border-[#0e1e3f] px-2 py-1 text-[11px] font-semibold text-[#0e1e3f] hover:bg-[#0e1e3f] hover:text-white transition-colors"
+                >
+                  Sign out current account
+                </button>
+              )}
             </div>
           )}
 
