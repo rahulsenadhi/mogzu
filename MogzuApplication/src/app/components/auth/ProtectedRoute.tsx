@@ -1,7 +1,27 @@
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router'
 import { useAuth, isCorporateRole, isVendorRole, isAdminRole } from '@/lib/auth'
 import { getCorporateOnboardingPath } from '@/app/lib/corporateOnboarding'
+
+// Side-effect-free refresh hook: triggers refreshProfile() exactly once
+// per signed-in user while the profile row is still missing. Prevents
+// the render-time side-effect anti-pattern that caused redirect loops.
+function useEnsureProfile(
+  isAuthenticated: boolean,
+  hasProfile: boolean,
+  refreshProfile: () => Promise<void>,
+): void {
+  const triedRef = useRef(false)
+  useEffect(() => {
+    if (isAuthenticated && !hasProfile && !triedRef.current) {
+      triedRef.current = true
+      void refreshProfile()
+    }
+    if (!isAuthenticated) {
+      triedRef.current = false
+    }
+  }, [isAuthenticated, hasProfile, refreshProfile])
+}
 
 function FullScreenSpinner() {
   return (
@@ -18,6 +38,7 @@ interface GuardProps {
 export function CorporateRoute({ children }: GuardProps) {
   const { isLoading, isAuthenticated, role, profile, refreshProfile } = useAuth()
   const location = useLocation()
+  useEnsureProfile(isAuthenticated, !!profile, refreshProfile)
 
   if (isLoading) return <FullScreenSpinner />
 
@@ -27,7 +48,6 @@ export function CorporateRoute({ children }: GuardProps) {
 
   // Session exists but profile still bootstrapping — wait, don't bounce to onboarding
   if (!profile && !role) {
-    void refreshProfile()
     return <FullScreenSpinner />
   }
 
@@ -52,6 +72,7 @@ export function CorporateRoute({ children }: GuardProps) {
 export function VendorRoute({ children }: GuardProps) {
   const { isLoading, isAuthenticated, role, profile, refreshProfile } = useAuth()
   const location = useLocation()
+  useEnsureProfile(isAuthenticated, !!profile, refreshProfile)
 
   if (isLoading) return <FullScreenSpinner />
 
@@ -61,7 +82,6 @@ export function VendorRoute({ children }: GuardProps) {
 
   // Same anti-flicker guard as AdminRoute / CorporateRoute.
   if (!profile && !role) {
-    void refreshProfile()
     return <FullScreenSpinner />
   }
 
@@ -77,6 +97,7 @@ export function VendorRoute({ children }: GuardProps) {
 export function AdminRoute({ children }: GuardProps) {
   const { isLoading, isAuthenticated, role, profile, refreshProfile } = useAuth()
   const location = useLocation()
+  useEnsureProfile(isAuthenticated, !!profile, refreshProfile)
 
   if (isLoading) return <FullScreenSpinner />
 
@@ -89,8 +110,7 @@ export function AdminRoute({ children }: GuardProps) {
   // was ineffective because activeRole always falls back to 'l1_employee'
   // when session.user exists — so role is never null mid-fetch, causing
   // AdminRoute to see isCorporateRole(role)=true and redirect to /dashboard.
-  if (!profile && isAuthenticated) {
-    void refreshProfile()
+  if (!profile) {
     return <FullScreenSpinner />
   }
 
