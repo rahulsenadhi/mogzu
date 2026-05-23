@@ -50,13 +50,19 @@ export function CorporateRoute({ children }: GuardProps) {
 }
 
 export function VendorRoute({ children }: GuardProps) {
-  const { isLoading, isAuthenticated, role } = useAuth()
+  const { isLoading, isAuthenticated, role, profile, refreshProfile } = useAuth()
   const location = useLocation()
 
   if (isLoading) return <FullScreenSpinner />
 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />
+  }
+
+  // Same anti-flicker guard as AdminRoute / CorporateRoute.
+  if (!profile && !role) {
+    void refreshProfile()
+    return <FullScreenSpinner />
   }
 
   if (!isVendorRole(role)) {
@@ -69,13 +75,23 @@ export function VendorRoute({ children }: GuardProps) {
 }
 
 export function AdminRoute({ children }: GuardProps) {
-  const { isLoading, isAuthenticated, role } = useAuth()
+  const { isLoading, isAuthenticated, role, profile, refreshProfile } = useAuth()
   const location = useLocation()
 
   if (isLoading) return <FullScreenSpinner />
 
   if (!isAuthenticated) {
     return <Navigate to="/admin/login" state={{ from: location }} replace />
+  }
+
+  // Session exists but profile still bootstrapping after sign-in: wait
+  // instead of bouncing back to /admin/login. Without this guard the
+  // page flickers — AdminLoginPage redirects to /admin once it sees
+  // role=mogzu_admin, but AdminRoute sees role=null for one render and
+  // sends the user right back, creating a visible ping-pong.
+  if (!profile && !role) {
+    void refreshProfile()
+    return <FullScreenSpinner />
   }
 
   if (!isAdminRole(role)) {
