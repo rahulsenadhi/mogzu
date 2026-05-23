@@ -85,11 +85,11 @@ export function AdminRoute({ children }: GuardProps) {
   }
 
   // Session exists but profile still bootstrapping after sign-in: wait
-  // instead of bouncing back to /admin/login. Without this guard the
-  // page flickers — AdminLoginPage redirects to /admin once it sees
-  // role=mogzu_admin, but AdminRoute sees role=null for one render and
-  // sends the user right back, creating a visible ping-pong.
-  if (!profile && !role) {
+  // instead of bouncing back to /admin/login. The !profile && !role guard
+  // was ineffective because activeRole always falls back to 'l1_employee'
+  // when session.user exists — so role is never null mid-fetch, causing
+  // AdminRoute to see isCorporateRole(role)=true and redirect to /dashboard.
+  if (!profile && isAuthenticated) {
     void refreshProfile()
     return <FullScreenSpinner />
   }

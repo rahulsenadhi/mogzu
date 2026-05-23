@@ -11,7 +11,7 @@ import { authActions } from '@/lib/authActions';
 export default function AdminLoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { signIn, signOut, isAuthenticated, role, isLoading } = useAuth();
+  const { signIn, signOut, isAuthenticated, role, isLoading, profile } = useAuth();
   const [view, setView] = useState<'login' | 'forgot'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -78,8 +78,11 @@ export default function AdminLoginPage() {
   // → re-render → effect re-fires before isAuthenticated settles). Just
   // surface a sticky banner; the user clicks "Sign out other account" to
   // explicitly drop the wrong session.
+  // Require profile to be loaded before flagging wrong role — avoids a false
+  // error flash during the brief window where the session is set but the
+  // profile row hasn't been fetched yet (activeRole falls back to l1_employee).
   const isWrongRole =
-    !isLoading && isAuthenticated && role !== null && !isAdminRole(role);
+    !isLoading && isAuthenticated && !!profile && !isAdminRole(role);
   useEffect(() => {
     if (isWrongRole) {
       setFormError('This account does not have administrator access.');
