@@ -7,12 +7,19 @@ import {
   type OrderStatus,
   updateVendorGiftingOrderStatus,
   type VendorGiftingOrder,
-  type VendorGiftingSettings,
 } from '@/app/lib/vendorGiftingStore'
+import {
+  giftingRowToDisplayOrder,
+  orderStatusToFulfilmentStage,
+  type GiftingBookingRow,
+  type GiftingDisplayOrder,
+} from '@/app/lib/giftingBookingOrders'
+import { DevMockDataBanner } from '@/app/components/global/DevMockDataBanner'
 import { useAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { listMethods, maskAccount } from '@/lib/vendorPayouts'
 import { storageService } from '@/lib/storage'
-import type { Listing, ListingImage, ListingStatus } from '@/lib/database.types'
+import type { Listing, ListingImage, ListingStatus, NotificationType } from '@/lib/database.types'
 
 type ListingWithImages = Listing & { listing_images: ListingImage[] }
 
@@ -57,9 +64,25 @@ type GiftingMetadata = {
   outOfStock?: boolean
 }
 
+const GIFTING_EMAIL_TYPES: NotificationType[] = [
+  'booking_confirmed',
+  'payment_received',
+  'support_reply',
+  'reminder_24h',
+]
+
+type SettingsForm = {
+  businessName: string
+  gstin: string
+  pickupDeliveryPreferences: string
+  notifyEmail: boolean
+  notifySms: boolean
+  bankSummary: string
+}
+
 export default function VendorGiftingDashboardPage() {
   const navigate = useNavigate()
-  const { vendorId } = useAuth()
+  const { vendorId, profile } = useAuth()
 
   const [activeTab, setActiveTab] = useState<DashboardTab>('products')
   const [search, setSearch] = useState('')
@@ -70,9 +93,29 @@ export default function VendorGiftingDashboardPage() {
   const [productsLoading, setProductsLoading] = useState(true)
   const [productsError, setProductsError] = useState('')
 
-  // Mock-backed orders + settings (out of 4.4 scope — future sprint wiring)
+  // Orders — Supabase gifting bookings with local demo fallback
   const [storeState, setStoreState] = useState(() => loadVendorGiftingState())
-  const [orderDrawer, setOrderDrawer] = useState<VendorGiftingOrder | null>(null)
+  const [liveOrders, setLiveOrders] = useState<GiftingDisplayOrder[]>([])
+  const [ordersLoading, setOrdersLoading] = useState(true)
+  const [ordersUsingDemo, setOrdersUsingDemo] = useState(false)
+  const [orderDrawer, setOrderDrawer] = useState<GiftingDisplayOrder | VendorGiftingOrder | null>(null)
+
+  const [settingsForm, setSettingsForm] = useState<SettingsForm>(() => {
+    const local = loadVendorGiftingState().settings
+    return {
+      businessName: local.businessName,
+      gstin: local.gstin,
+      pickupDeliveryPreferences: local.pickupDeliveryPreferences,
+      notifyEmail: local.notifyEmail,
+      notifySms: local.notifySms,
+      bankSummary: '',
+    }
+  })
+  const [settingsLoading, setSettingsLoading] = useState(false)
+  const [settingsSaving, setSettingsSaving] = useState(false)
+  const [settingsNotice, setSettingsNotice] = useState('')
+  const [settingsError, setSettingsError] = useState('')
+  const [settingsUsingDemo, setSettingsUsingDemo] = useState(false)
 
   const loadProducts = useCallback(async () => {
     if (!vendorId) return
@@ -87,9 +130,128 @@ export default function VendorGiftingDashboardPage() {
     setProductsLoading(false)
   }, [vendorId])
 
+  const loadOrders = useCallback(async () => {
+    if (!vendorId) {
+      setOrdersLoading(false)
+      return
+    }
+    setOrdersLoading(true)
+    const { data, error } = await db.bookings.listByVendor(vendorId)
+    if (error) {
+      setOrdersLoading(false)
+      return
+    }
+    const gifting = ((data ?? []) as GiftingBookingRow[]).filter((b) => b.module === MODULE_ID)
+    if (gifting.length === 0) {
+      setLiveOrders([])
+      setOrdersUsingDemo(true)
+    } else {
+      setLiveOrders(gifting.map(giftingRowToDisplayOrder))
+      setOrdersUsingDemo(false)
+    }
+    setOrdersLoading(false)
+  }, [vendorId])
+
   useEffect(() => {
     loadProducts()
   }, [loadProducts])
+
+  useEffect(() => {
+    loadOrders()
+  }, [loadOrders])
+
+  const loadSettings = useCallback(async () => {
+    if (!vendorId) return
+    setSettingsLoading(true)
+    setSettingsError('')
+    const [vendorRes, methodsRes, prefsRes] = await Promise.all([
+      db.vendors.getById(vendorId),
+      listMethods(vendorId),
+      profile?.id
+        ? db.notificationPreferences.get(profile.id)
+        : Promise.resolve({ data: null, error: null }),
+    ])
+    if (vendorRes.error || !vendorRes.data) {
+      setSettingsUsingDemo(true)
+      setSettingsLoading(false)
+      return
+    }
+    const v = vendorRes.data
+    const primary = methodsRes.data.find((m) => m.is_primary) ?? methodsRes.data[0]
+    const emailTypes = (prefsRes.data?.email_enabled_types ?? []) as NotificationType[]
+    setSettingsUsingDemo(false)
+    setSettingsForm({
+      businessName: v.business_name ?? '',
+      gstin: v.gst_number ?? '',
+      pickupDeliveryPreferences: v.description ?? '',
+      notifyEmail: GIFTING_EMAIL_TYPES.some((t) => emailTypes.includes(t)),
+      notifySms: loadVendorGiftingState().settings.notifySms,
+      bankSummary: primary
+        ? `${primary.rail} · ${maskAccount(primary.account_number)} (${primary.account_holder})`
+        : 'No payout method — add one in Vendor Settings',
+    })
+    setSettingsLoading(false)
+  }, [vendorId, profile?.id])
+
+  useEffect(() => {
+    if (activeTab === 'settings') void loadSettings()
+  }, [activeTab, loadSettings])
+
+  const handleSettingsSave = async () => {
+    setSettingsNotice('')
+    setSettingsError('')
+    if (!vendorId) {
+      const next = saveVendorGiftingSettings({
+        ...loadVendorGiftingState().settings,
+        businessName: settingsForm.businessName,
+        gstin: settingsForm.gstin,
+        pickupDeliveryPreferences: settingsForm.pickupDeliveryPreferences,
+        notifyEmail: settingsForm.notifyEmail,
+        notifySms: settingsForm.notifySms,
+      })
+      setStoreState(next)
+      setSettingsNotice('Saved locally (no vendor account linked).')
+      return
+    }
+    setSettingsSaving(true)
+    const { error: profileErr } = await db.vendors.updateProfile(vendorId, {
+      business_name: settingsForm.businessName.trim(),
+      gst_number: settingsForm.gstin.trim() || null,
+      description: settingsForm.pickupDeliveryPreferences.trim() || null,
+    })
+    if (profileErr) {
+      setSettingsSaving(false)
+      setSettingsError(profileErr.message)
+      return
+    }
+    if (profile?.id) {
+      const emailTypes = settingsForm.notifyEmail ? GIFTING_EMAIL_TYPES : []
+      await db.notificationPreferences.upsert({
+        user_id: profile.id,
+        in_app_enabled_types: GIFTING_EMAIL_TYPES,
+        email_enabled_types: emailTypes,
+      })
+    }
+    saveVendorGiftingSettings({
+      ...loadVendorGiftingState().settings,
+      businessName: settingsForm.businessName,
+      gstin: settingsForm.gstin,
+      pickupDeliveryPreferences: settingsForm.pickupDeliveryPreferences,
+      notifyEmail: settingsForm.notifyEmail,
+      notifySms: settingsForm.notifySms,
+    })
+    setSettingsSaving(false)
+    setSettingsNotice('Settings saved to your vendor profile.')
+    void loadSettings()
+  }
+
+  const patchSettings = (patch: Partial<SettingsForm>) =>
+    setSettingsForm((s) => ({ ...s, ...patch }))
+
+  const displayOrders = useMemo((): Array<GiftingDisplayOrder | VendorGiftingOrder> => {
+    if (ordersUsingDemo) return storeState.orders
+    return liveOrders
+  }, [liveOrders, ordersUsingDemo, storeState.orders])
 
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
@@ -102,14 +264,14 @@ export default function VendorGiftingDashboardPage() {
   const stats = useMemo(() => {
     const totalProducts = products.length
     const activeListings = products.filter((p) => p.status === 'active').length
-    const pendingOrders = storeState.orders.filter((o) =>
+    const pendingOrders = displayOrders.filter((o) =>
       ['pending', 'confirmed', 'processing', 'shipped'].includes(o.status),
     ).length
-    const totalRevenue = storeState.orders
+    const totalRevenue = displayOrders
       .filter((o) => o.status !== 'cancelled')
       .reduce((acc, o) => acc + o.amount, 0)
     return { totalProducts, activeListings, pendingOrders, totalRevenue }
-  }, [products, storeState.orders])
+  }, [products, displayOrders])
 
   const handlePauseResume = async (p: ListingWithImages) => {
     const next: ListingStatus = p.status === 'paused' ? 'active' : 'paused'
@@ -127,29 +289,85 @@ export default function VendorGiftingDashboardPage() {
     loadProducts()
   }
 
-  const handleOrderStatusUpdate = (id: string, status: OrderStatus) => {
-    const next = updateVendorGiftingOrderStatus(id, status)
+  const handleOrderStatusUpdate = async (order: GiftingDisplayOrder | VendorGiftingOrder, status: OrderStatus) => {
+    if ('bookingId' in order && order.bookingId && !ordersUsingDemo) {
+      const bookingId = order.bookingId
+      if (status === 'cancelled') {
+        await db.bookings.cancel(bookingId, 'Cancelled by vendor')
+      } else if (status === 'delivered') {
+        await db.bookings.complete(bookingId)
+      } else {
+        if (status === 'confirmed') {
+          await db.bookings.updateStatus(bookingId, 'confirmed')
+        }
+        const stage = orderStatusToFulfilmentStage(status)
+        if (stage) await db.bookings.setFulfilment(bookingId, stage)
+      }
+      if (vendorId) {
+        const { data } = await db.bookings.listByVendor(vendorId)
+        const gifting = ((data ?? []) as GiftingBookingRow[]).filter((b) => b.module === MODULE_ID)
+        const mapped = gifting.map(giftingRowToDisplayOrder)
+        setLiveOrders(mapped)
+        setOrdersUsingDemo(mapped.length === 0)
+        setOrderDrawer(mapped.find((o) => o.bookingId === bookingId) ?? null)
+      }
+      return
+    }
+    const next = updateVendorGiftingOrderStatus(order.id, status)
     setStoreState(next)
-    setOrderDrawer(next.orders.find((o) => o.id === id) || null)
+    setOrderDrawer(next.orders.find((o) => o.id === order.id) || null)
   }
-
-  const updateSettings = (patch: Partial<VendorGiftingSettings>) =>
-    setStoreState((s) => ({ ...s, settings: { ...s.settings, ...patch } }))
 
   const topProducts = useMemo(() => {
     const map = new Map<string, number>()
-    storeState.orders.forEach((o) =>
+    displayOrders.forEach((o) =>
       o.products.forEach((p) => map.set(p.productName, (map.get(p.productName) || 0) + p.quantity)),
     )
     return Array.from(map.entries())
       .map(([name, qty]) => ({ name, qty }))
       .sort((a, b) => b.qty - a.qty)
       .slice(0, 5)
-  }, [storeState.orders])
+  }, [displayOrders])
+
+  const topProductMaxQty = topProducts[0]?.qty ?? 1
+
+  const revenueByDay = useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const buckets: { key: string; label: string; total: number }[] = []
+    for (let i = 29; i >= 0; i -= 1) {
+      const d = new Date(today)
+      d.setDate(today.getDate() - i)
+      const key = d.toISOString().slice(0, 10)
+      buckets.push({
+        key,
+        label: d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+        total: 0,
+      })
+    }
+    const index = new Map(buckets.map((b, i) => [b.key, i]))
+    for (const o of displayOrders) {
+      if (o.status === 'cancelled') continue
+      let iso: string | null = null
+      if ('raw' in o && o.raw?.created_at) iso = o.raw.created_at.slice(0, 10)
+      else if ('date' in o && o.date) {
+        const parsed = new Date(o.date)
+        if (!Number.isNaN(parsed.getTime())) iso = parsed.toISOString().slice(0, 10)
+      }
+      if (!iso || !index.has(iso)) continue
+      buckets[index.get(iso)!].total += o.amount
+    }
+    const max = Math.max(1, ...buckets.map((b) => b.total))
+    return buckets.map((b) => ({ ...b, pct: Math.round((b.total / max) * 100) }))
+  }, [displayOrders])
+
+  const performanceRevenueTotal = useMemo(
+    () => revenueByDay.reduce((s, b) => s + b.total, 0),
+    [revenueByDay],
+  )
 
   const avgOrderValue = Math.round(
-    (storeState.orders.reduce((sum, o) => sum + o.amount, 0) || 1) /
-      (storeState.orders.length || 1),
+    (displayOrders.reduce((sum, o) => sum + o.amount, 0) || 1) / (displayOrders.length || 1),
   )
 
   return (
@@ -333,80 +551,109 @@ export default function VendorGiftingDashboardPage() {
 
       {activeTab === 'orders' && (
         <div className="overflow-auto rounded-xl border border-[#ececec] bg-white p-4">
-          <p className="mb-3 text-xs text-amber-700">
-            Orders are demo data. Real order pipeline ships in Sprint 4.
-          </p>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-[#64748b]">
-                <th className="py-2">Order ID</th>
-                <th className="py-2">Corporate Name</th>
-                <th className="py-2">Products</th>
-                <th className="py-2">Quantity</th>
-                <th className="py-2">Amount</th>
-                <th className="py-2">Status</th>
-                <th className="py-2">Date</th>
-                <th className="py-2">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {storeState.orders.map((o) => (
-                <tr key={o.id} className="border-t border-[#f1f5f9]">
-                  <td className="py-2">{o.id}</td>
-                  <td className="py-2">{o.corporateName}</td>
-                  <td className="py-2">{o.products.map((p) => p.productName).join(', ')}</td>
-                  <td className="py-2">{o.quantity}</td>
-                  <td className="py-2">₹{o.amount.toLocaleString('en-IN')}</td>
-                  <td className="py-2">
-                    <span className={`rounded px-2 py-0.5 text-xs ${orderStatusClass[o.status]}`}>
-                      {o.status}
-                    </span>
-                  </td>
-                  <td className="py-2">{o.date}</td>
-                  <td className="py-2">
-                    <button onClick={() => setOrderDrawer(o)} className="text-[#2563eb]">
-                      View
-                    </button>
-                  </td>
+          {ordersUsingDemo && import.meta.env.DEV && (
+            <DevMockDataBanner message="No gifting bookings in Supabase — showing demo orders." />
+          )}
+          {ordersLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="size-6 animate-spin text-slate-400" />
+            </div>
+          ) : displayOrders.length === 0 ? (
+            <p className="py-10 text-center text-sm text-slate-500">No gifting orders yet.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-[#64748b]">
+                  <th className="py-2">Order ID</th>
+                  <th className="py-2">Corporate Name</th>
+                  <th className="py-2">Products</th>
+                  <th className="py-2">Quantity</th>
+                  <th className="py-2">Amount</th>
+                  <th className="py-2">Status</th>
+                  <th className="py-2">Date</th>
+                  <th className="py-2">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {displayOrders.map((o) => (
+                  <tr key={'bookingId' in o ? o.bookingId : o.id} className="border-t border-[#f1f5f9]">
+                    <td className="py-2">{o.id}</td>
+                    <td className="py-2">{o.corporateName}</td>
+                    <td className="py-2">{o.products.map((p) => p.productName).join(', ')}</td>
+                    <td className="py-2">{o.quantity}</td>
+                    <td className="py-2">₹{o.amount.toLocaleString('en-IN')}</td>
+                    <td className="py-2">
+                      <span className={`rounded px-2 py-0.5 text-xs ${orderStatusClass[o.status]}`}>
+                        {o.status}
+                      </span>
+                    </td>
+                    <td className="py-2">{o.date}</td>
+                    <td className="py-2">
+                      <button onClick={() => setOrderDrawer(o)} className="text-[#2563eb]">
+                        View
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
 
       {activeTab === 'performance' && (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <div className="rounded-xl border border-[#ececec] bg-white p-4 xl:col-span-2">
-            <h3 className="mb-3 font-semibold text-[#0e1e3f]">Revenue over time (30 days, demo)</h3>
-            <div className="flex h-40 items-end gap-1">
-              {Array.from({ length: 30 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="flex-1 rounded-t bg-[#2563eb1A]"
-                  style={{ height: `${20 + ((i * 13) % 80)}%` }}
-                />
-              ))}
+          {ordersUsingDemo && import.meta.env.DEV && (
+            <div className="xl:col-span-3">
+              <DevMockDataBanner message="Performance chart uses demo order data — connect gifting bookings for live revenue." />
             </div>
+          )}
+          <div className="rounded-xl border border-[#ececec] bg-white p-4 xl:col-span-2">
+            <div className="mb-3 flex items-end justify-between gap-2">
+              <h3 className="font-semibold text-[#0e1e3f]">Revenue over time (30 days)</h3>
+              <p className="text-sm text-slate-500">
+                Total <strong className="text-[#0e1e3f]">₹{performanceRevenueTotal.toLocaleString('en-IN')}</strong>
+              </p>
+            </div>
+            {displayOrders.length === 0 ? (
+              <p className="py-12 text-center text-sm text-slate-500">No order data yet.</p>
+            ) : (
+              <div className="flex h-44 items-end gap-0.5">
+                {revenueByDay.map((b) => (
+                  <div key={b.key} className="group flex flex-1 flex-col items-center justify-end">
+                    <div
+                      className="w-full rounded-t bg-[#2563eb]/80 transition-colors group-hover:bg-[#2563eb]"
+                      style={{ height: `${Math.max(4, b.pct)}%` }}
+                      title={`${b.label}: ₹${b.total.toLocaleString('en-IN')}`}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="mt-2 text-[10px] text-slate-400">Hover bars for daily totals</p>
           </div>
           <div className="rounded-xl border border-[#ececec] bg-white p-4">
             <h3 className="mb-3 font-semibold text-[#0e1e3f]">Top 5 products by orders</h3>
-            <div className="space-y-2">
-              {topProducts.map((p) => (
-                <div key={p.name}>
-                  <div className="flex justify-between text-sm">
-                    <span>{p.name}</span>
-                    <span>{p.qty}</span>
+            {topProducts.length === 0 ? (
+              <p className="text-sm text-slate-500">No product order data yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {topProducts.map((p) => (
+                  <div key={p.name}>
+                    <div className="flex justify-between text-sm">
+                      <span className="truncate pr-2">{p.name}</span>
+                      <span>{p.qty}</span>
+                    </div>
+                    <div className="h-2 rounded bg-slate-100">
+                      <div
+                        className="h-2 rounded bg-[#2563eb]"
+                        style={{ width: `${Math.round((p.qty / topProductMaxQty) * 100)}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="h-2 rounded bg-slate-100">
-                    <div
-                      className="h-2 rounded bg-[#2563eb]"
-                      style={{ width: `${Math.min(100, p.qty)}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
             <p className="mt-3 text-sm">
               Avg order value: <strong>₹{avgOrderValue.toLocaleString('en-IN')}</strong>
             </p>
@@ -416,67 +663,79 @@ export default function VendorGiftingDashboardPage() {
 
       {activeTab === 'settings' && (
         <div className="rounded-xl border border-[#ececec] bg-white p-4">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <input
-              value={storeState.settings.businessName}
-              onChange={(e) => updateSettings({ businessName: e.target.value })}
-              className="h-10 rounded-lg border border-[#e5e7eb] px-3"
-              placeholder="Business name"
-            />
-            <input
-              value={storeState.settings.gstin}
-              onChange={(e) => updateSettings({ gstin: e.target.value })}
-              className="h-10 rounded-lg border border-[#e5e7eb] px-3"
-              placeholder="GSTIN"
-            />
-            <input
-              value={storeState.settings.pan}
-              onChange={(e) => updateSettings({ pan: e.target.value })}
-              className="h-10 rounded-lg border border-[#e5e7eb] px-3"
-              placeholder="PAN"
-            />
-            <input
-              value={storeState.settings.bankDetails}
-              onChange={(e) => updateSettings({ bankDetails: e.target.value })}
-              className="h-10 rounded-lg border border-[#e5e7eb] px-3"
-              placeholder="Bank details"
-            />
-            <textarea
-              value={storeState.settings.pickupDeliveryPreferences}
-              onChange={(e) => updateSettings({ pickupDeliveryPreferences: e.target.value })}
-              className="rounded-lg border border-[#e5e7eb] p-3 md:col-span-2"
-              rows={3}
-              placeholder="Pickup/delivery preferences"
-            />
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={storeState.settings.notifyEmail}
-                onChange={(e) => updateSettings({ notifyEmail: e.target.checked })}
-              />
-              Email notifications
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={storeState.settings.notifySms}
-                onChange={(e) => updateSettings({ notifySms: e.target.checked })}
-              />
-              SMS notifications
-            </label>
-          </div>
-          <button
-            onClick={() => {
-              const next = saveVendorGiftingSettings(storeState.settings)
-              setStoreState(next)
-            }}
-            className="mt-4 h-10 rounded-lg bg-[#2563eb] px-4 font-semibold text-white"
-          >
-            Save Changes
-          </button>
-          <p className="mt-2 text-xs text-amber-700">
-            Settings are stored locally for now. Real persistence ships with corporate vendor profile sprint.
-          </p>
+          {settingsUsingDemo && import.meta.env.DEV && (
+            <DevMockDataBanner message="Vendor profile not found — settings save locally only." />
+          )}
+          {settingsLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="size-6 animate-spin text-slate-400" />
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <input
+                  value={settingsForm.businessName}
+                  onChange={(e) => patchSettings({ businessName: e.target.value })}
+                  className="h-10 rounded-lg border border-[#e5e7eb] px-3"
+                  placeholder="Business name"
+                />
+                <input
+                  value={settingsForm.gstin}
+                  onChange={(e) => patchSettings({ gstin: e.target.value })}
+                  className="h-10 rounded-lg border border-[#e5e7eb] px-3"
+                  placeholder="GSTIN"
+                />
+                <input
+                  value={settingsForm.bankSummary}
+                  readOnly
+                  className="h-10 rounded-lg border border-[#e5e7eb] bg-slate-50 px-3 md:col-span-2"
+                  placeholder="Bank / payout"
+                />
+                <textarea
+                  value={settingsForm.pickupDeliveryPreferences}
+                  onChange={(e) => patchSettings({ pickupDeliveryPreferences: e.target.value })}
+                  className="rounded-lg border border-[#e5e7eb] p-3 md:col-span-2"
+                  rows={3}
+                  placeholder="Pickup/delivery preferences"
+                />
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={settingsForm.notifyEmail}
+                    onChange={(e) => patchSettings({ notifyEmail: e.target.checked })}
+                  />
+                  Email notifications (bookings &amp; payments)
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={settingsForm.notifySms}
+                    onChange={(e) => patchSettings({ notifySms: e.target.checked })}
+                  />
+                  SMS notifications (local preference)
+                </label>
+              </div>
+              {settingsError && <p className="mt-3 text-sm text-rose-600">{settingsError}</p>}
+              {settingsNotice && <p className="mt-3 text-sm text-emerald-700">{settingsNotice}</p>}
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={settingsSaving}
+                  onClick={() => void handleSettingsSave()}
+                  className="h-10 rounded-lg bg-[#2563eb] px-4 font-semibold text-white disabled:opacity-50"
+                >
+                  {settingsSaving ? 'Saving…' : 'Save Changes'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/vendor/settings')}
+                  className="h-10 rounded-lg border border-[#e5e7eb] px-4 text-sm font-medium text-[#2563eb]"
+                >
+                  Manage payout methods
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -513,7 +772,7 @@ export default function VendorGiftingDashboardPage() {
             <select
               value={orderDrawer.status}
               onChange={(e) =>
-                handleOrderStatusUpdate(orderDrawer.id, e.target.value as OrderStatus)
+                handleOrderStatusUpdate(orderDrawer, e.target.value as OrderStatus)
               }
               className="mb-3 h-10 w-full rounded-lg border border-[#e5e7eb] px-3"
             >

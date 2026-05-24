@@ -1,7 +1,9 @@
+import { formatCurrencyByLocale } from '@/lib/i18n/useCurrency'
+
 export type CatalogueSourceFilter = 'all' | 'mogzu' | 'vendor';
 
 export function formatInr(amount: number): string {
-  return `₹${Math.max(0, amount).toLocaleString('en-IN')}`;
+  return formatCurrencyByLocale(Math.max(0, amount));
 }
 
 export function parsePriceLike(value: unknown): number | null {

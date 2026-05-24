@@ -12,7 +12,17 @@ import {
   Save,
   X,
 } from 'lucide-react'
+import { AdminAiNavChips } from '@/app/components/admin/AdminAiNavChips'
 import { AdminPageTitleRow } from '@/app/components/admin/AdminPageChrome'
+import { MOGZU_GLASS_PANEL } from '@/app/components/ui/mogzuGlassStyles'
+import {
+  MOGZU_CHIP_ACTIVE_GRADIENT,
+  MOGZU_CTA_GRADIENT,
+  MOGZU_FILTER_SIDEBAR,
+  MOGZU_MODULE_CONTAINER,
+  filterStatChipClass,
+  moduleNavChipClass,
+} from '@/app/components/ui/mogzuGiftingStyles'
 import { useAuth } from '@/lib/auth'
 import {
   AI_AGENT_CHANNELS,
@@ -252,20 +262,27 @@ export default function AdminAiAgentsPage() {
   const resolutionRate = totals.total > 0 ? Math.round((totals.resolutions / totals.total) * 100) : 0
 
   return (
-    <div className="min-h-screen bg-[#FFFDF9]">
-      <div className="mx-auto max-w-7xl px-6 py-6">
+    <div className={`${MOGZU_MODULE_CONTAINER} mx-auto w-full space-y-5 py-2`}>
+      <div className="rounded-2xl border border-white/60 bg-white/55 p-5 backdrop-blur-xl shadow-[0_16px_36px_rgba(37,99,235,0.12)]">
         <AdminPageTitleRow
           title="AI Agents"
           totalLabel={`${agents.length} agents · ${totals.total} conversations in last 30 days`}
         />
+        <p className="mt-1 text-[14px] text-[#64748b]">
+          Configure channels, escalation rules, and knowledge base per agent.
+        </p>
+        <div className="mt-4">
+          <AdminAiNavChips active="agents" />
+        </div>
+      </div>
 
         {notice && (
-          <p className="mb-3 mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-700">
+          <p className="rounded-xl border border-blue-100 bg-blue-50/90 px-4 py-2.5 text-sm text-blue-700">
             {notice}
           </p>
         )}
         {error && (
-          <p className="mb-3 mt-3 rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+          <p className="rounded-xl border border-rose-100 bg-rose-50 px-4 py-2.5 text-sm text-rose-700">
             {error}
           </p>
         )}
@@ -275,27 +292,24 @@ export default function AdminAiAgentsPage() {
             <Loader2 className="size-6 animate-spin text-slate-400" />
           </div>
         ) : (
-          <div className="mt-4 grid grid-cols-[240px_1fr] gap-4">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[240px_1fr]">
             {/* Sidebar — agent list */}
-            <ul className="space-y-1.5">
+            <ul className={`${MOGZU_FILTER_SIDEBAR} space-y-1.5 !p-3`}>
               {agents.map((a) => (
                 <li key={a.id}>
                   <button
                     type="button"
                     onClick={() => setSelectedId(a.id)}
-                    className={`w-full rounded-lg border px-3 py-2 text-left text-sm transition ${
-                      selectedId === a.id
-                        ? 'border-[#2563eb] bg-blue-50 text-[#0e1e3f]'
-                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                    }`}
+                    className={`${moduleNavChipClass(selectedId === a.id)} w-full justify-between !rounded-xl !px-3 !py-2`}
+                    style={selectedId === a.id ? MOGZU_CHIP_ACTIVE_GRADIENT : undefined}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold">{a.name}</span>
-                      <span
-                        className={`size-2 rounded-full ${a.is_active ? 'bg-emerald-500' : 'bg-slate-300'}`}
-                      />
-                    </div>
-                    <p className="text-xs text-slate-500">{a.kind}</p>
+                    <span>
+                      <span className="block font-semibold">{a.name}</span>
+                      <span className="text-xs text-slate-500">{a.kind}</span>
+                    </span>
+                    <span
+                      className={`size-2 shrink-0 rounded-full ${a.is_active ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                    />
                   </button>
                 </li>
               ))}
@@ -304,7 +318,7 @@ export default function AdminAiAgentsPage() {
             {/* Detail */}
             {selected ? (
               <div className="space-y-4">
-                <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                <div className={`${MOGZU_GLASS_PANEL} p-5`}>
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <h2 className="text-lg font-semibold text-slate-900">{selected.name}</h2>
@@ -332,15 +346,23 @@ export default function AdminAiAgentsPage() {
                   </div>
 
                   <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-                    <Stat label="Conversations (30d)" value={totals.total} />
-                    <Stat label="Escalation rate" value={`${escalationRate}%`} />
-                    <Stat label="Resolution rate" value={`${resolutionRate}%`} />
-                    <Stat label="Leads qualified" value={totals.leads} />
+                    <div className={filterStatChipClass(true, 'blue')}>
+                      <Stat label="Conversations (30d)" value={totals.total} />
+                    </div>
+                    <div className={filterStatChipClass(false, 'blue')}>
+                      <Stat label="Escalation rate" value={`${escalationRate}%`} />
+                    </div>
+                    <div className={filterStatChipClass(false, 'emerald')}>
+                      <Stat label="Resolution rate" value={`${resolutionRate}%`} />
+                    </div>
+                    <div className={filterStatChipClass(false, 'blue')}>
+                      <Stat label="Leads qualified" value={totals.leads} />
+                    </div>
                   </div>
                 </div>
 
                 {/* Channels */}
-                <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                <div className={`${MOGZU_GLASS_PANEL} p-5`}>
                   <h3 className="mb-3 text-sm font-semibold text-slate-900">Channels</h3>
                   <div className="flex flex-wrap gap-2">
                     {AI_AGENT_CHANNELS.map((c) => {
@@ -351,11 +373,8 @@ export default function AdminAiAgentsPage() {
                           type="button"
                           disabled={!isAdmin || busy === `ch-${c.value}`}
                           onClick={() => toggleChannel(c.value)}
-                          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
-                            enabled
-                              ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                              : 'border-slate-200 bg-white text-slate-600'
-                          } ${isAdmin ? 'hover:opacity-80' : 'cursor-not-allowed opacity-60'}`}
+                          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition ${moduleNavChipClass(enabled)}`}
+                          style={enabled ? MOGZU_CHIP_ACTIVE_GRADIENT : undefined}
                         >
                           <span
                             className={`size-2 rounded-full ${enabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
@@ -368,7 +387,7 @@ export default function AdminAiAgentsPage() {
                 </div>
 
                 {/* Escalation rules */}
-                <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                <div className={`${MOGZU_GLASS_PANEL} p-5`}>
                   <h3 className="mb-3 text-sm font-semibold text-slate-900">Escalation rules</h3>
                   {escalationEdit && (
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -430,7 +449,7 @@ export default function AdminAiAgentsPage() {
                         type="button"
                         onClick={saveEscalation}
                         disabled={busy === 'escalation'}
-                        className="inline-flex items-center gap-1.5 rounded-md bg-[#2563eb] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1d4ed8] disabled:opacity-60"
+                        className={`inline-flex items-center gap-1.5 ${MOGZU_CTA_GRADIENT} !px-3 !py-1.5 !text-xs disabled:opacity-60`}
                       >
                         {busy === 'escalation' ? (
                           <Loader2 className="size-3 animate-spin" />
@@ -444,7 +463,7 @@ export default function AdminAiAgentsPage() {
                 </div>
 
                 {/* Knowledge base */}
-                <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                <div className={`${MOGZU_GLASS_PANEL} p-5`}>
                   <div className="mb-3 flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-slate-900">
                       Knowledge base ({kb.length})
@@ -512,7 +531,7 @@ export default function AdminAiAgentsPage() {
                 </div>
 
                 {/* Recent conversations */}
-                <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                <div className={`${MOGZU_GLASS_PANEL} p-5`}>
                   <h3 className="mb-3 text-sm font-semibold text-slate-900">
                     <MessagesSquare className="mr-1 inline size-4" />
                     Recent conversations
@@ -550,11 +569,10 @@ export default function AdminAiAgentsPage() {
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-slate-500">Select an agent.</p>
+              <p className={`${MOGZU_GLASS_PANEL} p-8 text-sm text-slate-500`}>Select an agent.</p>
             )}
           </div>
         )}
-      </div>
 
       {kbDraft && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
@@ -646,10 +664,10 @@ export default function AdminAiAgentsPage() {
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+    <>
       <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-1 text-lg font-bold text-slate-900">{value}</p>
-    </div>
+      <p className="mt-1 text-lg font-bold text-[#0e1e3f]">{value}</p>
+    </>
   )
 }
 

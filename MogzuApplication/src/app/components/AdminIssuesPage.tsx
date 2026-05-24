@@ -23,8 +23,14 @@ import {
   VENDOR_SUPPORT_QUEUE_STORAGE_KEY,
   type VendorSupportTicket,
 } from '@/app/lib/vendorSupportQueueStorage';
+import { DevMockDataBanner } from '@/app/components/global/DevMockDataBanner';
+import { useAuth } from '@/lib/auth';
+import { db } from '@/lib/db';
+import type { SupportTicket, SupportTicketNote } from '@/lib/database.types';
 
 export type IssueCategory = 'Gifting' | 'Event' | 'SpaceX';
+
+const ISSUE_CATEGORIES: IssueCategory[] = ['Gifting', 'Event', 'SpaceX'];
 
 type ChatMsg = { id: string; from: 'user' | 'admin'; text: string; time: string };
 
@@ -44,7 +50,65 @@ export type AdminIssue = {
   threadMessage: string;
   threadTime: string;
   messages: ChatMsg[];
+  submitterId?: string;
 };
+
+type QueueRow = SupportTicket & {
+  user_profiles?: { full_name: string | null; department: string | null } | null;
+  vendors?: { business_name: string | null } | null;
+  corporate_accounts?: { name: string | null } | null;
+};
+
+function isRealSupportTicketId(id: string): boolean {
+  return !id.startsWith('vs-') && !id.startsWith('demo-');
+}
+
+function mapTicketCategory(cat: string): IssueCategory {
+  const trimmed = cat.trim();
+  if (ISSUE_CATEGORIES.includes(trimmed as IssueCategory)) return trimmed as IssueCategory;
+  const lower = trimmed.toLowerCase();
+  if (lower.includes('event')) return 'Event';
+  if (lower.includes('space')) return 'SpaceX';
+  return 'Gifting';
+}
+
+function ticketToAdminIssue(ticket: QueueRow): AdminIssue {
+  const createdTs = new Date(ticket.created_at).getTime();
+  const enquiryDate = formatIssueDate(createdTs);
+  const threadTime = formatIssueTime(createdTs);
+  const audience = ticket.audience === 'vendor' ? 'vendor' : 'client';
+  const userName =
+    ticket.vendors?.business_name?.trim() ||
+    ticket.user_profiles?.full_name?.trim() ||
+    ticket.corporate_accounts?.name?.trim() ||
+    'Unknown user';
+  const body =
+    ticket.subject.trim().length > 0 ? `${ticket.subject.trim()}\n\n${ticket.body}` : ticket.body;
+  const snippet =
+    ticket.subject.trim().length > 0
+      ? ticket.subject.trim()
+      : ticket.body.length > 120
+        ? `${ticket.body.slice(0, 120)}…`
+        : ticket.body;
+  return {
+    id: ticket.id,
+    audience,
+    status: ticket.status === 'resolved' || ticket.status === 'closed' ? 'resolved' : 'pending',
+    userName,
+    userRoleLabel: audience === 'vendor' ? 'Vendor' : 'Client',
+    category: mapTicketCategory(ticket.category),
+    snippet,
+    enquiryDate,
+    issueType: ticket.subject.trim() || ticket.category || 'Support',
+    raisedOn: enquiryDate,
+    memberSince: audience === 'vendor' ? 'Partner' : 'Member',
+    address: audience === 'vendor' ? userName : ticket.user_profiles?.department?.trim() || userName,
+    threadMessage: ticket.body,
+    threadTime,
+    messages: [{ id: `${ticket.id}-m0`, from: 'user', text: body, time: threadTime }],
+    submitterId: ticket.submitter_id,
+  };
+}
 
 function initials(name: string) {
   return name
@@ -177,8 +241,6 @@ function formatIssueTime(ts: number) {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-const ISSUE_CATEGORIES: IssueCategory[] = ['Gifting', 'Event', 'SpaceX'];
-
 function vendorTicketToAdminIssue(t: VendorSupportTicket): AdminIssue {
   const snippet =
     t.subject.trim().length > 0
@@ -229,6 +291,8 @@ const TOTAL_ISSUES_SHOWN = 80;
 
 export default function AdminIssuesPage() {
   const navigate = useNavigate();
+  const { profile } = useAuth();
+  const [hasRealTickets, setHasRealTickets] = useState(false);
   const [issues, setIssues] = useState<AdminIssue[]>(() => mergeVendorSupportIntoIssues(seedIssues()));
   const [productLine, setProductLine] = useState<AdminProductLine>('gifting');
   const [audience, setAudience] = useState<'client' | 'vendor'>('client');
@@ -284,6 +348,25 @@ export default function AdminIssuesPage() {
   }, [filtered, selectedId]);
 
   useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const { data } = await db.supportTickets.listQueue('all');
+      if (cancelled) return;
+      if (data && data.length > 0) {
+        setHasRealTickets(true);
+        setIssues((data as QueueRow[]).map(ticketToAdminIssue));
+        return;
+      }
+      setHasRealTickets(false);
+      setIssues(mergeVendorSupportIntoIssues(seedIssues()));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (hasRealTickets) return;
     const sync = () => setIssues((prev) => mergeVendorSupportIntoIssues(prev));
     const onStorage = (e: StorageEvent) => {
       if (e.key === VENDOR_SUPPORT_QUEUE_STORAGE_KEY) sync();
@@ -297,7 +380,35 @@ export default function AdminIssuesPage() {
       window.removeEventListener('focus', sync);
       window.removeEventListener('mogzu-vendor-support-queue-updated', onCustom);
     };
-  }, []);
+  }, [hasRealTickets]);
+
+  useEffect(() => {
+    if (!selectedId || !isRealSupportTicketId(selectedId)) return;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await db.supportTicketNotes.listByTicket(selectedId);
+      if (cancelled || !data) return;
+      setIssues((prev) => {
+        const issue = prev.find((i) => i.id === selectedId);
+        if (!issue?.submitterId) return prev;
+        const initialUser = issue.messages[0];
+        const noteMessages: ChatMsg[] = (data as SupportTicketNote[])
+          .filter((n) => !n.is_internal)
+          .map((n) => ({
+            id: n.id,
+            from: n.author_id === issue.submitterId ? ('user' as const) : ('admin' as const),
+            text: n.body,
+            time: formatIssueTime(new Date(n.created_at).getTime()),
+          }));
+        return prev.map((i) =>
+          i.id === selectedId ? { ...i, messages: [initialUser, ...noteMessages] } : i
+        );
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId, hasRealTickets]);
 
   const handleSelect = (id: string) => setSelectedId(id);
 
@@ -305,6 +416,11 @@ export default function AdminIssuesPage() {
     if (!selectedId) return;
     if (selectedId.startsWith('vs-')) {
       markVendorSupportTicketResolved(selectedId);
+    } else if (isRealSupportTicketId(selectedId)) {
+      void db.supportTickets.update(selectedId, { status: 'resolved' });
+      setIssues((prev) =>
+        prev.map((i) => (i.id === selectedId ? { ...i, status: 'resolved' as const } : i))
+      );
     } else {
       setIssues((prev) =>
         prev.map((i) => (i.id === selectedId ? { ...i, status: 'resolved' as const } : i))
@@ -320,6 +436,29 @@ export default function AdminIssuesPage() {
     if (selectedId.startsWith('vs-')) {
       appendVendorSupportAdminReply(selectedId, text);
       setIssues((prev) => mergeVendorSupportIntoIssues(prev));
+      setReplyDraft('');
+      return;
+    }
+    if (isRealSupportTicketId(selectedId) && profile) {
+      void db.supportTicketNotes.create({
+        ticket_id: selectedId,
+        author_id: profile.id,
+        body: text,
+        is_internal: false,
+      });
+      setIssues((prev) =>
+        prev.map((i) =>
+          i.id === selectedId
+            ? {
+                ...i,
+                messages: [
+                  ...i.messages,
+                  { id: `m-${Date.now()}`, from: 'admin' as const, text, time },
+                ],
+              }
+            : i
+        )
+      );
       setReplyDraft('');
       return;
     }
@@ -349,6 +488,7 @@ export default function AdminIssuesPage() {
           </>
         }
       />
+      {!hasRealTickets && <DevMockDataBanner />}
       <AdminProductLineTabs value={productLine} onChange={setProductLine} />
 
       <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:min-h-[calc(100vh-10rem)]">

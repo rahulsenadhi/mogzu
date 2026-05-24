@@ -13,12 +13,13 @@ import {
   nextStage,
   type TrackerStage,
 } from '@/lib/bookingTracker'
-import type { ModuleId } from '@/lib/database.types'
+import type { BookingStatusEvent, ModuleId } from '@/lib/database.types'
 
 type Props = {
   bookingId: string
   module: ModuleId
   submittedKeys: string[]
+  existingEvents: BookingStatusEvent[]
   submittedBy: string
   onSubmitted: () => void
 }
@@ -27,6 +28,7 @@ export function BookingProofCaptureCard({
   bookingId,
   module,
   submittedKeys,
+  existingEvents,
   submittedBy,
   onSubmitted,
 }: Props) {
@@ -38,6 +40,19 @@ export function BookingProofCaptureCard({
   const [notes, setNotes] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const existingStageEvent = stage
+    ? existingEvents.find((ev) => ev.stage === stage.key)
+    : undefined
+
+  const requiresPhoto = stage?.proofRequired === 'mandatory'
+  const requiresOtp =
+    stage != null &&
+    ['arrived_at_venue', 'work_started', 'work_completed', 'check_in', 'check_out', 'delivered'].includes(
+      stage.key,
+    )
+  const requiresGps =
+    stage != null && ['arrived_at_venue', 'check_in'].includes(stage.key)
+  const requiresTracking = stage?.key === 'dispatched'
 
   if (!stage) {
     return (
@@ -70,8 +85,20 @@ export function BookingProofCaptureCard({
 
   const submit = async () => {
     setError('')
-    if (stage.proofRequired === 'mandatory' && !file) {
+    if (requiresPhoto && !file) {
       setError('A photo is required for this stage.')
+      return
+    }
+    if (requiresOtp && !/^\d{6}$/.test(otp.trim())) {
+      setError('Enter the 6-digit OTP for this stage.')
+      return
+    }
+    if (requiresGps && !gps) {
+      setError('GPS location is required for this stage. Capture location before submit.')
+      return
+    }
+    if (requiresTracking && !notes.trim()) {
+      setError('Tracking ID / dispatch reference is required in notes for this stage.')
       return
     }
     setBusy(true)
@@ -87,20 +114,24 @@ export function BookingProofCaptureCard({
       photoPath = up.path
     }
 
-    const otpCode = otp.trim() || generateOtpCode()
-    const { data: created, error: createErr } = await db.bookingTracker.createOtp(
-      bookingId,
-      stage.key,
-      otpCode,
-      '',
-    )
-    if (createErr || !created) {
-      setBusy(false)
-      setError(createErr?.message ?? 'Failed to record stage.')
-      return
+    let targetEventId = existingStageEvent?.id ?? null
+    const otpCode = otp.trim() || existingStageEvent?.otp_code || generateOtpCode()
+    if (!targetEventId) {
+      const { data: created, error: createErr } = await db.bookingTracker.createOtp(
+        bookingId,
+        stage.key,
+        otpCode,
+        '',
+      )
+      if (createErr || !created) {
+        setBusy(false)
+        setError(createErr?.message ?? 'Failed to record stage.')
+        return
+      }
+      targetEventId = created.id
     }
 
-    const { error: submitErr } = await db.bookingTracker.submitProof(created.id, {
+    const { error: submitErr } = await db.bookingTracker.submitProof(targetEventId, {
       photo_path: photoPath,
       gps_lat: gps?.lat ?? null,
       gps_lng: gps?.lng ?? null,
@@ -126,7 +157,9 @@ export function BookingProofCaptureCard({
         <div>
           <p className="text-sm font-semibold text-slate-900">Submit proof — {stage.label}</p>
           <p className="text-[11px] text-slate-600">
-            {stage.proofRequired === 'mandatory' ? 'Photo required.' : 'Photo optional.'} OTP + GPS optional.
+            {requiresPhoto ? 'Photo required.' : 'Photo optional.'}{' '}
+            {requiresOtp ? 'OTP required.' : 'OTP optional.'}{' '}
+            {requiresGps ? 'GPS required.' : 'GPS optional.'}
           </p>
         </div>
       </div>
@@ -158,7 +191,7 @@ export function BookingProofCaptureCard({
             inputMode="numeric"
             value={otp}
             onChange={(e) => setOtp(e.target.value)}
-            placeholder="OTP (optional)"
+            placeholder={requiresOtp ? 'OTP (required, 6 digits)' : 'OTP (optional)'}
             className="rounded-lg border border-slate-200 px-3 py-2 text-xs"
           />
         </div>
@@ -169,7 +202,7 @@ export function BookingProofCaptureCard({
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={2}
-          placeholder="Notes (optional)"
+          placeholder={requiresTracking ? 'Tracking ID / dispatch reference (required)' : 'Notes (optional)'}
           className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs"
         />
 

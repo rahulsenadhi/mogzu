@@ -11,20 +11,12 @@ import type {
   UserPermission,
   UserProfile,
 } from '@/lib/database.types'
-
-const RESOURCES: PermissionResource[] = [
-  'bookings',
-  'listings',
-  'partners',
-  'vendors',
-  'corporate_accounts',
-  'gifting',
-  'support',
-  'reports',
-]
-const ACTIONS: PermissionAction[] = ['view', 'create', 'update', 'delete', 'approve']
-
-type Cell = `${PermissionResource}.${PermissionAction}`
+import {
+  MATRIX_ACTIONS,
+  MATRIX_RESOURCES,
+  type PermissionCell,
+  getRoleTemplate,
+} from '@/lib/rolePermissionTemplates'
 
 export default function AdminTeamPermissionsPage() {
   const navigate = useNavigate()
@@ -32,11 +24,12 @@ export default function AdminTeamPermissionsPage() {
   const { profile } = useAuth()
 
   const [target, setTarget] = useState<UserProfile | null>(null)
-  const [grants, setGrants] = useState<Set<Cell>>(new Set())
+  const [grants, setGrants] = useState<Set<PermissionCell>>(new Set())
   const [loading, setLoading] = useState(true)
-  const [busyCell, setBusyCell] = useState<Cell | null>(null)
+  const [busyCell, setBusyCell] = useState<PermissionCell | null>(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [applyingTemplate, setApplyingTemplate] = useState(false)
 
   const load = useCallback(async () => {
     if (!userId) return
@@ -53,9 +46,9 @@ export default function AdminTeamPermissionsPage() {
     }
     if (gErr) setError(gErr.message)
     setTarget(profileRow as UserProfile)
-    const set = new Set<Cell>()
+    const set = new Set<PermissionCell>()
     for (const p of (perms ?? []) as UserPermission[]) {
-      set.add(`${p.resource as PermissionResource}.${p.action}`)
+      set.add(`${p.resource as PermissionResource}.${p.action}` as PermissionCell)
     }
     setGrants(set)
     setLoading(false)
@@ -67,7 +60,7 @@ export default function AdminTeamPermissionsPage() {
 
   const toggle = async (resource: PermissionResource, action: PermissionAction) => {
     if (!userId || !profile) return
-    const cell: Cell = `${resource}.${action}`
+    const cell: PermissionCell = `${resource}.${action}`
     setBusyCell(cell)
     setNotice('')
     if (grants.has(cell)) {
@@ -106,6 +99,49 @@ export default function AdminTeamPermissionsPage() {
     setBusyCell(null)
   }
 
+  const applyRoleTemplate = async () => {
+    if (!target || !profile || !userId) return
+    setApplyingTemplate(true)
+    setNotice('')
+    const template = getRoleTemplate(target.role)
+    let applied = 0
+    for (const resource of MATRIX_RESOURCES) {
+      for (const action of MATRIX_ACTIONS) {
+        const cell: PermissionCell = `${resource}.${action}`
+        const shouldHave = template[cell] ?? false
+        const has = grants.has(cell)
+        if (shouldHave === has) continue
+        if (shouldHave) {
+          const { error } = await db.userPermissions.grant(userId, resource, action, profile.id)
+          if (error) {
+            setError(error.message)
+            setApplyingTemplate(false)
+            return
+          }
+        } else {
+          const { error } = await db.userPermissions.revoke(userId, resource, action)
+          if (error) {
+            setError(error.message)
+            setApplyingTemplate(false)
+            return
+          }
+        }
+        applied += 1
+      }
+    }
+
+    await db.userActivity.log(
+      profile.id,
+      'permission.template_applied',
+      'user_permissions',
+      userId,
+      { role: target.role, changes: applied },
+    )
+    setApplyingTemplate(false)
+    setNotice(`Applied ${target.role} template (${applied} changes).`)
+    await load()
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-12 text-sm text-slate-500">
@@ -140,6 +176,18 @@ export default function AdminTeamPermissionsPage() {
         </div>
       )}
 
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={applyRoleTemplate}
+          disabled={applyingTemplate}
+          className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
+        >
+          {applyingTemplate && <Loader2 className="size-3 animate-spin" />}
+          Apply template for role: {target.role}
+        </button>
+      </div>
+
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <p className="mb-3 text-xs text-slate-500">
           Role <strong className="font-semibold text-slate-700">{target.role}</strong> provides a
@@ -150,7 +198,7 @@ export default function AdminTeamPermissionsPage() {
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50 text-left uppercase tracking-wide text-slate-500">
                 <th className="py-2 pl-3 pr-3">Resource</th>
-                {ACTIONS.map((a) => (
+                {MATRIX_ACTIONS.map((a) => (
                   <th key={a} className="py-2 px-2 text-center">
                     {a}
                   </th>
@@ -158,13 +206,13 @@ export default function AdminTeamPermissionsPage() {
               </tr>
             </thead>
             <tbody>
-              {RESOURCES.map((r) => (
+              {MATRIX_RESOURCES.map((r) => (
                 <tr key={r} className="border-b border-slate-100">
                   <td className="py-2 pl-3 pr-3 font-medium capitalize text-slate-700">
                     {r.replace('_', ' ')}
                   </td>
-                  {ACTIONS.map((a) => {
-                    const cell: Cell = `${r}.${a}`
+                  {MATRIX_ACTIONS.map((a) => {
+                    const cell: PermissionCell = `${r}.${a}`
                     const on = grants.has(cell)
                     const busy = busyCell === cell
                     return (

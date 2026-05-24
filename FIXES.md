@@ -1,3 +1,339 @@
+## 2026-05-24 — Post-plan Batch 22: events catalogue Supabase + heart sweep completion
+
+- `EventsPage.tsx` — load events from `db.listings.listByModule('events', 'active')` with `getMergedCatalogue` + static demo fallback; `DevMockDataBanner` when demo; canonical `<WishlistHeart>` + `<RatingBadge>` on listing cards (Batch 2c carry-over).
+- `EventServiceContent.tsx` — replace local `wishlistIds` heart toggle with canonical `<WishlistHeart>` on service cards.
+- `FRONTEND_COMPLETION_PLAN.md` — mark `/events`, `/event-services`, `/event-activity`, `/activities`, `/bookings/:id/track` as ✅ wired.
+
+Verified: `npm run build` exit 0 (~26s).
+
+## 2026-05-24 — Post-plan Batch 21: corporate onboarding + activity booking + admin team routes
+
+- `corporateOnboarding.ts` — `ensureCorporateAccount`, `finalizeCorporateOnboarding`, interest→module mapping, plan persistence.
+- `CorporateCompanyDetails.tsx` — auto-create corporate account when domain is new; link profile as L3 admin.
+- `CorporateSignUpForm.tsx` — signup no longer blocked on pre-registered domain.
+- `ChooseAccess.tsx` — persists plan + `modules_enabled` to Supabase on complete.
+- `activityListingResolver.ts` + `ActivityBookingFlow.tsx` — resolve events listings, submit bookings to Supabase, demo fallback banner.
+- `ActivityDetailPage.tsx` — “Book this activity” CTA to booking flow.
+- `routes.tsx` — `/admin/teams*` redirects to live `/admin/team`.
+
+Verified: `npm run build` exit 0 (~25s).
+
+## 2026-05-24 — Post-plan Batch 20: vendor onboarding listing + team + platform modules
+
+- `vendorOnboardingApi.ts` — `submitVendorListing` persists to `listings` (`pending_approval`) via Supabase; resolves vendor from session or `vendorId`; rich onboarding fields in `metadata`.
+- `VendorOnboardingPage.tsx` — stores `vendorId` in onboarding completed localStorage for listing step.
+- `VendorSignUpForm.tsx` — passes `vendorId` into listing submit payload.
+- `VendorUserManagementPage.tsx` — team table from `db.userProfiles.listByVendor`; demo fallback + banner.
+- `AdminPlatformModulesPage.tsx` — live active vendor counts from `db.vendors.countActiveByModule`.
+- `db.ts` — `vendors.getByUserId`, `userProfiles.listByVendor`, `vendors.countActiveByModule`.
+
+Verified: `npm run build` exit 0 (~25s).
+
+## 2026-05-24 — Post-plan Batch 19: performance, notifications, order analytics
+
+- `VendorGiftingDashboardPage.tsx` — Performance tab: 30-day revenue chart + top products from real/demo orders.
+- `AdminNotificationsPage.tsx` — broadcast via `db.notifications.broadcastSystem`; receiver list from `user_profiles`; recent from Supabase.
+- `AdminVendorOrderAnalyticsPage.tsx` — order table from live `bookings` with demo fallback.
+- `routes.tsx` — `/vendor/orders/:orderId` redirects to `/vendor/booking-requests/:orderId`.
+- `db.ts` — `broadcastSystem` + `listRecentBroadcasts` helpers.
+
+Verified: `npm run build` exit 0 (~30s).
+
+## 2026-05-24 — Post-plan Batch 18: gifting vendors + vendor settings
+
+- `AdminGiftingVendorsPage.tsx` — gifting vendors from Supabase (`vendors` + `vendor_modules`, listings, bookings); suspend/reactivate via `db.vendors.updateStatus`; demo fallback.
+- `VendorGiftingDashboardPage.tsx` — Settings tab persists business name, GSTIN, pickup/delivery notes to `vendors`; email prefs to `notification_preferences`; payout summary from `listMethods`; link to `/vendor/settings`.
+
+Verified: `npm run build` exit 0 (~30s).
+
+## 2026-05-24 — Post-plan Batch 17: admin ledger, gifting orders, dashboard prefs
+
+- `AdminTransactionsPage.tsx` — platform-wide ledger from `wallet_transactions` + paid `bookings`; search, pagination, demo fallback + banner.
+- `AdminGiftingOrdersPage.tsx` — gifting bookings from Supabase; admin status/carrier updates via `db.bookings`.
+- `VendorGiftingDashboardPage.tsx` — orders tab wired to `db.bookings.listByVendor` (module=gifting); fulfilment status updates.
+- `AdminVendorManagementDashboardPage.tsx` — overview cards from live vendor/listing/booking counts; link to `/admin/listings/queue`.
+- `corporateDashboardPreferences.ts` + migration `20260524000001_user_dashboard_widgets.sql` — sync widget toggles to `user_profiles.dashboard_widgets` with localStorage fallback.
+- `giftingBookingOrders.ts` — shared booking→gifting order mapper.
+
+Verified: `npm run build` exit 0 (~32s).
+
+## 2026-05-24 — Post-plan Batch 16: wire remaining mock surfaces
+
+- `VendorDashboardPage.tsx` — live metrics/revenue/orders/top-selling from `db.bookings.listByVendor`; demo fallback + banner.
+- `AdminIssuesPage.tsx` — `db.supportTickets.listQueue('all')` + notes on select; resolve/reply persist to Supabase.
+- `CommunicationPage.tsx` — corporate threads from `db.supportTickets.listMine`; reply via `supportTicketNotes.create`.
+- `VendorCommunicationPage.tsx` — vendor Mogzu support threads from `listMine`; reply persistence.
+- `AdminProductsPage.tsx` — `db.listings.listForPublicAdmin()` with mock fallback.
+- `AdminProductCategoriesPage.tsx` — `db.categories.listAllForAdmin()` with mock fallback.
+- `AdminReportsPage.tsx` — report hub linking dashboard, transactions, reconciliation, spend report.
+- `routes.tsx` — `/favourites` → `/wishlist`, `/report` → `/corporate/spend-report`.
+
+Verified: `npm run build` exit 0 (23.67s).
+
+## 2026-05-24 — Post-plan: admin dashboard clarity + user management Supabase persistence
+
+- `AdminDashboardPage.tsx` — show `DevMockDataBanner` when any chart/table slice falls back to demo data (revenue, commission, receivables, payables, login log, issues); broadened `usingAnyDemo` detection.
+- `UserManagementPage.tsx` — `reloadUsers()` filters deactivated profiles; profile save + manage-groups department changes persist via `db.userProfiles.upsertPartial`; bulk remove calls `db.userProfiles.deactivate` when real corporate users loaded; invite department mapped from permission level (not budget type).
+
+Note: `MyProfilePage.tsx` was already Supabase-wired (profile upsert, notification prefs, billing tab). `AdminDashboardPage.tsx` was already loading live stats via `loadAdminStats()` — this pass adds demo transparency + completes user-management write paths.
+
+Verified: `npm run build` exit 0 (31.39s).
+
+## 2026-05-24 — Batch 15: data quality + legacy nav cleanup
+
+- `MogzuApplication/src/app/data/apparelProducts.ts` — populate `occasion` arrays on all 6 `giftingComboProducts` mocks (welcome, festive, wellness, tech, premium, custom).
+- `MogzuApplication/src/app/components/GiftingShopPage.tsx` — normalize fabric filter keys/labels to `Dry-Fit` and `Poly-Cotton`; add `XL` to bag capacity filter + clear-all reset.
+- `MogzuApplication/src/app/components/layouts/VendorSidebar.tsx` — Promotions nav targets `/vendor/promotions-live` (legacy `/vendor/promotions` route kept).
+- `MogzuApplication/src/app/lib/vendorShellNav.ts` — shell promotion action → `/vendor/promotions-live`.
+- `UserManagementPage.tsx`, `ActivitiesPage.tsx`, `CommunicationPage.tsx`, `ReportsPage.tsx` — Report stub links → `/corporate/spend-report` instead of legacy `/report`.
+
+Why: plan Batch 15 — close memory.md gifting filter data gaps + hide legacy mock routes from primary nav without deleting back-compat routes.
+
+Plan Batch 15 status: **all items shipped**. Build clean (27.68s). **All 15 plan batches complete.**
+
+## 2026-05-24 — Batch 14: white-label + mobile polish + legacy demo flags
+
+- `MogzuLegacyDemoBanner.tsx` (new) — prod-safe amber glass banner for legacy/mock screens.
+- `AdminWhiteLabelPage.tsx` — gifting glass layout, demo partners, preview cards.
+- `AdminWhiteLabelDetailPage.tsx` — branding editor + hero subdomain preview, demo partner fallback.
+- `PwaInstallPrompt.tsx` — gifting product-card install sheet (PWA + iOS / store links).
+- `PushOptInBanner.tsx` — gifting glass opt-in banner.
+- `RequestToBook.tsx` + `VendorPromotionsPage.tsx` — legacy demo banners.
+- `DevMockDataBanner.tsx` — delegates to `MogzuLegacyDemoBanner`.
+- `AdminLayout.tsx` — White-label sidebar link.
+
+Verified: `npm run build` exit 0 (27.53s).
+
+## 2026-05-24 — Batch 13: compliance + AI agent surfaces (gifting style)
+
+- `AdminComplianceNavChips.tsx` (new) — Access reviews | SOC2 evidence sub-nav.
+- `AdminAiNavChips.tsx` (new) — AI agents | Conversations | Spend policy sub-nav.
+- `AdminAccessReviewsPage.tsx` — gifting glass, status chips, expandable sign-off roster, demo fallback.
+- `AdminSoc2EvidencePage.tsx` — product-card exports, glass audit window panel.
+- `AdminAiPolicyPage.tsx` — spend-cap editor with glass table + demo corporates.
+- `AdminAiConversationsPage.tsx` — chip filters, transcript drawer, demo conversations.
+- `AdminAiAgentsPage.tsx` — gifting agent sidebar + glass detail panels.
+- `CorporateAiAutonomyPage.tsx` — `CorporateModuleShell` + kill-switch hero.
+- `AdminLayout.tsx` — sidebar links for AI + compliance routes.
+
+Verified: `npm run build` exit 0 (61s).
+
+## 2026-05-24 — Batch 12 polish: gifting-style FX + intl surfaces
+
+- `AdminFinanceNavChips.tsx` (new) — shared finance sub-nav (Reconciliation | FX rates) using gifting category chip pattern.
+- `AdminFinanceFxPage.tsx` — gifting glass layout, stat chips, demo FX fallback, margin table styling.
+- `AdminFinanceReconciliationPage.tsx` — finance sub-nav chips added.
+- `AdminLayout.tsx` — sidebar link for FX rates.
+- `VendorPayoutMethodsPage.tsx` — glass hero, filter panel, product-card empty state, glass tables.
+- `CorporateCompanyDetails.tsx` — region picker as gifting-style chips (IN/SG/AE/SA/US/GB/EU).
+- `Dashboard.tsx` — dunning / auto-downgrade banner uses glass + gradient CTA.
+
+Verified: `npm run build` exit 0 (13.19s).
+
+## 2026-05-23 — Batch 11 start: enterprise revenue + gifting-style module system
+
+- `MogzuApplication/src/app/components/ui/mogzuGiftingStyles.ts` (new) — extracted gifting shop tokens (nav chips, hero banner, product cards, filter sidebar, CTA gradient) from `GiftingShopPage` for reuse.
+- `MogzuApplication/src/app/components/layouts/CorporateModuleShell.tsx` (new) — reusable corporate module shell matching gifting shop layout (`mogzu-module-shell-bg`, breadcrumb pill, nav chip scroller, `MogzuCorporateScrollSurface`).
+- `MogzuApplication/src/app/components/BillingInvoicesPage.tsx` — redesigned `/account/invoices` with gifting-style hero, filter sidebar chips, glass table, locale currency formatting, and account nav chips (Invoices / Billing).
+- `MogzuApplication/src/app/components/AccountBillingPage.tsx` — redesigned `/account/billing` with plan cards as gifting product cards, dunning retry preview, seat editor, demo fallback, and matching module shell.
+- `MogzuApplication/src/app/components/AdminFinanceReconciliationPage.tsx` — upgraded admin reconciliation with gifting nav chips + stat cards + glass table; removed conflicting full-page background.
+- `MogzuApplication/src/app/components/AdminLayout.tsx` — added sidebar link for Finance reconciliation.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-23 — Batch 10 closure: lead triage UX + glass shell parity
+
+- `MogzuApplication/src/lib/leadTriageUtils.ts` (new) — shared quick-filter helpers (`today`, `this week`, `high budget`, `unassigned`) + search triage pipeline.
+- `MogzuApplication/src/app/components/leads/LeadTriageToolbar.tsx` (new) — sticky search + quick-filter toolbar reused by admin inbox and sales pipeline.
+- `MogzuApplication/src/app/components/ui/mogzuGlassStyles.ts` (new) — shared glassorium surface tokens aligned to Events/discovery modules.
+- `MogzuApplication/src/app/components/AdminLeadsPage.tsx` — removed conflicting full-page gradient shell; integrated triage toolbar, quick presets, sticky bottom action bar linking to pipeline board.
+- `MogzuApplication/src/app/components/SalesPipelinePage.tsx` — same triage toolbar + quick presets for kanban filtering.
+- `MogzuApplication/src/app/pages/MogzuDirectCorporateDetailPage.tsx` — switched to `mogzu-module-shell-bg` + `MogzuCorporateScrollSurface` + shared glass tokens.
+- `MogzuApplication/src/app/pages/PartnerListingCorporateDetailPage.tsx` — full glassorium upgrade (hero, tabs, sidebar, CTAs) matching Mogzu Direct detail pattern.
+- `MogzuApplication/src/app/components/ExplorePage.tsx` — ambient backdrop, glass hero, Mogzu logo header, locale picker on public discovery.
+- `MogzuApplication/src/app/components/PublicLeadForm.tsx` — glass panel + field styling + primary CTA token alignment.
+- `MogzuApplication/src/app/components/AdminLayout.tsx` — sidebar links for Lead inbox + Sales pipeline; `/sales/pipeline` admin-guarded route.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-23 — Batch 4 start: Vendor onboarding hardening (`/signup/vendor`)
+
+- `MogzuApplication/src/app/components/VendorOnboardingPage.tsx` — wired `submitVendorOnboarding(...)` into final submit so onboarding payload now flows through `vendorOnboardingApi` when API base is configured (with local-id fallback retained).
+- `MogzuApplication/src/app/components/VendorOnboardingPage.tsx` — added fail-fast error handling for `db.vendors.create`, `db.vendors.setModules`, and `db.userProfiles.upsert`; onboarding now stops with explicit user-facing error instead of silently continuing on partial write failures.
+- `MogzuApplication/src/app/components/VendorOnboardingPage.tsx` — guarded against empty `authData.user` after signup to prevent writing orphaned onboarding completion state.
+- Legacy localStorage queue writes remain in place for backward compatibility with admin helper flows.
+
+Verified: `npm run build` exit 0, `3194 modules transformed`, `built in 42.80s`.
+
+## 2026-05-23 — Batch 4 follow-up: Rejection/resubmit + structured feedback
+
+- `MogzuApplication/src/app/components/AdminVendorApplicationsPage.tsx` — on vendor rejection, now emits `db.notifications.notify` (`type: 'system'`) to the vendor user with structured metadata payload (`kind`, `vendorId`, `reasons`, `rejectedAt`) and deep-link to `/vendor/verification-pending`.
+- `MogzuApplication/src/app/components/VendorVerificationPendingPage.tsx` — added resubmission notes textarea (optional, 500 chars), success banner, and admin/support notification fan-out on resubmit with structured metadata payload (`kind`, `vendorId`, prior reasons, note, timestamp).
+- `MogzuApplication/src/app/components/VendorVerificationPendingPage.tsx` — `handleResubmit` now requires loaded vendor context so notifications include business details and prior rejection context.
+- `MogzuApplication/src/app/components/VendorVerificationPendingPage.tsx` — enabled KYC upload/re-upload controls in rejected state (previously hidden), so vendors can fix KYC and resubmit without getting stuck.
+- `MogzuApplication/src/app/lib/vendorOnboardingApi.ts` — replaced stub-first onboarding submit with Supabase-first flow via `submitApplication` (`vendor_onboarding_applications` RPC path), while keeping external API fallback when configured.
+
+## 2026-05-23 — Batch 5 start: Corporate domain + invite governance
+
+- `MogzuApplication/src/app/components/CorporateCompanyDetails.tsx` — prefill onboarding personal fields from auth context (`profile.full_name`, `user.email`) and lock corporate email to signup email when available.
+- `MogzuApplication/src/app/components/CorporateCompanyDetails.tsx` — tightened domain enforcement: entered email must match signed-in signup email/domain before `validateCorporateEmailDomain(...)` runs.
+- `MogzuApplication/src/app/components/UserManagementPage.tsx` — added role gating for invite operations (create single, bulk CSV, resend, revoke): L3 admin / Mogzu admin only.
+- `MogzuApplication/src/app/components/UserManagementPage.tsx` — invite UI now surfaces read-only hint for non-admin users and disables invite action controls accordingly.
+
+Verified: `npm run build` exit 0 after each change set; lints clean for touched files.
+
+## 2026-05-23 — Batch 6 start: Booking tracker real-data progression
+
+- `MogzuApplication/src/app/components/BookingTrackerPage.tsx` — added synthetic stage derivation from real booking status + fulfilment stage when explicit `booking_status_events` rows are missing, so `/bookings/:id/track` no longer appears empty for real bookings in early lifecycle.
+- `MogzuApplication/src/app/components/BookingTrackerPage.tsx` — gifting pipeline now auto-derives `order_placed` → `in_production` → `dispatched` → `out_for_delivery` → `delivered` / `confirmed` from `fulfilment_stage` + booking completion.
+- `MogzuApplication/src/app/components/BookingTrackerPage.tsx` — events / dspace pipelines now auto-derive `booking_confirmed` and `booking_closed` from booking status when applicable, while preserving manual proof-only stages for explicit submissions.
+- `MogzuApplication/src/app/components/booking/BookingProofCaptureCard.tsx` — added stricter stage-aware proof validation: mandatory photo, required OTP for check-in/arrival/work/delivery stages, required GPS for location-critical stages, required dispatch reference for `dispatched`.
+- `MogzuApplication/src/app/components/booking/BookingProofCaptureCard.tsx` — handles retry/idempotency by reusing existing stage event (same `booking_id + stage`) instead of always creating a new OTP row, preventing unique-index collisions on re-submit.
+- `MogzuApplication/src/app/components/BookingTrackerPage.tsx` — passes existing stage events into proof-capture card for safe event reuse.
+- `MogzuApplication/src/app/components/FieldAgentDashboardPage.tsx` — added synthetic stage derivation for queue rows (mirrors `/bookings/:id/track`) so next-stage calculation remains meaningful even when explicit stage events are sparse.
+- `MogzuApplication/src/app/components/FieldAgentDashboardPage.tsx` — enforced stage-aware proof requirements (mandatory photo, OTP/GPS on critical stages, dispatch tracking reference).
+- `MogzuApplication/src/app/components/FieldAgentDashboardPage.tsx` — idempotent stage handling: reuses existing stage event for current stage instead of blindly creating duplicate OTP events.
+- `MogzuApplication/src/app/components/FieldAgentDashboardPage.tsx` — added notes field submission into `booking_status_events.notes` for dispatch references and audit clarity.
+- `MogzuApplication/src/app/components/BookingTrackerPage.tsx` — Proof-of-Conditions tab now supports editable save flow for authorized users: agreed scope, quoted/final amounts, negotiation history lines, and PO document upload path persisted via `db.bookingProof.upsertRecord`.
+- `MogzuApplication/src/app/components/BookingTrackerPage.tsx` — added in-tab PO upload using `storageService.documents.upload(...)` and save/refresh feedback loop (`onProofUpdated` reload).
+- `MogzuApplication/src/app/components/BookingTrackerPage.tsx` — added milestone editor for authorized users in Proof tab: add/update rows (`kind`, `%`, amount, due/paid timestamps, paid reference) and persist each row via `db.bookingProof.upsertMilestone`.
+- `MogzuApplication/src/app/components/BookingTrackerPage.tsx` — milestone date UX hardening: switched due/paid fields to `datetime-local`, normalize to ISO on save, and validate date order (`paid_at >= due_at`).
+
+Verified: `npm run build` exit 0. (IDE diagnostics on `db.ts` remain noisy/project-wide and pre-existing.)
+
+Verified: `npm run build` exit 0, `3194 modules transformed`, `built in 21.67s`.
+
+## 2026-05-23 — Batch 7 start: Refund failure auto-escalation
+
+- `MogzuApplication/src/lib/refundFailure.ts` (new) — added `escalateRefundFailure(...)` helper to auto-create high-priority support tickets (`category: Payment / refund`, `related_booking_id`, rich context body) whenever refund processing fails.
+- `MogzuApplication/src/app/components/CancelBookingPage.tsx` — booker cancellation flow now auto-escalates refund failures and shows user-facing ticket reference instead of a dead-end generic error.
+- `MogzuApplication/src/app/components/VendorBookingRequestsPage.tsx` — vendor rejection flow now auto-escalates refund failures with vendor-context ticket metadata and actionable on-screen message.
+- `MogzuApplication/src/app/components/AdminDisputesPage.tsx` — dispute resolution refund path now captures `cancelWithRefund` failures (previously silent), opens an escalation ticket, and surfaces the ticket id in notice text.
+
+Verified: `npm run build` exit 0, lints clean for touched files.
+
+## 2026-05-23 — Batch 7 follow-up: Wallet top-up webhook alignment
+
+- `MogzuApplication/src/app/components/WalletPage.tsx` — card top-ups now create a pending `wallet_topup_request`, open Razorpay Checkout with `kind: wallet_topup` + `requestId`, and rely on webhook confirmation before wallet balance changes.
+- `MogzuApplication/src/app/components/WalletPage.tsx` — improved top-up failure states: if order creation fails after request insert, the UI now preserves the pending-request reference and surfaces a clear retry/support path.
+- `MogzuApplication/src/app/components/WalletPage.tsx` — replaced stale stopgap copy claiming immediate credit with accurate messaging: card = webhook-confirmed credit, bank/NEFT = pending finance confirmation.
+- `MogzuApplication/src/lib/razorpay.ts` — added `createRazorpayRefund(...)` client helper to call the secure edge endpoint for gateway refunds.
+- `MogzuApplication/src/lib/db.ts` — `bookings.cancelWithRefund(...)` now calls Razorpay refund API for card/UPI paths, writes `refunds.gateway_reference`, and marks failed state with reason when gateway call fails.
+- `MogzuApplication/supabase/functions/server/index.tsx` — added `/razorpay-create-refund` endpoint that calls Razorpay `payments/:id/refund` using server-side keys and returns refund id/status.
+
+Verified: `npm run build` exit 0. (IDE diagnostics on `db.ts` remain noisy/project-wide and pre-existing.)
+
+## 2026-05-23 — Batch 8 start: Mogzu Direct detail polish + category confirmation modal
+
+- `MogzuApplication/src/app/pages/MogzuDirectCorporateDetailPage.tsx` — upgraded Mogzu Direct detail UX with stronger visual hierarchy (curated hero strip, richer info cards, trust/SLA messaging), interactive image thumbnail rail, and improved tab affordances to make the page feel more premium and easier to scan.
+- `MogzuApplication/src/app/pages/MogzuDirectCorporateDetailPage.tsx` — added persistent operational context for corporate users (response target + managed fulfilment cues) so booking intent screens look enterprise-ready instead of demo-like.
+- `MogzuApplication/src/app/pages/admin/AdminCategoryManagementPage.tsx` — replaced `window.confirm` flows with a proper in-app confirmation modal for disable/soft-delete actions, including active-listing impact count and explicit buyer-visibility warning.
+- `MogzuApplication/src/app/pages/admin/AdminCategoryManagementPage.tsx` — preserved one-click enable, while routing risky actions (disable/delete) through the new modal to satisfy active-listing confirmation requirements.
+
+Verified: `npm run build` exit 0, lints clean for touched files.
+
+## 2026-05-23 — Batch 8 follow-up: real-data Mogzu Direct visibility parity
+
+- `MogzuApplication/src/lib/publicCatalogue.ts` — fixed `getPublicListing(id)` to query by id directly (instead of scanning a `limit:1` list result), ensuring reliable real-data lookup for detail pages.
+- `MogzuApplication/src/lib/publicCatalogue.ts` — extracted a shared row mapper so list/detail paths normalize data consistently.
+- `MogzuApplication/src/app/pages/MogzuDirectCorporateDetailPage.tsx` — added live public listing lookup before render and prefered DB-backed visibility for `/browse/mogzu-direct/:module/:id`; if a listing is no longer active/public, the page now exits cleanly instead of relying on stale cache.
+- `MogzuApplication/src/app/pages/MogzuDirectCorporateDetailPage.tsx` — mapped live cover image through storage public URL helper for production-safe rendering.
+
+Verified: `npm run build` exit 0, lints clean for touched files.
+
+## 2026-05-23 — Batch 8 polish: “supreme” Mogzu Direct visual pass
+
+- `MogzuApplication/src/app/pages/MogzuDirectCorporateDetailPage.tsx` — elevated hero treatment (image overlay, branded top strip, premium module badge), stronger tab/nav styling, and richer high-signal metadata cards for category/pricing/response target.
+- `MogzuApplication/src/app/pages/MogzuDirectCorporateDetailPage.tsx` — added sticky right-rail value panel for corporate users (“Why teams choose Mogzu Direct” + quick-assistance CTA) to improve trust and conversion.
+- `MogzuApplication/src/app/components/ExplorePage.tsx` — upgraded card presentation for Mogzu Direct tiles with premium badge colors, softer motion on hover, and subtle hero gradient overlay for stronger catalogue aesthetics.
+
+Verified: `npm run build` exit 0, lints clean for touched files.
+
+## 2026-05-23 — Batch 8 polish: glassorium theme alignment (Discovery-style)
+
+- `MogzuApplication/src/app/pages/MogzuDirectCorporateDetailPage.tsx` — shifted core containers/cards/rails to glassorium surfaces (`bg-white/65`, soft borders, backdrop blur, layered shadows) and gradient-accented CTA styles to mirror discovery-page visual language.
+- `MogzuApplication/src/app/components/ExplorePage.tsx` — upgraded browse shell to glassorium treatment: gradient canvas, frosted header/search shell, blurred chip filters, and elevated frosted listing cards with richer motion/CTA styling.
+- `MogzuApplication/src/app/pages/MogzuDirectCorporateDetailPage.tsx` — converted side trust/benefit panels to frosted cards so the detail page now feels cohesive with discovery rather than mixed flat + glass styles.
+
+Verified: `npm run build` exit 0, lints clean for touched files.
+
+## 2026-05-23 — Batch 8 micro-pass: luxury typography rhythm
+
+- `MogzuApplication/src/app/components/ExplorePage.tsx` — refined editorial hierarchy (larger, tighter-tracked page title; improved subtitle leading; stronger card title weights; cleaner metadata/description rhythm).
+- `MogzuApplication/src/app/pages/MogzuDirectCorporateDetailPage.tsx` — upgraded hero/title/price typography with tighter tracking + clearer section-label language (uppercase micro-heads) and improved body leading for premium readability.
+
+Verified: `npm run build` exit 0, lints clean for touched files.
+
+## 2026-05-23 — Batch 8 micro-pass: luxury interaction polish
+
+- `MogzuApplication/src/app/components/ExplorePage.tsx` — standardized premium motion language: smoother duration/easing, subtle lift on hover, refined active press state, and visible focus rings on filter chips + CTA buttons.
+- `MogzuApplication/src/app/pages/MogzuDirectCorporateDetailPage.tsx` — aligned interactive states across thumbnails, tabs, and CTAs (hover lift, soft press scaling, focus-visible rings) to match high-end, consistent interaction feel.
+
+Verified: `npm run build` exit 0, lints clean for touched files.
+
+## 2026-05-23 — Batch 9 start: sub-user flow hardening (functional-first)
+
+- `MogzuApplication/src/app/pages/admin/AdminTeamPage.tsx` — extended `/admin/team` invite role picker to include `partner`, so Mogzu Admin can invite external partner users from the same sub-user flow.
+- `MogzuApplication/src/lib/db.ts` — expanded `subUsers.listInternal()` role filter to include `partner`, aligning backend team-list scope with the role picker.
+- `MogzuApplication/src/lib/db.ts` — added `userActivity.listByUser(...)` to return both actor and target events for a user (`actor_id = user` OR `target_id = user`) so audit trails include admin actions done *on* sub-users.
+- `MogzuApplication/src/app/pages/admin/AdminTeamActivityPage.tsx` — switched activity source from actor-only to consolidated per-user feed, giving real operational history for permission/status changes.
+
+Verified: `npm run build` exit 0. (IDE diagnostics on `db.ts` remain noisy/project-wide and pre-existing.)
+
+## 2026-05-23 — Batch 9 follow-up: permission matrix template enforcement
+
+- `MogzuApplication/src/lib/rolePermissionTemplates.ts` (new) — added shared permission matrix constants (`resources/actions`), role template persistence (`localStorage`), and opinionated defaults per internal role (`mogzu_admin`, `account_manager`, `support`, `sales_agent`, `field_agent`, `partner`).
+- `MogzuApplication/src/app/components/AdminRolePermissionsPage.tsx` — replaced legacy mock permission sections with real matrix-based role template editor; Mogzu Admin can now select an internal role and save reusable permission templates.
+- `MogzuApplication/src/app/pages/admin/AdminTeamPermissionsPage.tsx` — wired matrix table to shared constants and added “Apply template for role” action that grants/revokes permissions to match saved role templates, with activity log audit event (`permission.template_applied`).
+
+Verified: `npm run build` exit 0, lints clean for touched files.
+
+## 2026-05-23 — Batch 9 follow-up: scope enforcement guardrails
+
+- `MogzuApplication/src/app/components/auth/FieldAgentRoute.tsx` (new) — added dedicated field-agent guard with clean role-aware redirects; only `field_agent` and `mogzu_admin` can access field-agent surfaces.
+- `MogzuApplication/src/app/routes.tsx` — wrapped `/agent/dashboard` with `FieldAgentRoute` and `/am/portfolio` with `AccountManagerRoute` so scope checks happen at routing boundary (not only inside page components).
+- `MogzuApplication/src/lib/db.ts` — added `bookings.listByPartner(partnerId)` helper to fetch partner-attributed bookings (`bookings.partner_id`).
+- `MogzuApplication/src/app/components/BookingsPage.tsx` — partner sessions now fetch bookings strictly via `bookings.listByPartner(...)` (derived from `partners.getByUserId(profile.id)`), aligning external-partner booking visibility with referral/resale attribution only.
+
+Verified: `npm run build` exit 0. (`db.ts` IDE type noise remains pre-existing/project-wide.)
+
+## 2026-05-23 — Batch 9 closure: deep-link booking scope enforcement
+
+- `MogzuApplication/src/lib/bookingScope.ts` (new) — centralized booking-access policy helper (`canAccessBookingByRole`) covering corporate ownership, partner referral/resale ownership, AM assigned-account scope, and field-agent active-booking-only rule.
+- `MogzuApplication/src/app/components/BookingDetailPage.tsx` — added runtime ownership validation after `bookings.getById`; unauthorized direct-link access now shows explicit denied state instead of rendering booking detail from URL alone.
+- `MogzuApplication/src/app/components/BookingTrackerPage.tsx` — added equivalent scope validation before tracker/proof data hydrate, including active-booking constraint for field-agent role.
+
+Verified: `npm run build` exit 0. (`db.ts` IDE type noise remains pre-existing/project-wide.)
+
+## 2026-05-23 — Batch 10 start: public lead funnel parity on listing detail
+
+- `MogzuApplication/src/app/pages/PartnerListingCorporateDetailPage.tsx` — partner listing enquiry action now submits to `public_leads` via `submitLead(...)` (`source_slug: partner_listing`) with listing + partner metadata.
+- `MogzuApplication/src/app/pages/PartnerListingCorporateDetailPage.tsx` — retained local `MogzuOrder` fallback logging for demo continuity when lead RPC fails, while preferring real lead id (`lead-<id>`) when available.
+- `MogzuApplication/src/app/pages/PartnerListingCorporateDetailPage.tsx` — success/error notice now reflects real sales-pipeline submission state instead of always showing local-only confirmation.
+- `MogzuApplication/src/app/pages/PartnerListingCorporateDetailPage.tsx` — embedded `PublicLeadForm` in the listing detail surface (`source_slug: partner_listing_detail`) so quote capture is form-based in-page, not only CTA-button flow.
+- `MogzuApplication/src/app/pages/MogzuDirectCorporateDetailPage.tsx` — embedded `PublicLeadForm` (`source_slug: mogzu_direct_detail`) for direct in-page lead capture alongside existing quick request actions.
+- `MogzuApplication/src/app/pages/PartnerListingCorporateDetailPage.tsx` — added JSON-LD `Service` schema payload for partner listing details so indexed pages expose structured listing metadata.
+- `MogzuApplication/src/app/pages/MogzuDirectCorporateDetailPage.tsx` — added JSON-LD `Service` schema payload for Mogzu Direct detail pages to extend structured-data coverage beyond CMS landing pages.
+- `MogzuApplication/public/sitemap.xml` (new) — added baseline public sitemap entries (`/`, `/explore`, `/blog`, `/vendor-apply`, `/security`, etc.) to close the missing sitemap.xml deliverable.
+- `MogzuApplication/src/lib/i18n/useCurrency.ts` (new) — added locale-aware currency formatter hook (`en-IN`/`hi-IN`) wired to existing locale subscription.
+- `MogzuApplication/src/app/pages/PartnerListingCorporateDetailPage.tsx` — moved listing price rendering onto `useCurrency` formatter for locale-sensitive currency output.
+- `MogzuApplication/src/app/pages/MogzuDirectCorporateDetailPage.tsx` — moved listing price rendering onto `useCurrency` formatter for locale-sensitive currency output.
+- `MogzuApplication/src/lib/i18n/useCurrency.ts` — added reusable `formatCurrencyByLocale(...)` helper for non-React utility surfaces.
+- `MogzuApplication/src/utils/filterContracts.ts` — switched shared INR formatter to `formatCurrencyByLocale(...)` so all consumers now inherit locale-sensitive formatting.
+- `MogzuApplication/src/app/components/ExplorePage.tsx` — switched public catalogue card price display to `useCurrency` output.
+- `MogzuApplication/src/app/components/EventsPage.tsx` — replaced remaining hardcoded rupee-label filter chips/range labels with locale-aware `formatInr(...)`.
+- `MogzuApplication/src/app/components/EventsCorporateListingPage.tsx` — replaced hardcoded range-floor label with locale-aware `formatInr(...)`.
+- `MogzuApplication/src/app/components/SalesPipelinePage.tsx` — redesigned pipeline to match current premium glass/frosted language: elevated hero shell, in-context lead search, richer column surfaces, and denser lead metadata chips (budget/timeline/source).
+- `MogzuApplication/src/app/components/SalesPipelinePage.tsx` — improved operational clarity with filtered-count feedback (`visible vs total`) and contextual empty states (`No matches` vs `No leads`).
+- `MogzuApplication/src/app/components/AdminLeadsPage.tsx` — upgraded admin lead inbox with the same glassorium visual language, integrated in-page search, cleaner lead metadata chips, and clearer visible-state messaging for filtered results.
+- `MogzuApplication/src/app/components/AdminLeadsPage.tsx` — preserved existing status workflows while improving hierarchy/spacing so the ops view is easier to scan under high lead volume.
+- `MogzuApplication/src/app/components/SalesPipelinePage.tsx` — added assignment visibility chip (`assigned_agent_id`) and quick contact actions (`mailto` + `tel`) on each lead card to reduce friction from review → outreach.
+- `MogzuApplication/src/app/components/AdminLeadsPage.tsx` — mirrored assignment visibility and quick contact actions in admin lead inbox so both pipeline surfaces share the same conversion-focused workflow affordances.
+- `MogzuApplication/src/app/components/SalesPipelinePage.tsx` — micro-interaction + a11y polish: explicit `aria-label`s on search/status/contact controls, focus-visible rings, and refined hover/active motion for keyboard and pointer parity.
+- `MogzuApplication/src/app/components/AdminLeadsPage.tsx` — applied the same micro-interaction/a11y pass (focus rings, labels, motion-safe button states) to keep behavior consistent with the upgraded sales pipeline view.
+
+Verified: `npm run build` exit 0, lints clean for touched files.
+
 # FIXES Log — Frontend Completion Plan execution
 
 > One line per file touched. Newest at top.

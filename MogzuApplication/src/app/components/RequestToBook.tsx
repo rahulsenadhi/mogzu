@@ -8,6 +8,7 @@ import { ChevronLeft, ChevronDown, Star, MapPin, Users, AlertCircle } from 'luci
 import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
+import { MogzuLegacyDemoBanner } from '@/app/components/ui/MogzuLegacyDemoBanner';
 import imgAvatar from 'figma:asset/e67667939a12621af070c82a05583b9248a7c28e.png';
 import imgImage25005 from 'figma:asset/f6108faddc403caf1eea34c754f31b43ab0fb55b.png';
 import { appendCorpVendorEnquiry, getCorporateCompanyDisplayName } from '@/app/lib/corpVendorEnquiryStorage';
@@ -341,6 +342,11 @@ export default function RequestToBook() {
         />
         <MogzuCorporateScrollSurface>
           <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
+            <MogzuLegacyDemoBanner
+              className="mb-4"
+              title="Legacy booking flow"
+              detail="This classic RequestToBook chain is kept for deep-link compatibility. Prefer the unified /book flow for new bookings."
+            />
             {/* Back Button and Title */}
             <div className="mb-4 lg:mb-5">
               <button 

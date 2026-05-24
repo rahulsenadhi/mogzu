@@ -1,5 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { useAuth } from '@/lib/auth';
+import { db } from '@/lib/db';
+import type { SupportTicket } from '@/lib/database.types';
+import { DevMockDataBanner } from '@/app/components/global/DevMockDataBanner';
 import svgPaths from '@/imports/svg-camfkj9vq4';
 import imgImage24877 from 'figma:asset/d016f8256f9617c2da6226bb1fd8682cacd46dae.png';
 import imgAvatar from 'figma:asset/e67667939a12621af070c82a05583b9248a7c28e.png';
@@ -38,7 +42,7 @@ const navItems = [
   { id: 'users', label: 'Users', icon: 'p29193540', path: '/user-management' },
   { id: 'notification', label: 'Notification', icon: 'p4e64800', path: '/corporate/notifications' },
   { id: 'communication', label: 'Communication', icon: 'p319d300', path: '/communication' },
-  { id: 'report', label: 'Report', icon: 'p1f81a280', path: '/report' },
+  { id: 'report', label: 'Report', icon: 'p1f81a280', path: '/corporate/spend-report' },
   { id: 'transactions', label: 'Transactions', icon: 'p2683f80', path: '/admin/transactions' },
   { id: 'settings', label: 'Settings', icon: 'pde1bb00', path: '/settings/workflow' },
 ];
@@ -133,6 +137,46 @@ const quickRepliesByType: Record<PartyType, string[]> = {
   reminder: ['Mark complete', 'Snooze 2h', 'Open related thread'],
 };
 
+const moduleClassByTag: Record<ModuleTag, string> = {
+  SpaceX: 'bg-sky-50 text-sky-700',
+  GiEv: 'bg-amber-50 text-amber-700',
+  Gifting: 'bg-emerald-50 text-emerald-700',
+  'Hey Genie': 'bg-cyan-50 text-cyan-700',
+};
+
+const categoryToModuleTag = (category: string): ModuleTag => {
+  const lower = category.toLowerCase();
+  if (lower.includes('gift')) return 'Gifting';
+  if (lower.includes('genie') || lower.includes('travel')) return 'Hey Genie';
+  if (lower.includes('event') || lower.includes('giev')) return 'GiEv';
+  if (lower.includes('space') || lower.includes('venue')) return 'SpaceX';
+  return 'Gifting';
+};
+
+const formatThreadTimestamp = (iso: string): string =>
+  new Date(iso).toLocaleString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+const ticketToThread = (t: SupportTicket): Thread => {
+  const moduleTag = categoryToModuleTag(t.category);
+  const snippet = t.body.length > 80 ? `${t.body.slice(0, 80)}…` : t.body;
+  return {
+    id: t.id,
+    name: t.subject,
+    subtitle: t.category,
+    lastMessage: snippet,
+    timestamp: formatThreadTimestamp(t.updated_at || t.created_at),
+    unreadCount: t.status === 'waiting_user' ? 1 : 0,
+    partyType: 'corporate',
+    moduleTag,
+    userBadge: 'Corporate',
+    userBadgeClass: 'bg-blue-50 text-blue-700',
+    moduleClass: moduleClassByTag[moduleTag],
+    online: false,
+    location: 'Support',
+    memberSince: formatThreadTimestamp(t.created_at),
+  };
+};
+
 const labelOptions: Array<{ id: string; label: string; className: string }> = [
   { id: 'deal-done', label: 'Deal done', className: 'bg-emerald-100 text-emerald-800' },
   { id: 'negotiation', label: 'Negotiation', className: 'bg-sky-100 text-sky-800' },
@@ -143,6 +187,9 @@ const labelOptions: Array<{ id: string; label: string; className: string }> = [
 
 export default function CommunicationPage() {
   const navigate = useNavigate();
+  const { profile } = useAuth();
+  const [hasRealData, setHasRealData] = useState(false);
+  const [realTicketIds, setRealTicketIds] = useState<Set<string>>(new Set());
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedNav, setSelectedNav] = useState('communication');
   const [filterTab, setFilterTab] = useState<FilterTab>('all');
@@ -169,6 +216,30 @@ export default function CommunicationPage() {
   const [labelsQuery, setLabelsQuery] = useState('');
   const [labelSelections, setLabelSelections] = useState<Set<string>>(new Set());
   const [appliedLabelsByThread, setAppliedLabelsByThread] = useState<Record<string, string[]>>({});
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await db.supportTickets.listMine(profile.id);
+      if (cancelled) return;
+      const tickets = ((data ?? []) as SupportTicket[]).filter((t) => t.audience === 'corporate');
+      if (tickets.length === 0) return;
+      const mapped = tickets.map(ticketToThread);
+      const msgs: Record<string, Msg[]> = {};
+      for (const t of tickets) {
+        msgs[t.id] = [{ id: `body-${t.id}`, sender: 'other', text: t.body, time: formatThreadTimestamp(t.created_at) }];
+      }
+      setThreads(mapped);
+      setMessagesByThread(msgs);
+      setActiveThreadId(mapped[0].id);
+      setRealTicketIds(new Set(tickets.map((t) => t.id)));
+      setHasRealData(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [profile?.id]);
 
   const handleNavClick = (item: (typeof navItems)[number]) => {
     setSelectedNav(item.id);
@@ -203,6 +274,14 @@ export default function CommunicationPage() {
     setMessagesByThread((prev) => ({ ...prev, [activeThread.id]: [...(prev[activeThread.id] || []), msg] }));
     setThreads((prev) => prev.map((t) => (t.id === activeThread.id ? { ...t, lastMessage: txt, timestamp: 'Just now' } : t)));
     setComposer('');
+    if (hasRealData && realTicketIds.has(activeThread.id) && profile?.id) {
+      void db.supportTicketNotes.create({
+        ticket_id: activeThread.id,
+        author_id: profile.id,
+        body: txt,
+        is_internal: false,
+      });
+    }
   };
 
   const runAction = (action: 'assign' | 'escalate' | 'close' | 'note') => {
@@ -318,6 +397,7 @@ export default function CommunicationPage() {
         </header>
 
         <div className="flex-1 p-4 lg:p-6 min-h-0">
+          {!hasRealData && <DevMockDataBanner />}
           <div className="h-full min-h-0 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
             <div className="h-full min-h-0 grid grid-cols-1 lg:grid-cols-[28%_72%]">
               <section className="border-r border-slate-200 min-h-0 flex flex-col">

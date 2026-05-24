@@ -13,6 +13,7 @@ import { VendorAppShell } from './layouts/VendorAppShell'
 import { BookingMessagesPanel } from './global/BookingMessagesPanel'
 import { useAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { escalateRefundFailure } from '@/lib/refundFailure'
 import { realtimeService } from '@/lib/realtime'
 import type {
   Booking,
@@ -382,7 +383,24 @@ function BookingDetailScreen({
       vendorId,
     )
     if (error) {
-      setActionError(error.message)
+      const escalation = await escalateRefundFailure({
+        audience: 'vendor',
+        submitterId: vendorId,
+        corporateId: booking.corporate_id,
+        vendorId: booking.vendor_id,
+        bookingId: booking.id,
+        contextUrl: `/vendor/booking-requests/${booking.id}`,
+        contextRole: 'vendor',
+        flow: 'vendor_reject',
+        cancellationReason: reason,
+        fee: 0,
+        errorMessage: error.message,
+      })
+      setActionError(
+        escalation.ticketId
+          ? `Booking was rejected, but refund processing failed. Support ticket ${escalation.ticketId.slice(0, 8)} was opened automatically.`
+          : error.message,
+      )
       setSubmitting(false)
       return
     }

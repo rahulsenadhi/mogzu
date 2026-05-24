@@ -6,7 +6,16 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Loader2, ShieldAlert, AlertCircle, X, Bot, User } from 'lucide-react'
+import { AdminAiNavChips } from '@/app/components/admin/AdminAiNavChips'
 import { AdminPageTitleRow } from '@/app/components/admin/AdminPageChrome'
+import { MOGZU_GLASS_PANEL } from '@/app/components/ui/mogzuGlassStyles'
+import {
+  MOGZU_CHIP_ACTIVE_GRADIENT,
+  MOGZU_MODULE_CONTAINER,
+  MOGZU_NAV_SCROLLER,
+  MOGZU_PRODUCT_CARD,
+  moduleNavChipClass,
+} from '@/app/components/ui/mogzuGiftingStyles'
 import { useAuth } from '@/lib/auth'
 import {
   AI_AGENT_CHANNELS,
@@ -38,6 +47,70 @@ const STATUS_PILL: Record<AiAgentConversationStatus, string> = {
   closed: 'bg-zinc-100 text-zinc-500',
 }
 
+const DEMO_CONVERSATIONS: AiAgentConversation[] = [
+  {
+    id: 'demo-conv-1',
+    agent_id: 'demo-agent',
+    channel: 'web_chat',
+    external_thread_id: null,
+    contact_name: 'Sarah Mitchell',
+    contact_phone: null,
+    contact_email: 'sarah@acme.com',
+    status: 'open',
+    conversation_score: 72,
+    escalated_to: null,
+    escalated_at: null,
+    qualified_lead_payload: null,
+    started_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    last_message_at: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+    closed_at: null,
+  },
+  {
+    id: 'demo-conv-2',
+    agent_id: 'demo-agent',
+    channel: 'whatsapp',
+    external_thread_id: null,
+    contact_name: 'Raj Patel',
+    contact_phone: '+91 98765 43210',
+    contact_email: null,
+    status: 'qualified_lead',
+    conversation_score: 88,
+    escalated_to: null,
+    escalated_at: null,
+    qualified_lead_payload: { budget: '500000', module: 'events' },
+    started_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    last_message_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+    closed_at: null,
+  },
+]
+
+const DEMO_MESSAGES: AiAgentMessage[] = [
+  {
+    id: 'm1',
+    conversation_id: 'demo-conv-1',
+    role: 'user',
+    body: 'We need a corporate offsite for 120 people in Bangalore next month.',
+    metadata: null,
+    created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'm2',
+    conversation_id: 'demo-conv-1',
+    role: 'assistant',
+    body: 'I can help with that. What is your approximate budget per person, and do you prefer a venue with outdoor space?',
+    metadata: null,
+    created_at: new Date(Date.now() - 110 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'm3',
+    conversation_id: 'demo-conv-1',
+    role: 'user',
+    body: 'Around ₹3,500 per person. Outdoor space would be nice.',
+    metadata: null,
+    created_at: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+  },
+]
+
 function fmt(iso: string): string {
   return new Date(iso).toLocaleString('en-IN', {
     month: 'short',
@@ -61,6 +134,7 @@ export default function AdminAiConversationsPage() {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [messages, setMessages] = useState<AiAgentMessage[]>([])
   const [msgLoading, setMsgLoading] = useState(false)
+  const [usingDemo, setUsingDemo] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -73,8 +147,14 @@ export default function AdminAiConversationsPage() {
         limit: 200,
       }),
     ])
-    setAgents(a)
-    setRows(c)
+    setAgents(a.length > 0 ? a : [{ id: 'demo-agent', slug: 'booking', name: 'Booking Agent (demo)', kind: 'sales', description: null, channels: { whatsapp: true, telegram: false, web_chat: true, email: false }, is_active: true, escalation_threshold: 3, escalation_keywords: [], escalation_score: 70, followup_schedule_days: [1, 3, 7], created_at: '', updated_at: '' }])
+    if (c.length === 0 && !e2) {
+      setRows(DEMO_CONVERSATIONS)
+      setUsingDemo(true)
+    } else {
+      setRows(c)
+      setUsingDemo(false)
+    }
     if (e1 || e2) setError(e1 || e2 || '')
     setLoading(false)
   }, [statusFilter, channelFilter])
@@ -86,11 +166,16 @@ export default function AdminAiConversationsPage() {
   const openConversation = useCallback(async (id: string) => {
     setActiveId(id)
     setMsgLoading(true)
+    if (usingDemo || id.startsWith('demo-')) {
+      setMessages(DEMO_MESSAGES)
+      setMsgLoading(false)
+      return
+    }
     const { data, error: err } = await listMessages(id)
     setMessages(data)
     if (err) setError(err)
     setMsgLoading(false)
-  }, [])
+  }, [usingDemo])
 
   const agentName = useMemo(() => {
     const m = new Map<string, string>()
@@ -119,128 +204,144 @@ export default function AdminAiConversationsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FFFDF9]">
-      <div className="mx-auto max-w-6xl px-6 py-6">
+    <div className={`${MOGZU_MODULE_CONTAINER} mx-auto w-full space-y-5 py-2`}>
+      <div className="rounded-2xl border border-white/60 bg-white/55 p-5 backdrop-blur-xl shadow-[0_16px_36px_rgba(37,99,235,0.12)]">
         <AdminPageTitleRow
           title="AI agent conversations"
           totalLabel={loading ? 'Loading…' : `${rows.length} conversations`}
         />
-
-        {error && (
-          <p className="mt-3 flex items-center gap-2 rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-            <AlertCircle className="size-4" /> {error}
-          </p>
-        )}
-
-        <section className="mt-4 flex flex-wrap gap-3">
-          <label className="text-sm">
-            <span className="mb-1 block text-xs font-medium text-slate-600">Status</span>
-            <select
-              value={statusFilter}
-              onChange={(e) =>
-                setStatusFilter(e.target.value as AiAgentConversationStatus | 'all')
-              }
-              className="rounded-md border border-slate-200 px-3 py-2 text-sm"
-            >
-              {STATUS_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-sm">
-            <span className="mb-1 block text-xs font-medium text-slate-600">Channel</span>
-            <select
-              value={channelFilter}
-              onChange={(e) => setChannelFilter(e.target.value as AiAgentChannel | 'all')}
-              className="rounded-md border border-slate-200 px-3 py-2 text-sm"
-            >
-              <option value="all">All</option>
-              {AI_AGENT_CHANNELS.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </section>
-
-        {loading ? (
-          <div className="mt-10 flex items-center justify-center">
-            <Loader2 className="size-6 animate-spin text-slate-400" />
+        <p className="mt-1 text-[14px] text-[#64748b]">
+          Audit booking agent transcripts before and during escalations.
+        </p>
+        <div className="mt-4">
+          <AdminAiNavChips active="conversations" />
+        </div>
+        <div className={`mt-3 space-y-2`}>
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Status</p>
+          <div className={MOGZU_NAV_SCROLLER}>
+            {STATUS_OPTIONS.map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => setStatusFilter(o.value)}
+                className={moduleNavChipClass(statusFilter === o.value)}
+                style={statusFilter === o.value ? MOGZU_CHIP_ACTIVE_GRADIENT : undefined}
+              >
+                {o.label}
+              </button>
+            ))}
           </div>
-        ) : (
-          <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                  <th className="px-4 py-2">Started</th>
-                  <th className="px-4 py-2">Agent</th>
-                  <th className="px-4 py-2">Channel</th>
-                  <th className="px-4 py-2">Contact</th>
-                  <th className="px-4 py-2">Status</th>
-                  <th className="px-4 py-2 text-right">Score</th>
-                  <th className="px-4 py-2 text-right"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((c) => (
-                  <tr key={c.id} className="border-b border-slate-100 last:border-0">
-                    <td className="px-4 py-2 text-xs text-slate-500">{fmt(c.started_at)}</td>
-                    <td className="px-4 py-2 font-medium text-slate-900">
-                      {agentName.get(c.agent_id) ?? c.agent_id.slice(0, 8)}
-                    </td>
-                    <td className="px-4 py-2 text-xs capitalize text-slate-600">
-                      {c.channel.replace('_', ' ')}
-                    </td>
-                    <td className="px-4 py-2 text-slate-700">
-                      {c.contact_name ?? c.contact_email ?? c.contact_phone ?? '—'}
-                    </td>
-                    <td className="px-4 py-2">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${STATUS_PILL[c.status]}`}
-                      >
-                        {c.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-right font-mono text-xs text-slate-500">
-                      {c.conversation_score ?? '—'}
-                    </td>
-                    <td className="px-4 py-2 text-right">
-                      <div className="inline-flex gap-1">
-                        {c.status === 'open' && (
-                          <button
-                            type="button"
-                            onClick={() => void escalate(c.id)}
-                            className="rounded-md border border-rose-200 px-2 py-1 text-xs text-rose-700 hover:bg-rose-50"
-                          >
-                            Escalate
-                          </button>
-                        )}
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Channel</p>
+          <div className={MOGZU_NAV_SCROLLER}>
+            <button
+              type="button"
+              onClick={() => setChannelFilter('all')}
+              className={moduleNavChipClass(channelFilter === 'all')}
+              style={channelFilter === 'all' ? MOGZU_CHIP_ACTIVE_GRADIENT : undefined}
+            >
+              All channels
+            </button>
+            {AI_AGENT_CHANNELS.map((c) => (
+              <button
+                key={c.value}
+                type="button"
+                onClick={() => setChannelFilter(c.value)}
+                className={moduleNavChipClass(channelFilter === c.value)}
+                style={channelFilter === c.value ? MOGZU_CHIP_ACTIVE_GRADIENT : undefined}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {usingDemo && (
+        <p className="rounded-xl border border-amber-200/80 bg-amber-50/90 px-4 py-2.5 text-sm text-amber-800">
+          Showing demo conversations — connect Supabase for live transcripts.
+        </p>
+      )}
+
+      {error && (
+        <p className="flex items-center gap-2 rounded-xl border border-rose-100 bg-rose-50 px-4 py-2.5 text-sm text-rose-700">
+          <AlertCircle className="size-4 shrink-0" /> {error}
+        </p>
+      )}
+
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="size-6 animate-spin text-slate-400" />
+        </div>
+      ) : (
+        <section className={`${MOGZU_GLASS_PANEL} overflow-hidden`}>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-white/60 bg-white/40 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-500">
+                <th className="px-4 py-3">Started</th>
+                <th className="px-4 py-3">Agent</th>
+                <th className="px-4 py-3">Channel</th>
+                <th className="px-4 py-3">Contact</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3 text-right">Score</th>
+                <th className="px-4 py-3 text-right" />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((c) => (
+                <tr key={c.id} className="border-b border-slate-100/80 last:border-0 hover:bg-white/50">
+                  <td className="px-4 py-3 text-xs text-slate-500">{fmt(c.started_at)}</td>
+                  <td className="px-4 py-3 font-semibold text-[#0e1e3f]">
+                    {agentName.get(c.agent_id) ?? c.agent_id.slice(0, 8)}
+                  </td>
+                  <td className="px-4 py-3 text-xs capitalize text-slate-600">
+                    {c.channel.replace('_', ' ')}
+                  </td>
+                  <td className="px-4 py-3 text-slate-700">
+                    {c.contact_name ?? c.contact_email ?? c.contact_phone ?? '—'}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${STATUS_PILL[c.status]}`}
+                    >
+                      {c.status.replace('_', ' ')}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-xs text-slate-500">
+                    {c.conversation_score ?? '—'}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="inline-flex gap-1">
+                      {c.status === 'open' && !usingDemo && (
                         <button
                           type="button"
-                          onClick={() => void openConversation(c.id)}
-                          className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                          onClick={() => void escalate(c.id)}
+                          className="rounded-lg border border-rose-200 bg-rose-50/90 px-2 py-1 text-xs text-rose-700 hover:bg-rose-100"
                         >
-                          View transcript
+                          Escalate
                         </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {rows.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-xs text-slate-400">
-                      No conversations matching filters.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </section>
-        )}
-      </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => void openConversation(c.id)}
+                        className="rounded-lg border border-white/70 bg-white/60 px-2 py-1 text-xs text-slate-700 backdrop-blur-sm hover:border-[#93c5fd]"
+                      >
+                        View transcript
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-10 text-center text-xs text-slate-400">
+                    No conversations matching filters.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </section>
+      )}
 
       {activeId && (
         <div className="fixed inset-0 z-40 flex">
@@ -248,13 +349,13 @@ export default function AdminAiConversationsPage() {
             type="button"
             aria-label="Close transcript"
             onClick={() => setActiveId(null)}
-            className="flex-1 bg-black/40"
+            className="flex-1 bg-black/40 backdrop-blur-sm"
           />
-          <aside className="flex w-full max-w-md flex-col bg-white shadow-xl">
-            <header className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
+          <aside className={`flex w-full max-w-md flex-col ${MOGZU_PRODUCT_CARD} rounded-none border-l shadow-2xl`}>
+            <header className="flex items-start justify-between border-b border-white/60 px-5 py-4">
               <div>
                 <p className="text-xs uppercase tracking-wider text-slate-500">Transcript</p>
-                <h2 className="text-base font-bold text-slate-900">
+                <h2 className="text-base font-bold text-[#0e1e3f]">
                   {active ? agentName.get(active.agent_id) ?? 'Agent' : ''}
                 </h2>
                 <p className="text-xs text-slate-500">
@@ -264,7 +365,7 @@ export default function AdminAiConversationsPage() {
               <button
                 type="button"
                 onClick={() => setActiveId(null)}
-                className="rounded-md border border-slate-200 p-1 text-slate-600 hover:bg-slate-50"
+                className="rounded-lg border border-white/70 bg-white/60 p-1 text-slate-600 backdrop-blur-sm hover:border-[#93c5fd]"
               >
                 <X className="size-4" />
               </button>
@@ -300,20 +401,14 @@ export default function AdminAiConversationsPage() {
                     <div
                       className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${
                         m.role === 'assistant'
-                          ? 'bg-slate-100 text-slate-800'
+                          ? 'bg-white/70 text-slate-800 backdrop-blur-sm'
                           : m.role === 'system'
-                            ? 'bg-amber-50 text-amber-900'
-                            : 'bg-emerald-50 text-emerald-900'
+                            ? 'bg-amber-50/90 text-amber-900'
+                            : 'bg-emerald-50/90 text-emerald-900'
                       }`}
                     >
                       {m.body}
-                      <p
-                        className={`mt-1 text-[10px] ${
-                          m.role === 'assistant' ? 'text-slate-500' : 'text-slate-500'
-                        }`}
-                      >
-                        {fmt(m.created_at)}
-                      </p>
+                      <p className="mt-1 text-[10px] text-slate-500">{fmt(m.created_at)}</p>
                     </div>
                   </div>
                 ))

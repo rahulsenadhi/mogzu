@@ -17,6 +17,12 @@ import {
   CorporateOnboardingFooterLinks,
 } from '@/app/components/corporate/CorporateOnboardingChrome';
 import {
+  MOGZU_CHIP_ACTIVE_GRADIENT,
+  MOGZU_NAV_SCROLLER,
+  moduleNavChipClass,
+} from '@/app/components/ui/mogzuGiftingStyles';
+import {
+  ensureCorporateAccount,
   linkProfileToCorporate,
   saveCorporateOnboardingDraft,
   setCorporateRegion,
@@ -36,7 +42,7 @@ import { useAuth } from '@/lib/auth';
 
 export default function CorporateCompanyDetails() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState({
     email: '',
@@ -69,6 +75,14 @@ export default function CorporateCompanyDetails() {
     certificateOfIncorporation: null as File | null,
   });
 
+  useEffect(() => {
+    setFormData((prev) => ({
+      ...prev,
+      fullName: prev.fullName || profile?.full_name || '',
+      email: prev.email || user?.email || '',
+    }));
+  }, [profile?.full_name, user?.email]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -89,6 +103,7 @@ export default function CorporateCompanyDetails() {
   }, [error]);
 
   const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+  const getDomain = (value: string) => value.split('@')[1]?.trim().toLowerCase() ?? '';
 
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -129,16 +144,43 @@ export default function CorporateCompanyDetails() {
     }
 
     const persist = async () => {
-      const domainCheck = await validateCorporateEmailDomain(formData.email);
-      if (!domainCheck.ok) {
-        setError(domainCheck.message ?? 'Unrecognized corporate email domain.');
+      const emailInput = formData.email.trim().toLowerCase();
+      const signedInEmail = user?.email?.trim().toLowerCase() ?? '';
+      if (signedInEmail && emailInput !== signedInEmail) {
+        setError('Use the same corporate email used during signup to continue onboarding.');
         return;
       }
-      if (user?.id && domainCheck.corporateId) {
+      const signedInDomain = getDomain(signedInEmail);
+      const enteredDomain = getDomain(emailInput);
+      if (signedInDomain && enteredDomain && signedInDomain !== enteredDomain) {
+        setError('Corporate email domain does not match your signup account domain.');
+        return;
+      }
+
+      const domainCheck = await validateCorporateEmailDomain(emailInput);
+      let corporateId = domainCheck.corporateId;
+
+      if (!domainCheck.ok || !corporateId) {
+        const region = REGION_OPTIONS.find((r) => r.code === formData.region);
+        const ensured = await ensureCorporateAccount({
+          companyName: formData.companyName.trim(),
+          domain: enteredDomain || getDomain(emailInput),
+          region: formData.region,
+          defaultCurrency: region?.currency ?? 'INR',
+        });
+        if (ensured.error || !ensured.corporateId) {
+          setError(ensured.error ?? domainCheck.message ?? 'Could not register company domain.');
+          return;
+        }
+        corporateId = ensured.corporateId;
+      }
+
+      if (user?.id && corporateId) {
         const { error: linkError } = await linkProfileToCorporate(
           user.id,
-          domainCheck.corporateId,
+          corporateId,
           formData.fullName.trim(),
+          'l3_admin',
         );
         if (linkError) {
           setError(linkError);
@@ -146,7 +188,7 @@ export default function CorporateCompanyDetails() {
         }
         const region = REGION_OPTIONS.find((r) => r.code === formData.region);
         if (region) {
-          await setCorporateRegion(domainCheck.corporateId, region.code, region.currency);
+          await setCorporateRegion(corporateId, region.code, region.currency);
         }
       }
       saveCorporateOnboardingDraft({
@@ -260,7 +302,11 @@ export default function CorporateCompanyDetails() {
               onChange={handleInputChange}
               placeholder="Enter your corporate email"
               className={fieldClass}
+              readOnly={Boolean(user?.email)}
             />
+            {user?.email && (
+              <p className="text-[11px] text-slate-500">Locked to your signup email for domain verification.</p>
+            )}
             {fieldErrors.email && <p className="text-xs text-[#dc2626]">{fieldErrors.email}</p>}
           </div>
 
@@ -422,25 +468,30 @@ export default function CorporateCompanyDetails() {
           </div>
 
           {/* Region */}
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2 sm:col-span-2">
             <label className="text-sm font-medium text-slate-700">Operating region</label>
-            <div className="relative">
-              <select
-                name="region"
-                value={formData.region}
-                onChange={handleInputChange}
-                className={selectClass}
-              >
-                {REGION_OPTIONS.map((r) => (
-                  <option key={r.code} value={r.code}>
-                    {r.label} ({r.currency})
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+            <div className={MOGZU_NAV_SCROLLER}>
+              {REGION_OPTIONS.map((r) => {
+                const active = formData.region === r.code
+                return (
+                  <button
+                    key={r.code}
+                    type="button"
+                    onClick={() => setFormData((prev) => ({ ...prev, region: r.code }))}
+                    className={moduleNavChipClass(active)}
+                    style={active ? MOGZU_CHIP_ACTIVE_GRADIENT : undefined}
+                    aria-pressed={active}
+                  >
+                    {r.label}
+                    <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+                      {r.currency}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
             <p className="text-[11px] text-slate-500">
-              Determines default currency and payment methods on checkout.
+              Determines default currency and payment methods on checkout (PayNow for SG, Mada for SA/AE).
             </p>
           </div>
 

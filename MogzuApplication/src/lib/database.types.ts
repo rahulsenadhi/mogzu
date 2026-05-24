@@ -375,6 +375,7 @@ export interface UserProfile {
   push_subscription: unknown | null
   push_opt_in_at: string | null
   push_declined_at: string | null
+  dashboard_widgets: Record<string, boolean> | null
   created_at: string
   updated_at: string
 }

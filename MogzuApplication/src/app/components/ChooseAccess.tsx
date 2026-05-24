@@ -12,9 +12,11 @@ import {
   CorporateOnboardingFooterLinks,
 } from '@/app/components/corporate/CorporateOnboardingChrome';
 import {
+  finalizeCorporateOnboarding,
+  getCorporateOnboardingDraft,
   saveCorporateOnboardingDraft,
-  setCorporateOnboardingComplete,
 } from '@/app/lib/corporateOnboarding';
+import { useAuth } from '@/lib/auth';
 
 interface Package {
   id: string;
@@ -97,23 +99,45 @@ const packages: Package[] = [
 
 export default function ChooseAccess() {
   const navigate = useNavigate();
+  const { user, profile } = useAuth();
   const [selectedPackage, setSelectedPackage] = useState<string>('');
   const [accessError, setAccessError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const handleSelectPackage = (packageId: string) => {
     setAccessError('');
     setSelectedPackage(packageId);
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     setAccessError('');
     if (!selectedPackage) {
       setAccessError('Please select a package to continue.');
       return;
     }
+    if (!user?.id) {
+      setAccessError('Sign in to complete setup.');
+      navigate('/login');
+      return;
+    }
+
+    setSaving(true);
     localStorage.setItem('selectedPlan', selectedPackage);
     saveCorporateOnboardingDraft({ step: 'complete', accessLevel: selectedPackage });
-    setCorporateOnboardingComplete(true);
+
+    const { error } = await finalizeCorporateOnboarding({
+      userId: user.id,
+      corporateId: profile?.corporate_id,
+      accessLevel: selectedPackage,
+      draft: getCorporateOnboardingDraft(),
+    });
+    setSaving(false);
+
+    if (error) {
+      setAccessError(error);
+      return;
+    }
+
     navigate('/dashboard', { replace: true });
   };
 
@@ -244,8 +268,8 @@ export default function ChooseAccess() {
       <CorporateOnboardingStepFooter>
         <div className="flex w-full min-w-0 items-center justify-between gap-3">
           <CorporateOnboardingBackButton onClick={handleBack} />
-          <CorporateOnboardingPrimaryButton onClick={handleNext} className="sm:min-w-[10rem]">
-            Complete Setup
+          <CorporateOnboardingPrimaryButton onClick={() => void handleNext()} disabled={saving} className="sm:min-w-[10rem]">
+            {saving ? 'Saving…' : 'Complete Setup'}
           </CorporateOnboardingPrimaryButton>
         </div>
       </CorporateOnboardingStepFooter>

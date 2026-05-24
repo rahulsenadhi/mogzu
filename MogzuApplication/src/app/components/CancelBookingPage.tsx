@@ -12,6 +12,7 @@ import { SharedSidebar } from './layouts/SharedSidebar'
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface'
 import { useAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { escalateRefundFailure } from '@/lib/refundFailure'
 import type { Booking, Listing } from '@/lib/database.types'
 
 type BookingDetail = Booking & { listings: Listing | null }
@@ -94,7 +95,24 @@ export default function CancelBookingPage() {
     )
     setSubmitting(false)
     if (error) {
-      setSubmitError(error.message)
+      const escalation = await escalateRefundFailure({
+        audience: 'corporate',
+        submitterId: profile.id,
+        corporateId: booking.corporate_id,
+        vendorId: booking.vendor_id,
+        bookingId: booking.id,
+        contextUrl: `/bookings/${booking.id}/cancel`,
+        contextRole: profile.role ?? null,
+        flow: 'booker_cancel',
+        cancellationReason: text,
+        fee: policy.fee,
+        errorMessage: error.message,
+      })
+      setSubmitError(
+        escalation.ticketId
+          ? `Refund could not be processed right now. Support ticket ${escalation.ticketId.slice(0, 8)} has been created automatically.`
+          : `Refund could not be processed: ${error.message}`,
+      )
       return
     }
 

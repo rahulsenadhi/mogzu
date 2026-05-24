@@ -284,17 +284,28 @@ export default function BookingsPage() {
   // Load real bookings from Supabase. L3 admins see corporate-wide; everyone else sees own.
   useEffect(() => {
     let cancelled = false;
-    if (!profile?.id) return;
-    setBookingsLoading(true);
-    const fetcher = role === 'l3_admin' && corporateId
-      ? db.bookings.listByCorporate(corporateId)
-      : db.bookings.listByUser(profile.id);
-    fetcher.then(({ data }) => {
-      if (cancelled || !data) {
-        if (!cancelled) setBookingsLoading(false);
-        return;
+    async function loadRealBookings() {
+      if (!profile?.id) return;
+      setBookingsLoading(true);
+
+      let rows: Array<Record<string, unknown>> = [];
+      if (role === 'partner') {
+        const { data: partner } = await db.partners.getByUserId(profile.id);
+        if (cancelled) return;
+        if (partner?.id) {
+          const { data } = await db.bookings.listByPartner(partner.id);
+          if (cancelled) return;
+          rows = (data ?? []) as Array<Record<string, unknown>>;
+        }
+      } else {
+        const fetcher = role === 'l3_admin' && corporateId
+          ? db.bookings.listByCorporate(corporateId)
+          : db.bookings.listByUser(profile.id);
+        const { data } = await fetcher;
+        if (cancelled) return;
+        rows = (data ?? []) as Array<Record<string, unknown>>;
       }
-      const rows = data as Array<Record<string, unknown>>;
+
       const normalized: Booking[] = rows.map((row) => {
         const listing = (row.listings ?? null) as { title?: string; location_city?: string } | null;
         const vendor = (row.vendors ?? null) as { business_name?: string } | null;
@@ -315,7 +326,8 @@ export default function BookingsPage() {
       });
       setRealBookings(normalized);
       setBookingsLoading(false);
-    });
+    }
+    void loadRealBookings();
     return () => {
       cancelled = true;
     };

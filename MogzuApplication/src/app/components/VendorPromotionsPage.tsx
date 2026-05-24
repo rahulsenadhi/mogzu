@@ -13,6 +13,7 @@ import {
   saveVendorPromoAds,
   type VendorPromoAd,
 } from '@/app/lib/vendorPromotionAdsStorage';
+import { MogzuLegacyDemoBanner } from '@/app/components/ui/MogzuLegacyDemoBanner';
 
 type MainTab = 'ads' | 'discount';
 
@@ -222,6 +223,11 @@ export default function VendorPromotionsPage() {
       >
         <main className="min-h-full w-full bg-transparent">
           <div className="p-4 sm:p-6">
+            <MogzuLegacyDemoBanner
+              className="mb-4"
+              title="Legacy vendor promotions"
+              detail="LocalStorage-backed promo board. Use Promotions (live) for Supabase-backed campaigns at /vendor/promotions-live."
+            />
             {uiNotice ? (
               <p className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-700">
                 {uiNotice}

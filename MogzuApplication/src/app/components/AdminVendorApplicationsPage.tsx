@@ -83,10 +83,31 @@ export default function AdminVendorApplicationsPage() {
     }
     setBusyId(rejectTarget.id)
     const { error: err } = await db.vendors.updateStatus(rejectTarget.id, 'rejected', reasons)
+    let notifyErr: string | null = null
+    if (!err && rejectTarget.user_id) {
+      const { error } = await db.notifications.notify({
+        userId: rejectTarget.user_id,
+        type: 'system',
+        title: 'Vendor application rejected',
+        body: 'Your application needs corrections before approval. Review feedback and resubmit from the verification page.',
+        linkUrl: '/vendor/verification-pending',
+        metadata: {
+          kind: 'vendor_application_rejected',
+          vendorId: rejectTarget.id,
+          reasons,
+          reasonCount: reasons.length,
+          rejectedAt: new Date().toISOString(),
+        },
+      })
+      notifyErr = error
+    }
     setBusyId(null)
     if (err) setError(err.message)
     else {
       setRejectTarget(null)
+      if (notifyErr) {
+        setError(`Vendor rejected, but notification failed: ${notifyErr}`)
+      }
       load()
     }
   }

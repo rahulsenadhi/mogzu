@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
+import { Clock3, ShieldCheck, Sparkles } from 'lucide-react';
 import { SharedHeader } from '@/app/components/layouts/SharedHeader';
 import { SharedSidebar } from '@/app/components/layouts/SharedSidebar';
+import { MogzuCorporateScrollSurface } from '@/app/components/layouts/MogzuCorporateScrollSurface';
 import { formatBuyerPaymentSummary } from '@/app/lib/mogzuDomain';
 import type { MogzuOrder, PartnerListing } from '@/app/lib/mogzuDomain';
 import { loadMogzuOrders, loadPartnerListings, saveMogzuOrders } from '@/app/lib/mogzuDomain';
@@ -10,12 +12,22 @@ import { resolvePartnerDisplayListing } from '@/utils/catalogueDetailHelpers';
 import { useDemoRole } from '@/app/lib/demoRole';
 import { findAdminListingById } from '@/app/lib/adminListingResolve';
 import AdminListingActionPanel from '@/app/pages/admin/AdminListingActionPanel';
+import { submitLead } from '@/lib/publicLeads';
+import { useAuth } from '@/lib/auth';
+import PublicLeadForm from '@/app/components/PublicLeadForm';
+import { useCurrency } from '@/lib/i18n/useCurrency';
+import {
+  MOGZU_GLASS_CARD,
+  MOGZU_GLASS_CHIP,
+  MOGZU_GLASS_PANEL,
+  MOGZU_PRIMARY_BTN,
+} from '@/app/components/ui/mogzuGlassStyles';
 
-function formatPrice(row: PartnerListing): string {
+function formatPrice(row: PartnerListing, formatCurrency: (value: number | null | undefined) => string): string {
   if (row.pricing_mode === 'on_request') return 'Price on request';
   if (row.pricing_mode === 'negotiable')
-    return `From ₹${row.price.toLocaleString('en-IN')} / ${row.price_unit} · negotiable`;
-  return `₹${row.price.toLocaleString('en-IN')} / ${row.price_unit}`;
+    return `From ${formatCurrency(row.price)} / ${row.price_unit} · negotiable`;
+  return `${formatCurrency(row.price)} / ${row.price_unit}`;
 }
 
 const TABS = [
@@ -28,6 +40,22 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]['id'];
 
+function buildListingJsonLd(listing: PartnerListing, providerName: string | null) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Service',
+    name: listing.title,
+    description: listing.description_short || listing.description_long || '',
+    serviceType: listing.module,
+    provider: {
+      '@type': 'Organization',
+      name: providerName || 'Mogzu Partner',
+    },
+    areaServed: 'IN',
+    url: typeof window !== 'undefined' ? window.location.href : undefined,
+  };
+}
+
 export default function PartnerListingCorporateDetailPage() {
   const navigate = useNavigate();
   const { id: idParam } = useParams<{ id: string }>();
@@ -35,6 +63,8 @@ export default function PartnerListingCorporateDetailPage() {
   const [selectedTab, setSelectedTab] = useState<TabId>('overview');
   const [bookingNotice, setBookingNotice] = useState('');
   const { activeRole } = useDemoRole();
+  const { profile } = useAuth();
+  const { formatCurrency } = useCurrency();
 
   const idDecoded = idParam ? decodeURIComponent(idParam) : '';
 
@@ -61,6 +91,11 @@ export default function PartnerListingCorporateDetailPage() {
     return resolvePartnerDisplayListing(catalogueItem, domainListing);
   }, [catalogueItem, domainListing]);
 
+  const listingJsonLd = useMemo(() => {
+    if (!listing) return null;
+    return buildListingJsonLd(listing, catalogueItem?.vendor_name ?? null);
+  }, [listing, catalogueItem?.vendor_name]);
+
   const portfolioAll = useMemo(() => {
     if (!listing) return [];
     const bd = listing.buyer_detail;
@@ -68,17 +103,36 @@ export default function PartnerListingCorporateDetailPage() {
     return merged;
   }, [listing]);
 
-  const submitEnquiry = () => {
+  const submitEnquiry = async () => {
     if (!listing) return;
+    setBookingNotice('Submitting…');
+
+    const summary = `Partner listing enquiry: ${listing.title} (${listing.module})`;
+    const { id: leadId, error } = await submitLead({
+      listing_id: listing.id,
+      source_slug: 'partner_listing',
+      client_name: profile?.full_name ?? 'Corporate user',
+      client_email: profile?.email ?? 'unknown@mogzu',
+      client_phone: profile?.phone ?? null,
+      requirement_summary: summary,
+      metadata: {
+        listing_id: listing.id,
+        module: listing.module,
+        partner_id: listing.partner_id,
+        pricing_mode: listing.pricing_mode,
+        quoted_price: listing.price,
+      },
+    });
+
     const orders = loadMogzuOrders();
     const now = new Date().toISOString();
     const total = listing.pricing_mode === 'on_request' ? listing.price || 0 : listing.price;
     const partner_profit_share =
       total > 0 ? Math.round(((total * listing.profit_share_percentage) / 100) * 100) / 100 : undefined;
     const order: MogzuOrder = {
-      id: `ord-${Date.now()}`,
-      enquiry_id: `partner-${listing.id}`,
-      corporate_user_id: 'corporate-demo',
+      id: leadId ? `lead-${leadId}` : `ord-${Date.now()}`,
+      enquiry_id: leadId ?? `partner-${listing.id}`,
+      corporate_user_id: profile?.id ?? 'corporate-demo',
       listing_id: listing.id,
       listing_type: 'partner',
       partner_id: listing.partner_id,
@@ -92,7 +146,11 @@ export default function PartnerListingCorporateDetailPage() {
       updated_at: now,
     };
     saveMogzuOrders([...orders, order]);
-    setBookingNotice('Enquiry submitted. Mogzu and the partner will follow up shortly.');
+    setBookingNotice(
+      error
+        ? `Enquiry queued locally — could not reach Mogzu sales pipeline (${error}).`
+        : 'Enquiry submitted. Mogzu and the partner will follow up shortly.',
+    );
   };
 
   const adminResolvedInitial = useMemo(() => (activeRole === 'admin' ? findAdminListingById(idDecoded) : null), [activeRole, idDecoded]);
@@ -103,19 +161,20 @@ export default function PartnerListingCorporateDetailPage() {
   }, [activeRole, idDecoded]);
 
   return (
-    <div className="flex h-screen bg-[#f5f7fa] overflow-hidden">
+    <div className="flex h-screen min-h-screen overflow-hidden mogzu-module-shell-bg">
       <SharedSidebar
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         activeNav="activity"
       />
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden min-w-0">
         <SharedHeader
+          variant="blended"
           onMobileMenuToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-          searchPlaceholder="Search"
+          searchPlaceholder="Search partner listings"
         />
-        <main className="flex-1 overflow-y-auto">
-          <div className="max-w-3xl mx-auto px-6 py-8">
+        <MogzuCorporateScrollSurface>
+          <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6 md:py-8">
             {!idParam ? (
               <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
                 Invalid listing URL.
@@ -165,11 +224,39 @@ export default function PartnerListingCorporateDetailPage() {
                 </button>
               </div>
             ) : (
-              <div className={activeRole === 'admin' ? 'grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6 items-start' : ''}>
-              <article className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <div className={activeRole === 'admin' ? 'grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6 items-start' : 'grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px] items-start'}>
+              {listingJsonLd ? (
+                <script
+                  type="application/ld+json"
+                  dangerouslySetInnerHTML={{ __html: JSON.stringify(listingJsonLd) }}
+                />
+              ) : null}
+              <article className={`overflow-hidden ${MOGZU_GLASS_PANEL}`}>
+                <div className="border-b border-white/60 bg-gradient-to-r from-[#F5F0FF]/90 via-white/90 to-[#EFF6FF]/90 px-6 py-4 backdrop-blur-sm">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={MOGZU_GLASS_CHIP}>
+                      <Sparkles className="size-3.5" /> Partner listing
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      Vetted partner · Mogzu-managed coordination
+                    </span>
+                  </div>
+                </div>
                 {listing.images[0] ? (
-                  <div className="aspect-[21/9] w-full bg-slate-100">
-                    <img src={listing.images[0]} alt="" className="h-full w-full object-cover" />
+                  <div className="relative aspect-[21/9] w-full bg-slate-100">
+                    <img src={listing.images[0]} alt={listing.title} className="h-full w-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/35 via-slate-900/5 to-transparent" />
+                    <div className="absolute bottom-4 left-4 right-4 flex flex-wrap items-end justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/85">
+                          Partner
+                        </p>
+                        <h2 className="text-xl font-bold text-white drop-shadow-sm">{listing.title}</h2>
+                      </div>
+                      <span className="rounded-full border border-white/40 bg-white/15 px-3 py-1 text-xs font-medium text-white backdrop-blur">
+                        {listing.module === 'dspace' ? 'DSpace' : listing.module === 'gifting' ? 'Gifting' : 'Events'}
+                      </span>
+                    </div>
                   </div>
                 ) : null}
                 <div className="p-6 space-y-4">
@@ -185,8 +272,26 @@ export default function PartnerListingCorporateDetailPage() {
                     ) : null}
                     <span className="text-xs text-slate-500">{listing.category}</span>
                   </div>
-                  <h1 className="text-2xl font-bold text-slate-900">{listing.title}</h1>
-                  <p className="text-lg font-semibold text-slate-900">{formatPrice(listing)}</p>
+                  <h1 className="text-[30px] font-extrabold leading-tight tracking-[-0.02em] text-slate-900 sm:text-[34px]">
+                    {listing.title}
+                  </h1>
+                  <p className="text-[22px] font-bold tracking-[-0.01em] text-slate-900">{formatPrice(listing, formatCurrency)}</p>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <div className="rounded-xl border border-white/70 bg-white/55 px-3 py-2 backdrop-blur-sm">
+                      <p className="text-[11px] uppercase tracking-wide text-slate-500">Category</p>
+                      <p className="text-sm font-bold text-slate-900">{listing.category}</p>
+                    </div>
+                    <div className="rounded-xl border border-white/70 bg-white/55 px-3 py-2 backdrop-blur-sm">
+                      <p className="text-[11px] uppercase tracking-wide text-slate-500">Pricing mode</p>
+                      <p className="text-sm font-bold text-slate-900">
+                        {listing.pricing_mode === 'on_request' ? 'On request' : listing.pricing_mode === 'negotiable' ? 'Negotiable' : 'Fixed'}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-white/70 bg-white/55 px-3 py-2 backdrop-blur-sm">
+                      <p className="text-[11px] uppercase tracking-wide text-slate-500">Response target</p>
+                      <p className="text-sm font-bold text-slate-900">Within 4 business hours</p>
+                    </div>
+                  </div>
 
                   {catalogueItem.is_mogzu_direct ? (
                     <div className="flex items-center gap-2 p-4 bg-[#FFF0F6] rounded-xl border border-[#FFD6E7]">
@@ -211,7 +316,7 @@ export default function PartnerListingCorporateDetailPage() {
                   )}
 
                   <div
-                    className="flex flex-wrap gap-1 border-b border-slate-200 pb-1"
+                    className="flex flex-wrap gap-1 rounded-xl border border-white/70 bg-white/55 p-1 backdrop-blur-sm"
                     role="tablist"
                     aria-label="Listing sections"
                   >
@@ -222,10 +327,10 @@ export default function PartnerListingCorporateDetailPage() {
                         role="tab"
                         aria-selected={selectedTab === tab.id}
                         onClick={() => setSelectedTab(tab.id)}
-                        className={`rounded-t-lg px-3 py-2 text-xs font-semibold transition-colors ${
+                        className={`rounded-lg px-3 py-2 text-xs font-semibold transition-all duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-[#93c5fd]/50 ${
                           selectedTab === tab.id
-                            ? 'bg-slate-100 text-slate-900 border border-b-0 border-slate-200'
-                            : 'text-slate-600 hover:bg-slate-50'
+                            ? 'bg-white text-slate-900 border border-slate-200 shadow-sm'
+                            : 'text-slate-600 hover:bg-white/70 active:scale-[0.98]'
                         }`}
                       >
                         {tab.label}
@@ -349,24 +454,35 @@ export default function PartnerListingCorporateDetailPage() {
                   </div>
 
                   {bookingNotice ? (
-                    <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                    <p className="rounded-xl border border-emerald-200/70 bg-emerald-50/80 px-4 py-3 text-sm text-emerald-900 backdrop-blur-sm">
                       {bookingNotice}
                     </p>
-                  ) : null}
+                  ) : (
+                    <div className="rounded-xl border border-white/70 bg-white/55 px-4 py-3 text-xs text-slate-600 backdrop-blur-sm">
+                      <p className="inline-flex items-center gap-1.5 font-medium text-slate-800">
+                        <Clock3 className="size-3.5 text-slate-500" />
+                        Typical response: within 4 business hours
+                      </p>
+                      <p className="mt-1 inline-flex items-center gap-1.5">
+                        <ShieldCheck className="size-3.5 text-emerald-600" />
+                        Partner fulfilment with Mogzu coordination and support escalation.
+                      </p>
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-2 pt-4 border-t border-slate-100">
                     {activeRole === 'corporate' ? (
                       <>
                         <button
                           type="button"
                           onClick={submitEnquiry}
-                          className="rounded-xl px-4 py-2 text-sm font-semibold text-white bg-slate-800 hover:bg-slate-900"
+                          className={MOGZU_PRIMARY_BTN}
                         >
                           Submit enquiry
                         </button>
                         <button
                           type="button"
                           onClick={() => navigate('/assistance')}
-                          className="rounded-xl px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700"
+                          className="rounded-xl border border-white/40 bg-white/20 px-4 py-2 text-sm font-semibold text-[#1E3A8A] backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/35 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#93c5fd]/50 active:scale-[0.98]"
                         >
                           Mogzu Assistance
                         </button>
@@ -382,13 +498,46 @@ export default function PartnerListingCorporateDetailPage() {
                     <button
                       type="button"
                       onClick={() => navigate(-1)}
-                      className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                      className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#93c5fd]/50 active:scale-[0.98]"
                     >
                       Back
                     </button>
                   </div>
+                  {activeRole === 'corporate' ? (
+                    <section className="mt-4 rounded-xl border border-white/70 bg-white/55 p-4 backdrop-blur-sm">
+                      <h2 className="text-sm font-semibold text-slate-900">Need a detailed quote?</h2>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Share your requirements and the sales team will follow up.
+                      </p>
+                      <div className="mt-3">
+                        <PublicLeadForm
+                          listingId={listing.id}
+                          sourceSlug="partner_listing_detail"
+                          compact
+                        />
+                      </div>
+                    </section>
+                  ) : null}
                 </div>
               </article>
+              {activeRole !== 'admin' ? (
+                <aside className="space-y-4 lg:sticky lg:top-4">
+                  <div className={MOGZU_GLASS_CARD + ' p-4'}>
+                    <h3 className="text-sm font-bold text-slate-900">Why book via Mogzu partners</h3>
+                    <ul className="mt-3 space-y-2 text-xs text-slate-600">
+                      <li className="rounded-lg border border-white/70 bg-white/55 px-3 py-2 backdrop-blur-sm">
+                        Verified partner operators with Mogzu oversight
+                      </li>
+                      <li className="rounded-lg border border-white/70 bg-white/55 px-3 py-2 backdrop-blur-sm">
+                        Unified invoicing and corporate approval workflows
+                      </li>
+                      <li className="rounded-lg border border-white/70 bg-white/55 px-3 py-2 backdrop-blur-sm">
+                        Dedicated support if delivery needs escalation
+                      </li>
+                    </ul>
+                  </div>
+                </aside>
+              ) : null}
               {activeRole === 'admin' && adminResolved ? (
                 <div className="lg:sticky lg:top-4 lg:self-start">
                   <AdminListingActionPanel resolved={adminResolved} onResolvedChange={setAdminResolved} />
@@ -397,7 +546,7 @@ export default function PartnerListingCorporateDetailPage() {
               </div>
             )}
           </div>
-        </main>
+        </MogzuCorporateScrollSurface>
       </div>
     </div>
   );

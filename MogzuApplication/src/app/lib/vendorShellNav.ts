@@ -103,7 +103,7 @@ export function applyVendorShellNavAction(
       navigate('/vendor/events');
       return;
     case 'promotion':
-      navigate('/vendor/promotions');
+      navigate('/vendor/promotions-live');
       return;
     case 'notifications':
       navigate('/vendor/communication', {

@@ -223,6 +223,59 @@ app.post("/make-server-56765691/razorpay-create-order", async (c) => {
   return c.json({ ok: true, order_id: order.id, amount: order.amount, currency: order.currency, key_id: keyId });
 });
 
+// ─── Razorpay create refund ───────────────────────────────────────────────────
+// POST /razorpay-create-refund { payment_id, amount, booking_id, refund_id }.
+// Uses server-side Razorpay credentials to create a gateway refund for a
+// captured card/UPI payment and returns Razorpay refund id/status.
+app.post("/make-server-56765691/razorpay-create-refund", async (c) => {
+  const keyId = Deno.env.get("RAZORPAY_KEY_ID");
+  const keySecret = Deno.env.get("RAZORPAY_KEY_SECRET");
+  if (!keyId || !keySecret) {
+    return c.json({ ok: false, error: "Razorpay keys not configured" }, 500);
+  }
+
+  let body: {
+    payment_id?: string;
+    amount?: number;
+    booking_id?: string;
+    refund_id?: string;
+  };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ ok: false, error: "bad json" }, 400);
+  }
+
+  const paymentId = (body.payment_id ?? "").trim();
+  const amount = Number(body.amount);
+  if (!paymentId) return c.json({ ok: false, error: "missing payment_id" }, 400);
+  if (!amount || amount <= 0) return c.json({ ok: false, error: "bad amount" }, 400);
+
+  const basic = btoa(`${keyId}:${keySecret}`);
+  const res = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}/refund`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Basic ${basic}`,
+    },
+    body: JSON.stringify({
+      amount: Math.round(amount * 100), // paise
+      notes: {
+        booking_id: body.booking_id ?? "",
+        refund_id: body.refund_id ?? "",
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    return c.json({ ok: false, error: `razorpay refund: ${text}` }, 502);
+  }
+
+  const refund = (await res.json()) as { id?: string; status?: string };
+  return c.json({ ok: true, refund_id: refund.id, status: refund.status ?? "pending" });
+});
+
 // ─── Razorpay webhook ────────────────────────────────────────────────────────
 // Verifies HMAC-SHA256 signature with RAZORPAY_WEBHOOK_SECRET, then routes
 // the event based on notes.kind on the order:

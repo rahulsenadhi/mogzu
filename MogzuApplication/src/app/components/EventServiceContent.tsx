@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, Heart, Search, Star } from 'lucide-react';
+import { ChevronDown, Search, Star } from 'lucide-react';
+import { WishlistHeart } from './global/WishlistHeart';
 import { useNavigate } from 'react-router';
 import { QA_IMAGES } from '../lib/qaImagery';
 import { getPricingBadgeConfig, getPricingCtaLabel, getPricingSummaryLine } from './ui/PriceBlock';
-import { getCompareIds, getWishlistIds, toggleCompareId, toggleWishlistId } from '@/app/lib/listingSessionState';
+import { getCompareIds, toggleCompareId } from '@/app/lib/listingSessionState';
 import { useDemoRole } from '@/app/lib/demoRole';
 import { getEventServiceCategoryIconConfig } from '@/app/lib/eventsIconMapping';
 import { CategoryPillIcon } from './events/CategoryPillIcon';
@@ -217,7 +218,6 @@ export default function EventServiceContent() {
   const [ratingFloor, setRatingFloor] = useState(0);
   const [sortBy, setSortBy] = useState<'relevant' | 'highest_rated' | 'price_low_high' | 'price_high_low' | 'newest'>('relevant');
   const [search, setSearch] = useState('');
-  const [wishlistIds, setWishlistIds] = useState<string[]>(() => getWishlistIds());
   const [compareIds, setCompareIds] = useState<string[]>(() => getCompareIds());
   const [toast, setToast] = useState('');
   const [openSections, setOpenSections] = useState({
@@ -645,7 +645,6 @@ export default function EventServiceContent() {
                 const cardId = row.id;
                 const slideImages = getListingSlideImagesFromRecord(row);
                 const activeImageIndex = getActiveIndex(cardId);
-                const isSaved = wishlistIds.includes(row.id);
                 const inCompare = compareIds.includes(row.id);
                 const badge = getPricingBadgeConfig(row.pricingType);
                 const detailId = row.id.replace(/[^\d]/g, '') || '1';
@@ -686,17 +685,9 @@ export default function EventServiceContent() {
                       >
                         {inCompare ? '✓ Compare' : 'Compare'}
                       </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setWishlistIds(toggleWishlistId(row.id));
-                        }}
-                        className="absolute top-2.5 right-2.5 z-[3] w-8 h-8 bg-white/95 rounded-full flex items-center justify-center hover:bg-white hover:-translate-y-0.5 active:scale-95 transition-all shadow border border-[#e2e8f0]"
-                        aria-label="Save listing"
-                      >
-                        <Heart className={`h-4 w-4 ${isSaved ? 'text-red-500 fill-red-500' : 'text-slate-500'}`} />
-                      </button>
+                      {activeRole === 'corporate' ? (
+                        <WishlistHeart listingId={row.id} className="absolute top-2.5 right-2.5 z-[3]" />
+                      ) : null}
                       <div className="absolute bottom-2.5 right-2.5 z-[3] bg-[#16a34a] text-white text-[10px] font-semibold px-2.5 h-6 rounded-full inline-flex items-center gap-1 shadow-md">
                         <span>{row.vendorRating.toFixed(1)}</span>
                         <Star className="h-3 w-3 fill-white" />

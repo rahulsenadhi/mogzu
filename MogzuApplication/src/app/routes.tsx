@@ -45,6 +45,12 @@ function MogzuDirectEditLegacyRedirect() {
   if (!id) return <Navigate to="/admin/mogzu-direct" replace />;
   return <Navigate to={`/admin/mogzu-direct/${encodeURIComponent(id)}/edit`} replace />;
 }
+
+function VendorLegacyOrderRedirect() {
+  const { orderId } = useParams<{ orderId: string }>();
+  if (!orderId) return <Navigate to="/vendor/booking-requests" replace />;
+  return <Navigate to={`/vendor/booking-requests/${encodeURIComponent(orderId)}`} replace />;
+}
 import MogzuDirectCorporateDetailPage from "@/app/pages/MogzuDirectCorporateDetailPage";
 import PartnerListingCorporateDetailPage from "@/app/pages/PartnerListingCorporateDetailPage";
 import AdminPartnersPage from "@/app/pages/admin/AdminPartnersPage";
@@ -185,10 +191,8 @@ import BillingInvoicesPage from "@/app/components/BillingInvoicesPage";
 import AccountBillingPage from "@/app/components/AccountBillingPage";
 import WalletPage from "@/app/components/WalletPage";
 import CommunicationPage from "@/app/components/CommunicationPage";
-import FavouritesPage from "@/app/components/FavouritesPage";
 import DealsPage from "@/app/components/DealsPage";
 import DealClaimFlow from "@/app/components/DealClaimFlow";
-import ReportsPage from "@/app/components/ReportsPage";
 import MogzuAssistancePage from "@/app/components/MogzuAssistancePage";
 import CorporateTransactionsPage from "@/app/components/CorporateTransactionsPage";
 import CorporateNotificationsPage from "@/app/components/CorporateNotificationsPage";
@@ -246,6 +250,7 @@ import { CorporateRoute, VendorRoute, AdminRoute } from '@/app/components/auth/P
 import { corp, vend, adminPage, redirectTo } from '@/app/lib/routeWrappers'
 import { PartnerRoute } from '@/app/components/auth/PartnerRoute'
 import { AccountManagerRoute } from '@/app/components/auth/AccountManagerRoute'
+import { FieldAgentRoute } from '@/app/components/auth/FieldAgentRoute'
 import AuthCallbackPage from '@/app/components/auth/AuthCallbackPage'
 import ResetPasswordPage from '@/app/components/auth/ResetPasswordPage'
 
@@ -457,8 +462,8 @@ export const router = createBrowserRouter([
       { path: "products", element: <AdminProductsPage /> },
       { path: "products/categories", element: <AdminProductCategoriesPage /> },
       { path: "products/new", element: <AdminAddProductPage /> },
-      { path: "teams", element: <AdminTeamsPage /> },
-      { path: "teams/roles", element: <AdminRolePermissionsPage /> },
+      { path: "teams", element: <Navigate to="/admin/team" replace /> },
+      { path: "teams/roles", element: <Navigate to="/admin/team" replace /> },
       { path: "vendors", element: <AdminVendorManagementDashboardPage /> },
       { path: "listings", element: <AdminListingsPage /> },
       { path: "listings/:id", element: <AdminListingDetailPage /> },
@@ -605,7 +610,7 @@ export const router = createBrowserRouter([
   },
   {
     path: "/agent/dashboard",
-    element: <FieldAgentDashboardPage />,
+    element: <FieldAgentRoute><FieldAgentDashboardPage /></FieldAgentRoute>,
     errorElement: <ErrorPage />,
   },
   {
@@ -949,7 +954,7 @@ export const router = createBrowserRouter([
   },
   {
     path: "/am/portfolio",
-    element: <AccountManagerPortfolioPage />,
+    element: <AccountManagerRoute><AccountManagerPortfolioPage /></AccountManagerRoute>,
     errorElement: <ErrorPage />,
   },
   {
@@ -1028,7 +1033,7 @@ export const router = createBrowserRouter([
   },
   {
     path: "/sales/pipeline",
-    element: corp(<SalesPipelinePage />),
+    element: adminPage(<SalesPipelinePage />),
     errorElement: <ErrorPage />,
   },
   ,
@@ -1220,12 +1225,12 @@ export const router = createBrowserRouter([
   },
   {
     path: "/favourites",
-    element: corp(<FavouritesPage />),
+    element: <Navigate to="/wishlist" replace />,
     errorElement: <ErrorPage />,
   },
   {
     path: "/report",
-    element: corp(<ReportsPage />),
+    element: <Navigate to="/corporate/spend-report" replace />,
     errorElement: <ErrorPage />,
   },
   {
@@ -1321,7 +1326,7 @@ export const router = createBrowserRouter([
   },
   {
     path: "/vendor/orders/:orderId",
-    element: vend(<VendorOrderDetailsPage />),
+    element: vend(<VendorLegacyOrderRedirect />),
     errorElement: <ErrorPage />,
   },
   {

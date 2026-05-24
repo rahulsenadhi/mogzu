@@ -10,6 +10,7 @@ import { isInvoiceEligibleStatus } from '@/app/lib/bookingStatus';
 import { BookingMessagesPanel } from './global/BookingMessagesPanel';
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { canAccessBookingByRole } from '@/lib/bookingScope';
 import { subscribeToTable } from '@/lib/realtime';
 import { storageService } from '@/lib/storage';
 import type { Booking, BookingAddOn, BookingStatus, Listing, ListingImage, PaymentStatus, Vendor } from '@/lib/database.types';
@@ -191,11 +192,12 @@ export default function BookingDetailPage() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { id } = useParams();
-  const { profile } = useAuth();
+  const { profile, role } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const [realBooking, setRealBooking] = useState<RealBooking | null>(null);
   const [realLoading, setRealLoading] = useState(false);
+  const [accessDenied, setAccessDenied] = useState('');
 
   const [raiseOpen, setRaiseOpen] = useState(false);
   const [raiseCategory, setRaiseCategory] = useState<string>('service_quality');
@@ -206,11 +208,24 @@ export default function BookingDetailPage() {
 
   const loadReal = useCallback(async () => {
     if (!id || !UUID_RE.test(id)) return;
+    setAccessDenied('');
     setRealLoading(true);
     const { data, error } = await db.bookings.getById(id);
-    if (!error && data) setRealBooking(data as RealBooking);
+    if (!error && data) {
+      const scope = await canAccessBookingByRole({
+        booking: data as RealBooking,
+        role,
+        profile,
+      });
+      if (scope.ok) {
+        setRealBooking(data as RealBooking);
+      } else {
+        setRealBooking(null);
+        setAccessDenied(scope.reason ?? 'Access denied.');
+      }
+    }
     setRealLoading(false);
-  }, [id]);
+  }, [id, profile, role]);
 
   useEffect(() => {
     loadReal();
@@ -522,6 +537,17 @@ export default function BookingDetailPage() {
   const isVendorWithdrawn = enquiryEdgeState === 'vendor-withdrawn';
   const isDuplicateEnquiry = enquiryEdgeState === 'duplicate';
   const isOfferExpired = enquiryEdgeState === 'offer-expired';
+
+  if (accessDenied) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#FFFDF9] px-4">
+        <div className="max-w-md rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center">
+          <Flag className="mx-auto mb-2 h-6 w-6 text-amber-700" />
+          <p className="text-sm font-medium text-amber-900">{accessDenied}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#FFFDF9] font-['Inter']">

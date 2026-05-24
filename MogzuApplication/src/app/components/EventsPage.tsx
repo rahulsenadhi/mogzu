@@ -8,13 +8,19 @@ import svgPaths from '@/imports/svg-oytnjawqa3';
 import { QA_IMAGES } from '../lib/qaImagery';
 import EventServiceContent from './EventServiceContent';
 import { CompareStickyBar } from './CompareStickyBar';
+import { DevMockDataBanner } from './global/DevMockDataBanner';
+import { WishlistHeart } from './global/WishlistHeart';
+import { RatingBadge } from './global/RatingBadge';
 import { getMergedCatalogue } from '@/utils/catalogueUtils';
 import type { CatalogueItem } from '@/utils/catalogueTypes';
 import { formatInr, matchesPriceRange, matchesSourceFilter, type CatalogueSourceFilter } from '@/utils/filterContracts';
 import { getPricingBadgeConfig, getPricingCtaLabel, getPricingSummaryLine } from './ui/PriceBlock';
-import { getCompareIds, getWishlistIds, toggleCompareId, toggleWishlistId } from '@/app/lib/listingSessionState';
+import { getCompareIds, toggleCompareId } from '@/app/lib/listingSessionState';
 import { useDemoRole } from '@/app/lib/demoRole';
 import { getEventActivityCategoryConfigs, getEventIconByCategoryText, getEventServiceCategoryIconConfig } from '@/app/lib/eventsIconMapping';
+import { db } from '@/lib/db';
+import { storageService } from '@/lib/storage';
+import type { Listing, ListingImage } from '@/lib/database.types';
 import svgPathsSpaceX from '@/imports/svg-5pj2l0pukf';
 import { Utensils } from 'lucide-react';
 const imgImage25026 = QA_IMAGES.category.tabActive;
@@ -33,6 +39,46 @@ const imgImage25014 = QA_IMAGES.category.csr;
 const imgImage25015 = QA_IMAGES.category.entertainment;
 const imgImage25028 = QA_IMAGES.category.workshop;
 const imgEllipse3376 = QA_IMAGES.category.ellipseBadge;
+
+function listingToCatalogueItem(l: Listing & { listing_images?: ListingImage[] }): CatalogueItem {
+  const meta = (l.metadata ?? {}) as Record<string, unknown>;
+  const imgs = (l.listing_images ?? [])
+    .sort((a, b) => a.display_order - b.display_order)
+    .map((img) => storageService.listingImages.getUrl(img.storage_path));
+  const pricing_type: CatalogueItem['pricing_type'] =
+    l.pricing_type === 'offer'
+      ? 'offer_price'
+      : l.pricing_type === 'request_for_price'
+        ? 'request_for_price'
+        : 'transparent';
+  const rawTags = meta.tags;
+  const tags = Array.isArray(rawTags) ? rawTags.filter((t): t is string => typeof t === 'string') : [];
+  const category = typeof meta.category === 'string' ? meta.category : 'Events';
+  const vendorName = typeof meta.vendor_name === 'string' ? meta.vendor_name : undefined;
+  return {
+    id: l.id,
+    source_type: l.is_mogzu_direct ? 'mogzu_direct' : 'vendor',
+    vendor_id: l.vendor_id ?? undefined,
+    vendor_name: vendorName,
+    module: 'events',
+    category,
+    name: l.title,
+    tagline: typeof meta.tagline === 'string' ? meta.tagline : undefined,
+    description: l.description ?? '',
+    photos: imgs.length > 0 ? imgs : [QA_IMAGES.eventCard[0]],
+    pricing_type,
+    price_type: l.price_unit ?? undefined,
+    base_price: l.base_price ?? undefined,
+    starting_price: typeof meta.starting_price === 'number' ? meta.starting_price : undefined,
+    price_label:
+      l.base_price != null ? `₹${l.base_price.toLocaleString('en-IN')}` : undefined,
+    is_mogzu_direct: l.is_mogzu_direct,
+    is_available: l.status === 'active',
+    rating: typeof meta.rating === 'number' ? meta.rating : undefined,
+    city: l.location_city ?? undefined,
+    tags,
+  };
+}
 
 export default function EventsPage() {
   const { activeRole } = useDemoRole();
@@ -70,7 +116,6 @@ export default function EventsPage() {
     source: false,
     price: false,
   });
-  const [wishlistIds, setWishlistIds] = useState<string[]>(() => getWishlistIds());
   const [compareIds, setCompareIds] = useState<string[]>(() => getCompareIds());
   const [toast, setToast] = useState('');
   const [pricingTooltip, setPricingTooltip] = useState<{ id: string; text: string } | null>(null);
@@ -217,6 +262,30 @@ export default function EventsPage() {
     }
   ];
 
+  const [supabaseEvents, setSupabaseEvents] = useState<CatalogueItem[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(true);
+  const [eventsError, setEventsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setEventsLoading(true);
+      setEventsError(null);
+      const { data, error } = await db.listings.listByModule('events', 'active');
+      if (cancelled) return;
+      if (error) {
+        setEventsError(error.message);
+        setSupabaseEvents([]);
+      } else {
+        setSupabaseEvents((data ?? []).map(listingToCatalogueItem));
+      }
+      setEventsLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const categoryToMasterMap: Record<number, string[]> = {
     0: ['Corporate Workshops', 'Team Building Activities'],
     1: ['Cultural Performances', 'Magic & Illusion'],
@@ -242,9 +311,12 @@ export default function EventsPage() {
   };
 
   const mergedEvents = useMemo(() => {
+    if (supabaseEvents.length > 0) return supabaseEvents;
     const fromCatalogue = getMergedCatalogue().filter((i) => i.module === 'events');
     return fromCatalogue.length > 0 ? fromCatalogue : fallbackEvents;
-  }, []);
+  }, [supabaseEvents]);
+
+  const usingDemoEvents = supabaseEvents.length === 0 && !eventsLoading && !eventsError;
 
   const eventCards = useMemo(
     () =>
@@ -297,8 +369,8 @@ export default function EventsPage() {
 
   const activeFilterChips = [
     ...(searchLocation ? [{ key: 'location', label: `City: ${searchLocation}` }] : []),
-    ...(budgetMin ? [{ key: 'budgetMin', label: `Budget min: ₹${budgetMin}` }] : []),
-    ...(priceMax !== 50000 ? [{ key: 'budgetMax', label: `Budget up to: ₹${priceMax}` }] : []),
+    ...(budgetMin ? [{ key: 'budgetMin', label: `Budget min: ${formatInr(Number(budgetMin))}` }] : []),
+    ...(priceMax !== 50000 ? [{ key: 'budgetMax', label: `Budget up to: ${formatInr(priceMax)}` }] : []),
     ...(sourceFilter !== 'all' ? [{ key: 'source', label: `Source: ${sourceFilter}` }] : []),
     ...selectedEventCategories.map((x) => ({ key: `category-${x}`, label: `Category: ${x}` })),
   ];
@@ -402,8 +474,8 @@ export default function EventsPage() {
                       className="w-full h-8 rounded-md border border-[#e0e0e0] px-2 text-xs text-[#475569]"
                     />
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-[#878e9e]">₹0</span>
-                      <span className="text-[#878e9e]">₹50,000</span>
+                      <span className="text-[#878e9e]">{formatInr(0)}</span>
+                      <span className="text-[#878e9e]">{formatInr(50000)}</span>
                     </div>
                     <input
                       type="range"
@@ -626,6 +698,7 @@ export default function EventsPage() {
 
               {/* Right Content */}
               <div className="flex-1">
+                {usingDemoEvents ? <DevMockDataBanner /> : null}
                 {/* Search Bar */}
                 <div className="bg-white/55 backdrop-blur-xl rounded-2xl border border-white/60 p-4 mb-4 shadow-[0_16px_36px_rgba(37,99,235,0.12)]">
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
@@ -768,7 +841,6 @@ export default function EventsPage() {
                       };
                       const pricingBadge = getPricingBadgeConfig(normalizedPricingType);
                       const listingId = String(activity.id);
-                      const isSaved = wishlistIds.includes(listingId);
                       const inCompare = compareIds.includes(listingId);
                       const listingBadges = (activity.tags ?? []).slice(0, 3).map((t) => {
                         const low = t.toLowerCase();
@@ -804,26 +876,14 @@ export default function EventsPage() {
                           </>
                         ) : null}
                         {activeRole === 'corporate' ? (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setWishlistIds(toggleWishlistId(listingId));
-                            }}
-                            className="absolute top-2 right-2 size-8 bg-white/70 rounded-full flex items-center justify-center hover:bg-white"
-                            aria-label="Save listing"
-                          >
-                            <svg className="size-5" fill="none" viewBox="0 0 24 24">
-                              <path d={svgPaths.p1ccd9300} fill={isSaved ? '#ef4444' : '#475569'} />
-                            </svg>
-                          </button>
+                          <WishlistHeart listingId={listingId} className="absolute top-2 right-2" />
                         ) : null}
-                        <div className="absolute top-2 left-2 bg-[#22c55e] text-white px-2 py-0.5 rounded-full flex items-center gap-0.5">
-                          <span className="text-xs font-medium">4.5</span>
-                          <svg className="size-3" fill="white" viewBox="0 0 17.119 16.2812">
-                            <path d={svgPaths.p32db9e00} />
-                          </svg>
-                        </div>
+                        <RatingBadge
+                          listingId={listingId}
+                          variant="overlay"
+                          showCount={false}
+                          className="absolute top-2 left-2"
+                        />
                       </div>
 
                       {/* Content */}

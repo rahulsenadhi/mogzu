@@ -1,39 +1,67 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { ArrowLeft, LayoutGrid } from 'lucide-react';
 import { SharedHeader } from '@/app/components/layouts/SharedHeader';
 import { SharedSidebar } from '@/app/components/layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from '@/app/components/layouts/MogzuCorporateScrollSurface';
+import { useAuth } from '@/lib/auth';
 import {
   DASHBOARD_WIDGET_META,
-  getCorporateDashboardPreferences,
-  setCorporateDashboardPreferences,
+  loadCorporateDashboardPreferences,
+  saveCorporateDashboardPreferences,
   type CorporateDashboardPreferences,
   type DashboardWidgetId,
 } from '@/app/lib/corporateDashboardPreferences';
 
 export default function CorporateDashboardLayoutPage() {
   const navigate = useNavigate();
+  const { profile, user } = useAuth();
+  const userId = profile?.id ?? user?.id ?? null;
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [prefs, setPrefs] = useState<CorporateDashboardPreferences>(() => getCorporateDashboardPreferences());
+  const [prefs, setPrefs] = useState<CorporateDashboardPreferences | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  const persist = useCallback((next: CorporateDashboardPreferences) => {
-    setPrefs(next);
-    setCorporateDashboardPreferences(next);
-  }, []);
+  useEffect(() => {
+    let cancelled = false;
+    loadCorporateDashboardPreferences(userId).then((loaded) => {
+      if (!cancelled) setPrefs(loaded);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  const persist = useCallback(
+    async (next: CorporateDashboardPreferences) => {
+      setPrefs(next);
+      setSaving(true);
+      await saveCorporateDashboardPreferences(next, userId);
+      setSaving(false);
+    },
+    [userId],
+  );
 
   const toggle = (id: DashboardWidgetId) => {
-    persist({ ...prefs, [id]: !prefs[id] });
+    if (!prefs) return;
+    void persist({ ...prefs, [id]: !prefs[id] });
   };
 
   const enableAll = () => {
+    if (!prefs) return;
     const next = { ...prefs };
     for (const { id } of DASHBOARD_WIDGET_META) {
       next[id] = true;
     }
-    persist(next);
+    void persist(next);
   };
 
+  if (!prefs) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#FFFDF9] text-sm text-slate-500">
+        Loading dashboard preferences…
+      </div>
+    );
+  }
   return (
     <div className="flex h-screen overflow-hidden bg-[#FFFDF9] font-['Inter']">
       <SharedSidebar collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} />
@@ -63,6 +91,7 @@ export default function CorporateDashboardLayoutPage() {
             <p className="mb-6 text-sm text-slate-500">
               Toggle the orders &amp; deliveries hub and other sections to match how your team works—status chips, quick
               actions, and recent shipments sit alongside your existing Mogzu cards.
+              {saving ? ' Saving…' : userId ? ' Synced to your profile.' : ' Stored on this device.'}
             </p>
 
             <button

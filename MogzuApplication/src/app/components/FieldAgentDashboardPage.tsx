@@ -30,6 +30,48 @@ type BookingDetail = QueueRow & {
   next: TrackerStage | null
 }
 
+function syntheticStageEvent(row: QueueRow, stage: string, at: string): BookingStatusEvent {
+  return {
+    id: `synthetic-${row.id}-${stage}`,
+    booking_id: row.id,
+    stage,
+    otp_code: null,
+    otp_sent_to: null,
+    otp_verified_at: at,
+    photo_path: null,
+    gps_lat: null,
+    gps_lng: null,
+    submitted_by: null,
+    submitted_at: at,
+    notes: null,
+    admin_override_reason: null,
+    created_at: at,
+    updated_at: at,
+  }
+}
+
+function deriveSyntheticEvents(row: QueueRow, existing: BookingStatusEvent[]): BookingStatusEvent[] {
+  const out: BookingStatusEvent[] = []
+  const seen = new Set(existing.map((e) => e.stage))
+  const at = row.end_time ?? row.start_time ?? new Date().toISOString()
+  const add = (stage: string) => {
+    if (seen.has(stage)) return
+    out.push(syntheticStageEvent(row, stage, at))
+    seen.add(stage)
+  }
+
+  if (row.module === 'gifting') {
+    if (row.status !== 'draft' && row.status !== 'pending_approval') add('order_placed')
+    return out
+  }
+
+  if (row.status === 'pending_vendor' || row.status === 'confirmed' || row.status === 'completed') {
+    add('booking_confirmed')
+  }
+  if (row.status === 'completed') add('booking_closed')
+  return out
+}
+
 export default function FieldAgentDashboardPage() {
   const navigate = useNavigate()
   const { role, profile, signOut } = useAuth()
@@ -49,12 +91,15 @@ export default function FieldAgentDashboardPage() {
     const enriched: BookingDetail[] = []
     for (const r of (rows ?? []) as QueueRow[]) {
       const { data: events } = await db.bookingTracker.listEvents(r.id)
-      const submittedKeys = ((events ?? []) as BookingStatusEvent[])
+      const realEvents = (events ?? []) as BookingStatusEvent[]
+      const syntheticEvents = deriveSyntheticEvents(r, realEvents)
+      const allEvents = [...realEvents, ...syntheticEvents]
+      const submittedKeys = allEvents
         .filter((ev) => ev.otp_verified_at != null)
         .map((ev) => ev.stage)
       enriched.push({
         ...r,
-        events: (events ?? []) as BookingStatusEvent[],
+        events: allEvents,
         next: nextStage(r.module, submittedKeys),
       })
     }
@@ -142,15 +187,30 @@ function BookingCard({
   const [photo, setPhoto] = useState<File | null>(null)
   const [pendingEvent, setPendingEvent] = useState<BookingStatusEvent | null>(null)
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null)
+  const [notes, setNotes] = useState('')
   const [notice, setNotice] = useState('')
 
   const pipeline = getStagePipeline(row.module)
   const completed = new Set(
     row.events.filter((e) => e.otp_verified_at != null).map((e) => e.stage),
   )
+  const requiresPhoto = row.next?.proofRequired === 'mandatory'
+  const requiresOtp =
+    row.next != null &&
+    ['arrived_at_venue', 'work_started', 'work_completed', 'check_in', 'check_out', 'delivered'].includes(
+      row.next.key,
+    )
+  const requiresGps = row.next != null && ['arrived_at_venue', 'check_in'].includes(row.next.key)
+  const requiresTracking = row.next?.key === 'dispatched'
+  const existingNextEvent = row.next ? row.events.find((e) => e.stage === row.next?.key) : undefined
 
   const startStage = async () => {
     if (!row.next) return
+    if (existingNextEvent) {
+      setPendingEvent(existingNextEvent)
+      setNotice('Resuming existing stage event.')
+      return
+    }
     setBusy(true)
     setNotice('')
     const code = generateOtpCode()
@@ -182,8 +242,24 @@ function BookingCard({
 
   const submitProof = async () => {
     if (!pendingEvent || !profile) return
+    if (requiresPhoto && !photo && !pendingEvent.photo_path) {
+      setNotice('A photo is required for this stage.')
+      return
+    }
+    if (requiresOtp && !/^\d{6}$/.test(otp.trim())) {
+      setNotice('Enter the 6-digit OTP for this stage.')
+      return
+    }
     if (pendingEvent.otp_code && otp.trim() !== pendingEvent.otp_code) {
       setNotice('Entered OTP does not match the issued code.')
+      return
+    }
+    if (requiresGps && !coords && (pendingEvent.gps_lat == null || pendingEvent.gps_lng == null)) {
+      setNotice('Capture GPS before submitting this stage.')
+      return
+    }
+    if (requiresTracking && !notes.trim()) {
+      setNotice('Tracking ID / dispatch reference is required for dispatch stage.')
       return
     }
     setBusy(true)
@@ -200,9 +276,10 @@ function BookingCard({
     }
     const { error } = await db.bookingTracker.submitProof(pendingEvent.id, {
       photo_path: photoPath,
-      gps_lat: coords?.lat ?? null,
-      gps_lng: coords?.lng ?? null,
+      gps_lat: coords?.lat ?? pendingEvent.gps_lat ?? null,
+      gps_lng: coords?.lng ?? pendingEvent.gps_lng ?? null,
       submitted_by: profile.id,
+      notes: notes.trim() || null,
     })
     setBusy(false)
     if (error) {
@@ -217,6 +294,7 @@ function BookingCard({
     setOtp('')
     setPhoto(null)
     setCoords(null)
+    setNotes('')
     setNotice('Proof submitted.')
     await onChanged()
   }
@@ -312,6 +390,15 @@ function BookingCard({
                   ? `GPS ${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`
                   : 'GPS will be captured at submit.'}
               </p>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={2}
+                placeholder={
+                  requiresTracking ? 'Tracking ID / dispatch reference (required)' : 'Notes (optional)'
+                }
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-xs"
+              />
               <button
                 type="button"
                 disabled={busy}

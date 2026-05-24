@@ -9,7 +9,13 @@
 
 import { useCallback, useState } from 'react'
 import { Download, Loader2, ShieldAlert, AlertCircle, FileCheck2 } from 'lucide-react'
+import { AdminComplianceNavChips } from '@/app/components/admin/AdminComplianceNavChips'
 import { AdminPageTitleRow } from '@/app/components/admin/AdminPageChrome'
+import { MOGZU_CTA_GRADIENT,
+  MOGZU_FILTER_SIDEBAR,
+  MOGZU_MODULE_CONTAINER,
+  MOGZU_PRODUCT_CARD,
+} from '@/app/components/ui/mogzuGiftingStyles'
 import { useAuth } from '@/lib/auth'
 import { exportAuditEvents, toCsv as toAuditCsv } from '@/lib/auditLog'
 import { listReviews, listQuestionnaires } from '@/lib/accessReviews'
@@ -163,9 +169,10 @@ export default function AdminSoc2EvidencePage() {
 
   if (!isAdmin) {
     return (
-      <div className="p-12 text-center">
-        <ShieldAlert className="mx-auto mb-2 size-8 text-amber-500" />
-        <p className="text-sm text-amber-800">mogzu_admin role required.</p>
+      <div className="flex min-h-[60vh] flex-col items-center justify-center p-12 text-center">
+        <ShieldAlert className="mb-3 size-10 text-amber-500" />
+        <p className="text-base font-semibold text-amber-800">Access restricted</p>
+        <p className="mt-1 text-sm text-slate-500">mogzu_admin role required.</p>
       </div>
     )
   }
@@ -208,90 +215,88 @@ export default function AdminSoc2EvidencePage() {
   ]
 
   return (
-    <div className="min-h-screen bg-[#FFFDF9]">
-      <div className="mx-auto max-w-5xl px-6 py-6">
-        <AdminPageTitleRow
-          title="SOC2 evidence packet"
-          totalLabel="Quarterly handoff"
-        />
+    <div className={`${MOGZU_MODULE_CONTAINER} mx-auto w-full space-y-5 py-2`}>
+      <div className="rounded-2xl border border-white/60 bg-white/55 p-5 backdrop-blur-xl shadow-[0_16px_36px_rgba(37,99,235,0.12)]">
+        <AdminPageTitleRow title="SOC2 evidence packet" totalLabel="Quarterly handoff" />
+        <p className="mt-1 text-[14px] text-[#64748b]">
+          One-click CSV bundle for auditor handoff — audit events, access reviews, AI policy, questionnaires.
+        </p>
+        <div className="mt-4">
+          <AdminComplianceNavChips active="soc2" />
+        </div>
+      </div>
 
-        {error && (
-          <p className="mt-3 flex items-center gap-2 rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-            <AlertCircle className="size-4" /> {error}
-          </p>
-        )}
+      {error && (
+        <p className="flex items-center gap-2 rounded-xl border border-rose-100 bg-rose-50 px-4 py-2.5 text-sm text-rose-700">
+          <AlertCircle className="size-4 shrink-0" /> {error}
+        </p>
+      )}
 
-        <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-5">
-          <h2 className="text-sm font-bold text-slate-900">Audit window</h2>
-          <p className="text-xs text-slate-500">
-            Defaults to last 90 days. Affects the audit events CSV only.
-          </p>
-          <div className="mt-3 flex flex-wrap items-end gap-3">
-            <label className="text-sm">
-              <span className="mb-1 block text-xs font-medium text-slate-600">From</span>
-              <input
-                type="date"
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-                className="rounded-md border border-slate-200 px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="text-sm">
-              <span className="mb-1 block text-xs font-medium text-slate-600">To</span>
-              <input
-                type="date"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-                className="rounded-md border border-slate-200 px-3 py-2 text-sm"
-              />
-            </label>
+      <section className={MOGZU_FILTER_SIDEBAR}>
+        <h2 className="text-sm font-bold text-[#0e1e3f]">Audit window</h2>
+        <p className="text-xs text-slate-500">Defaults to last 90 days. Affects the audit events CSV only.</p>
+        <div className="mt-3 flex flex-wrap items-end gap-3">
+          <label className="text-sm">
+            <span className="mb-1 block text-xs font-medium text-slate-600">From</span>
+            <input
+              type="date"
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+              className="rounded-xl border border-white/70 bg-white/60 px-3 py-2 text-sm backdrop-blur-sm"
+            />
+          </label>
+          <label className="text-sm">
+            <span className="mb-1 block text-xs font-medium text-slate-600">To</span>
+            <input
+              type="date"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              className="rounded-xl border border-white/70 bg-white/60 px-3 py-2 text-sm backdrop-blur-sm"
+            />
+          </label>
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={() => void exportAll()}
+            className={`inline-flex items-center gap-1.5 ${MOGZU_CTA_GRADIENT} !bg-[linear-gradient(135deg,#059669,#10b981)] disabled:opacity-40`}
+          >
+            {busy === 'all' ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <FileCheck2 className="size-4" />
+            )}
+            Export full packet
+          </button>
+        </div>
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-2">
+        {cards.map((c) => (
+          <div key={c.id} className={`${MOGZU_PRODUCT_CARD} p-5`}>
+            <h3 className="text-base font-bold text-[#0e1e3f]">{c.title}</h3>
+            <p className="mt-1 text-xs text-slate-500">{c.body}</p>
+            {c.count !== undefined && (
+              <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                <FileCheck2 className="size-3" /> Exported {c.count} row
+                {c.count === 1 ? '' : 's'}
+              </p>
+            )}
             <button
               type="button"
               disabled={busy !== null}
-              onClick={() => void exportAll()}
-              className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-40"
+              onClick={() => void c.onClick()}
+              className="mt-4 inline-flex items-center gap-1.5 rounded-xl border border-white/70 bg-white/60 px-3 py-2 text-sm font-semibold text-slate-700 backdrop-blur-sm hover:border-[#93c5fd] disabled:opacity-40"
             >
-              {busy === 'all' ? (
+              {busy === c.id ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (
-                <FileCheck2 className="size-4" />
+                <Download className="size-4" />
               )}
-              Export full packet
+              Download CSV
             </button>
           </div>
-        </section>
-
-        <section className="mt-6 grid gap-4 sm:grid-cols-2">
-          {cards.map((c) => (
-            <div
-              key={c.id}
-              className="rounded-2xl border border-slate-200 bg-white p-5"
-            >
-              <h3 className="text-base font-bold text-slate-900">{c.title}</h3>
-              <p className="mt-1 text-xs text-slate-500">{c.body}</p>
-              {c.count !== undefined && (
-                <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                  <FileCheck2 className="size-3" /> Exported {c.count} row
-                  {c.count === 1 ? '' : 's'}
-                </p>
-              )}
-              <button
-                type="button"
-                disabled={busy !== null}
-                onClick={() => void c.onClick()}
-                className="mt-4 inline-flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-              >
-                {busy === c.id ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Download className="size-4" />
-                )}
-                Download CSV
-              </button>
-            </div>
-          ))}
-        </section>
-      </div>
+        ))}
+      </section>
     </div>
   )
 }

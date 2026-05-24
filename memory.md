@@ -54,6 +54,12 @@ Template:
 Use this for significant implementation updates.
 
 Latest entries:
+- Date: 2026-05-24
+- Summary: Post-plan Batch 22 — events catalogue Supabase wiring + Batch 2c heart sweep completion. `EventsPage` loads `db.listings.listByModule('events')` with demo fallback banner; canonical `WishlistHeart` + `RatingBadge` on cards. `EventServiceContent` heart swapped to `WishlistHeart`. Plan doc updated: `/events`, `/event-services`, `/activities`, `/bookings/:id/track` marked ✅. All 15 original plan batches + post-plan batches 16–22 complete; ~57 commits ahead of origin, uncommitted working tree.
+- Files changed: `EventsPage.tsx`, `EventServiceContent.tsx`, `FRONTEND_COMPLETION_PLAN.md`, `FIXES.md`
+- Verification performed: `npm run build` exit 0 (~26s)
+- Risks / notes: Next P0 ⚠️ surfaces = DSpace home variants, space detail, coworking, vendor welcome/event-activity. Infra-blocked: Razorpay webhooks (Batch 7), N8N crons, VAPI/HeyGenie. Large uncommitted diff from batches 12–22 should be committed when ready.
+- Owner: Project team
 - Date: 2026-05-17
 - Summary: Auth/dev stability pass — fixed login→dashboard routing, welcome loop, Supabase wiring, and build error
 - Files changed: `MogzuApplication/src/lib/supabase.ts`, `MogzuApplication/.env`, `MogzuApplication/src/lib/authRedirect.ts`, `MogzuApplication/src/lib/auth.ts`, `MogzuApplication/src/app/components/LoginPage.tsx`, `MogzuApplication/src/app/components/WelcomeScreen.tsx`, `MogzuApplication/src/app/components/auth/ProtectedRoute.tsx`, `MogzuApplication/src/app/components/auth/AuthCallbackPage.tsx`, `MogzuApplication/src/app/components/CorporateSignUpForm.tsx`, `MogzuApplication/src/app/components/VendorOnboardingPage.tsx`, `MogzuApplication/src/app/components/AdminLoginPage.tsx`, `MogzuApplication/src/app/routes.tsx`
@@ -295,21 +301,21 @@ Open items:
   - Priority: Medium
   - Context: Multiple background Vite servers caused port drift (5174–5177)
   - Owner: Project team
-- [ ] Task: Populate combo `occasion` metadata in source data so occasion filtering has real options
+- [x] Task: Populate combo `occasion` metadata in source data so occasion filtering has real options
   - Priority: High
   - Context: Combo occasion filter is wired but data currently has mostly empty `occasion` arrays
   - Owner: Project team
-  - Due date: 2026-04-26
-- [ ] Task: Normalize shop apparel fabric labels against dataset values (`Dirt fit` -> `Dry-Fit`, `Polycotton` -> `Poly-Cotton`)
+  - Completed: 2026-05-24 (Batch 15)
+- [x] Task: Normalize shop apparel fabric labels against dataset values (`Dirt fit` -> `Dry-Fit`, `Polycotton` -> `Poly-Cotton`)
   - Priority: Medium
   - Context: Label/value mismatch can hide expected products under fabric filters
   - Owner: Project team
-  - Due date: 2026-04-28
-- [ ] Task: Add `XL` to shop bag capacity filter options
+  - Completed: 2026-05-24 (Batch 15)
+- [x] Task: Add `XL` to shop bag capacity filter options
   - Priority: Medium
   - Context: Bags data contains `XL` but the filter options currently stop at `Large`
   - Owner: Project team
-  - Due date: 2026-04-28
+  - Completed: 2026-05-24 (Batch 15)
 - [ ] Task: Define a short naming convention for decision and work log summaries
   - Priority: Medium
   - Context: Consistent naming improves scanability and long-term maintenance

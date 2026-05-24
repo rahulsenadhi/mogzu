@@ -8,6 +8,7 @@ import { QA_IMAGES } from '@/app/lib/qaImagery';
 import PromoBanner from '@/app/components/PromoBanner';
 import ActivitySuite from '@/app/components/ActivitySuite';
 import { MogzuCorporateScrollSurface } from '@/app/components/layouts/MogzuCorporateScrollSurface';
+import { MOGZU_CTA_GRADIENT } from '@/app/components/ui/mogzuGiftingStyles';
 import {
   ACTIVITY_SUITE_ID_TO_MODULE,
   getModuleCorporateState,
@@ -476,17 +477,17 @@ export default function Dashboard() {
 
           <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
             {subBanner && (
-              <div className="mb-6 flex items-center justify-between gap-4 rounded-xl border border-rose-200 bg-gradient-to-r from-rose-50 to-rose-100 p-5">
+              <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-rose-200/60 bg-white/55 p-5 backdrop-blur-xl shadow-[0_16px_36px_rgba(244,63,94,0.12)] sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h3 className="mb-1 text-lg font-bold text-rose-900">{subBanner.title}</h3>
-                  <p className="text-sm text-rose-800">{subBanner.body}</p>
+                  <p className="text-sm text-rose-800/90">{subBanner.body}</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => navigate('/account/billing')}
-                  className="whitespace-nowrap rounded-lg bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-rose-700"
+                  className={`whitespace-nowrap ${MOGZU_CTA_GRADIENT} !bg-[linear-gradient(135deg,#e11d48,#f43f5e)] !shadow-[0_10px_20px_rgba(244,63,94,0.24)]`}
                 >
-                  Update Billing
+                  Update billing
                 </button>
               </div>
             )}

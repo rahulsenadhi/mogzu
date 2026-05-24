@@ -76,14 +76,15 @@ const navItems = [
   { id: 'users', label: 'Users', icon: 'p29193540', path: '/user-management' },
   { id: 'notification', label: 'Notification', icon: 'p4e64800', path: '/corporate/notifications' },
   { id: 'communication', label: 'Communication', icon: 'p319d300', path: '/communication' },
-  { id: 'report', label: 'Report', icon: 'p1f81a280', path: '/report' },
+  { id: 'report', label: 'Report', icon: 'p1f81a280', path: '/corporate/spend-report' },
   { id: 'transactions', label: 'Transactions', icon: 'p2683f80', path: '/corporate/transactions' },
   { id: 'settings', label: 'Settings', icon: 'pde1bb00', path: '/settings/workflow' },
 ];
 
 export default function UserManagementPage() {
   const navigate = useNavigate();
-  const { corporateId, profile } = useAuth();
+  const { corporateId, profile, role } = useAuth();
+  const isInviteAdmin = role === 'l3_admin' || role === 'mogzu_admin';
   const [users, setUsers] = useState<UiUser[]>(DEMO_USERS);
   const [hasRealUsers, setHasRealUsers] = useState(false);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
@@ -218,23 +219,27 @@ export default function UserManagementPage() {
     setProfilePersonalForm({ role: u.role, group: u.group });
   }, [selectedUserProfileIdx, users]);
 
-  useEffect(() => {
+  const reloadUsers = async () => {
     if (!corporateId) return;
-    let cancelled = false;
     setIsLoadingUsers(true);
-    db.userProfiles.listByCorporate(corporateId).then(({ data, error }) => {
-      if (cancelled) return;
-      setIsLoadingUsers(false);
-      if (error || !data || data.length === 0) {
-        setHasRealUsers(false);
-        return;
-      }
-      setUsers((data as UserProfile[]).map(adaptProfile));
-      setHasRealUsers(true);
-    });
-    return () => {
-      cancelled = true;
-    };
+    const { data, error } = await db.userProfiles.listByCorporate(corporateId);
+    setIsLoadingUsers(false);
+    if (error || !data || data.length === 0) {
+      setHasRealUsers(false);
+      return;
+    }
+    const active = (data as UserProfile[]).filter((p) => p.status !== 'deactivated');
+    if (active.length === 0) {
+      setHasRealUsers(false);
+      return;
+    }
+    setUsers(active.map(adaptProfile));
+    setHasRealUsers(true);
+  };
+
+  useEffect(() => {
+    void reloadUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [corporateId]);
 
   const loadInvites = async () => {
@@ -258,8 +263,12 @@ export default function UserManagementPage() {
   const handleCsvFile = async (file: File) => {
     setInviteError('');
     setInviteNotice('');
+    if (!isInviteAdmin) {
+      setInviteError('Only L3 admins can send invites.');
+      return;
+    }
     if (!corporateId || !profile) {
-      setInviteError('Sign in as an L3 admin first.');
+      setInviteError('Corporate context not loaded. Re-login and try again.');
       return;
     }
     const text = await file.text();
@@ -281,6 +290,10 @@ export default function UserManagementPage() {
   const handleResendInvite = async (id: string) => {
     setInviteError('');
     setInviteNotice('');
+    if (!isInviteAdmin) {
+      setInviteError('Only L3 admins can resend invites.');
+      return;
+    }
     const { error } = await resendInvite(id);
     if (error) {
       setInviteError(error);
@@ -293,6 +306,10 @@ export default function UserManagementPage() {
   const handleRevokeInvite = async (id: string) => {
     setInviteError('');
     setInviteNotice('');
+    if (!isInviteAdmin) {
+      setInviteError('Only L3 admins can revoke invites.');
+      return;
+    }
     const { error } = await revokeInvite(id);
     if (error) {
       setInviteError(error);
@@ -305,8 +322,12 @@ export default function UserManagementPage() {
   const handleAddSingleInvite = async (email: string, fullName: string, role: UserRole, department: string) => {
     setInviteError('');
     setInviteNotice('');
+    if (!isInviteAdmin) {
+      setInviteError('Only L3 admins can send invites.');
+      return false;
+    }
     if (!corporateId || !profile) {
-      setInviteError('Sign in as an L3 admin first.');
+      setInviteError('Corporate context not loaded. Re-login and try again.');
       return false;
     }
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) {
@@ -409,11 +430,17 @@ export default function UserManagementPage() {
         : permissionLevel === 'editor'
           ? 'l2_manager'
           : 'l1_employee';
+    const inviteDepartment =
+      permissionLevel === 'admin'
+        ? 'Management team'
+        : permissionLevel === 'editor'
+          ? 'Software team'
+          : 'General';
     const ok = await handleAddSingleInvite(
       addPersonalForm.email,
       addPersonalForm.name,
       inviteRole,
-      addBudget1Form.type, // "department" field name was reused as budget type label; OK for demo
+      inviteDepartment,
     );
     setIsAddUserSubmitting(false);
     if (!ok) return;
@@ -426,7 +453,7 @@ export default function UserManagementPage() {
     setAddUserError('');
   };
 
-  const handleSaveProfilePersonal = () => {
+  const handleSaveProfilePersonal = async () => {
     setProfilePersonalError('');
     setProfilePersonalSuccess('');
     if (selectedUserProfileIdx === null) return;
@@ -441,15 +468,30 @@ export default function UserManagementPage() {
 
     if (isProfilePersonalSaving) return;
     setIsProfilePersonalSaving(true);
-    setTimeout(() => {
-      setUsers((prev) =>
-        prev.map((u, i) =>
-          i === selectedUserProfileIdx ? { ...u, role: profilePersonalForm.role, group: profilePersonalForm.group } : u,
-        ),
-      );
+
+    const target = users[selectedUserProfileIdx];
+    if (hasRealUsers && target?.id) {
+      const { error } = await db.userProfiles.upsertPartial({
+        id: target.id,
+        department: profilePersonalForm.group.trim(),
+      });
       setIsProfilePersonalSaving(false);
-      setProfilePersonalSuccess('Details saved successfully.');
-    }, 600);
+      if (error) {
+        setProfilePersonalError(error.message);
+        return;
+      }
+      await reloadUsers();
+      setProfilePersonalSuccess('Department saved to Supabase.');
+      return;
+    }
+
+    setUsers((prev) =>
+      prev.map((u, i) =>
+        i === selectedUserProfileIdx ? { ...u, role: profilePersonalForm.role, group: profilePersonalForm.group } : u,
+      ),
+    );
+    setIsProfilePersonalSaving(false);
+    setProfilePersonalSuccess('Details saved (demo listing only).');
   };
 
   const handleSaveProfileBudget = () => {
@@ -606,6 +648,7 @@ export default function UserManagementPage() {
               <div className="relative">
                 <button
                   onClick={() => setIsAddUsersOpen(!isAddUsersOpen)}
+                  disabled={!isInviteAdmin}
                   className="h-11 pl-5 pr-4 rounded-full bg-[#2563eb] text-white flex items-center gap-2 hover:bg-[#1d4ed8] hover:shadow-md transition-all shadow-sm font-['Inter'] font-semibold text-[14px]"
                 >
                   <Plus className="w-[18px] h-[18px]" strokeWidth={2.5} />
@@ -617,6 +660,11 @@ export default function UserManagementPage() {
                     <button
                       type="button"
                       onClick={() => {
+                        if (!isInviteAdmin) {
+                          setInviteError('Only L3 admins can send invites.');
+                          setIsAddUsersOpen(false);
+                          return;
+                        }
                         csvInputRef.current?.click();
                         setIsAddUsersOpen(false);
                       }}
@@ -640,6 +688,11 @@ export default function UserManagementPage() {
                     />
                     <button 
                       onClick={() => {
+                        if (!isInviteAdmin) {
+                          setInviteError('Only L3 admins can send invites.');
+                          setIsAddUsersOpen(false);
+                          return;
+                        }
                         setIsAddSingleUserOpen(true);
                         setIsAddUsersOpen(false);
                       }}
@@ -949,6 +1002,11 @@ export default function UserManagementPage() {
                       ? 'No invites issued yet.'
                       : `${invites.filter((i) => i.status === 'pending').length} pending · ${invites.filter((i) => i.status === 'accepted').length} accepted · ${invites.filter((i) => i.status === 'expired').length} expired`}
                   </p>
+                  {!isInviteAdmin && (
+                    <p className="text-[11px] text-amber-700 mt-1">
+                      Read-only: only L3 admins can create, resend, or revoke invites.
+                    </p>
+                  )}
                 </div>
                 {isLoadingInvites && (
                   <span className="text-xs text-slate-400">Loading…</span>
@@ -1003,6 +1061,7 @@ export default function UserManagementPage() {
                                 <button
                                   type="button"
                                   onClick={() => handleResendInvite(inv.id)}
+                                  disabled={!isInviteAdmin}
                                   className="text-xs text-blue-600 hover:text-blue-700 font-medium hover:underline"
                                 >
                                   Resend
@@ -1012,6 +1071,7 @@ export default function UserManagementPage() {
                                 <button
                                   type="button"
                                   onClick={() => handleRevokeInvite(inv.id)}
+                                  disabled={!isInviteAdmin}
                                   className="text-xs text-rose-600 hover:text-rose-700 font-medium hover:underline"
                                 >
                                   Revoke
@@ -1061,22 +1121,38 @@ export default function UserManagementPage() {
                 Cancel
               </button>
               <button 
-                onClick={() => {
-                  const remaining = users
+                onClick={async () => {
+                  const selected = users
                     .map((u, i) => ({ u, i }))
-                    .filter(({ i }) => !checkedRows.has(i));
+                    .filter(({ i }) => checkedRows.has(i));
 
-                  setProfileBudgetsByIdx((prev) => {
-                    const next: Record<number, ProfileBudgetAllocation[]> = {};
-                    let newIdx = 0;
-                    for (const { i } of remaining) {
-                      if (prev[i] && prev[i].length > 0) next[newIdx] = prev[i];
-                      newIdx += 1;
+                  if (hasRealUsers) {
+                    const ids = selected.map(({ u }) => u.id).filter((id): id is string => !!id);
+                    const results = await Promise.all(ids.map((id) => db.userProfiles.deactivate(id)));
+                    const failed = results.find((r) => r.error);
+                    if (failed?.error) {
+                      setListDemoNotice(failed.error.message);
+                      return;
                     }
-                    return next;
-                  });
+                    await reloadUsers();
+                  } else {
+                    const remaining = users
+                      .map((u, i) => ({ u, i }))
+                      .filter(({ i }) => !checkedRows.has(i));
 
-                  setUsers(remaining.map(({ u }) => u));
+                    setProfileBudgetsByIdx((prev) => {
+                      const next: Record<number, ProfileBudgetAllocation[]> = {};
+                      let newIdx = 0;
+                      for (const { i } of remaining) {
+                        if (prev[i] && prev[i].length > 0) next[newIdx] = prev[i];
+                        newIdx += 1;
+                      }
+                      return next;
+                    });
+
+                    setUsers(remaining.map(({ u }) => u));
+                  }
+
                   setIsRemoveModalOpen(false);
                   setCheckedRows(new Set());
                   setHeaderChecked(false);
@@ -1178,16 +1254,29 @@ export default function UserManagementPage() {
 
                   <div className="flex items-center gap-[20px]">
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         if (groupChangeUserIdx === null) {
                           setManageGroupsError('Select a user to change group.');
                           return;
                         }
                         setManageGroupsError('');
                         const targetGroup = manageGroupsTabToGroupLabel(manageGroupsActiveTab);
-                        setUsers((prev) =>
-                          prev.map((u, i) => (i === groupChangeUserIdx ? { ...u, group: targetGroup } : u)),
-                        );
+                        const targetUser = users[groupChangeUserIdx];
+                        if (hasRealUsers && targetUser?.id) {
+                          const { error } = await db.userProfiles.upsertPartial({
+                            id: targetUser.id,
+                            department: targetGroup,
+                          });
+                          if (error) {
+                            setManageGroupsError(error.message);
+                            return;
+                          }
+                          await reloadUsers();
+                        } else {
+                          setUsers((prev) =>
+                            prev.map((u, i) => (i === groupChangeUserIdx ? { ...u, group: targetGroup } : u)),
+                          );
+                        }
                         setIsManageGroupsOpen(false);
                         setSelectedUserProfileIdx(groupChangeUserIdx);
                         setProfileActiveTab('personal');

@@ -145,9 +145,9 @@ function buildVendorNavRows(pathname: string): VendorNavRow[] {
     {
       key: 'promotions',
       label: 'Promotions',
-      path: '/vendor/promotions',
+      path: '/vendor/promotions-live',
       icon: Megaphone,
-      isActive: (p) => pathMatches(p, '/vendor/promotions'),
+      isActive: (p) => pathMatches(p, '/vendor/promotions-live') || pathMatches(p, '/vendor/promotions'),
     },
     {
       key: 'team',

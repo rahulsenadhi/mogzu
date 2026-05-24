@@ -10,6 +10,7 @@ import {
 import { AdminPageTitleRow } from '@/app/components/admin/AdminPageChrome'
 import { useAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { escalateRefundFailure } from '@/lib/refundFailure'
 import type {
   BookingDispute,
   DisputeResolution,
@@ -224,6 +225,7 @@ function DisputeDetail({ disputeId }: { disputeId: string }) {
       return
     }
     setSubmitting(true)
+    let resolutionNotice: string | null = null
 
     const { error } = await db.bookingDisputes.resolve(
       disputeId,
@@ -251,12 +253,31 @@ function DisputeDetail({ disputeId }: { disputeId: string }) {
         payment_status: dispute.bookings.payment_status,
         payment_method: dispute.bookings.payment_method,
       } as any
-      await db.bookings.cancelWithRefund(
+      const { error: refundError } = await db.bookings.cancelWithRefund(
         bookingProxy,
         `Dispute resolution: ${RESOLUTION_LABEL[resolution]} — ${note.trim()}`,
         fee,
         profile.id,
       )
+      if (refundError) {
+        const escalation = await escalateRefundFailure({
+          audience: 'corporate',
+          submitterId: profile.id,
+          corporateId: dispute.bookings.corporate_id ?? null,
+          vendorId: dispute.bookings.vendor_id ?? null,
+          bookingId: dispute.booking_id,
+          contextUrl: `/admin/disputes/${dispute.booking_id}`,
+          contextRole: profile.role ?? null,
+          flow: 'admin_dispute',
+          resolutionNote: note.trim(),
+          cancellationReason: RESOLUTION_LABEL[resolution],
+          fee,
+          errorMessage: refundError,
+        })
+        resolutionNotice = escalation.ticketId
+          ? `Dispute resolved, but refund failed. Auto-escalated via ticket ${escalation.ticketId.slice(0, 8)}.`
+          : `Dispute resolved, but refund failed: ${refundError}`
+      }
     }
 
     // Notify both parties
@@ -271,7 +292,7 @@ function DisputeDetail({ disputeId }: { disputeId: string }) {
     }
 
     setSubmitting(false)
-    setNotice('Dispute resolved + parties notified.')
+    setNotice(resolutionNotice ?? 'Dispute resolved + parties notified.')
     load()
   }
 

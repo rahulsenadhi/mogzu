@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { createRazorpayOrder, openRazorpayCheckout } from '@/lib/razorpay'
 import { realtimeService } from '@/lib/realtime'
 import type {
   Wallet as WalletRow,
@@ -108,7 +109,7 @@ export default function WalletPage() {
     setSubmitError('')
     setSubmitting(true)
 
-    const { error: reqErr } = await db.wallet.topupRequest(
+    const { data: requestIdRaw, error: reqErr } = await db.wallet.topupRequest(
       corporateId,
       amt,
       topUpMethod,
@@ -119,13 +120,61 @@ export default function WalletPage() {
       setSubmitting(false)
       return
     }
+    const requestId =
+      typeof requestIdRaw === 'string' && requestIdRaw.length > 0 ? requestIdRaw : null
+    const requestShort = requestId ? requestId.slice(0, 8) : 'pending'
+
+    if (topUpMethod === 'card') {
+      const order = await createRazorpayOrder({
+        amount: amt,
+        kind: 'wallet_topup',
+        requestId: requestId ?? undefined,
+      })
+      if (!order.ok) {
+        setSubmitError(
+          `Top-up request ${requestShort} created, but Razorpay checkout could not start: ${
+            order.error ?? 'unknown error'
+          }`,
+        )
+        setSubmitting(false)
+        return
+      }
+      try {
+        await openRazorpayCheckout({
+          order,
+          buyerName: profile.full_name ?? undefined,
+          buyerEmail: profile.email ?? undefined,
+          description: `Wallet top-up (${requestShort})`,
+          onSuccess: (resp) => {
+            setSubmitting(false)
+            setTopUpOpen(false)
+            setTopUpAmount('10000')
+            setTopUpRef('')
+            setNotice(
+              `Payment ${resp.razorpay_payment_id} captured. Wallet balance updates after webhook confirmation (usually within seconds).`,
+            )
+            setTimeout(() => load(), 4000)
+          },
+          onDismiss: () => {
+            setSubmitting(false)
+            setSubmitError(
+              `Checkout closed. Top-up request ${requestShort} remains pending until payment is completed.`,
+            )
+          },
+        })
+      } catch (err) {
+        setSubmitting(false)
+        setSubmitError(err instanceof Error ? err.message : 'Razorpay checkout failed.')
+      }
+      return
+    }
 
     setSubmitting(false)
     setTopUpOpen(false)
     setTopUpAmount('10000')
     setTopUpRef('')
     setNotice(
-      `Top-up request for ₹${amt.toLocaleString('en-IN')} recorded. Balance updates after Razorpay confirms payment.`,
+      `Top-up request ${requestShort} for ₹${amt.toLocaleString('en-IN')} recorded. Balance updates only after finance verification and confirmation.`,
     )
     load()
   }
@@ -373,9 +422,9 @@ export default function WalletPage() {
                 />
               </div>
               <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                ⚠ Razorpay checkout + webhook confirmation not yet wired. This stopgap records the
-                transaction and credits the wallet immediately. Backend webhook will replace this
-                in a future sprint.
+                Card top-ups open Razorpay Checkout and credit the wallet only after webhook
+                confirmation. Bank transfer / NEFT requests stay pending until finance confirms
+                payment.
               </p>
               {submitError && (
                 <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">

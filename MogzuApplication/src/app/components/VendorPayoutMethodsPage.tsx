@@ -17,6 +17,15 @@ import {
   Trash2,
 } from 'lucide-react'
 import { VendorAppShell } from './layouts/VendorAppShell'
+import { MOGZU_GLASS_PANEL } from '@/app/components/ui/mogzuGlassStyles'
+import {
+  MOGZU_CTA_GRADIENT,
+  MOGZU_FILTER_SIDEBAR,
+  MOGZU_MODULE_CONTAINER,
+  MOGZU_PAGE_SUBTITLE,
+  MOGZU_PAGE_TITLE,
+  MOGZU_PRODUCT_CARD,
+} from '@/app/components/ui/mogzuGiftingStyles'
 import { useAuth } from '@/lib/auth'
 import { listCurrencies, type Currency } from '@/lib/currencies'
 import {
@@ -171,31 +180,30 @@ export default function VendorPayoutMethodsPage() {
   return (
     <VendorAppShell activeNav="orders" routeSource="vendor-payout-methods">
       <main className="min-h-full w-full bg-transparent">
-        <section className="mx-auto w-full max-w-[1100px] px-5 md:px-8 lg:px-12 py-6">
-          <div className="mb-4">
-            <h1 className="text-2xl font-semibold text-slate-900">Payout methods</h1>
-            <p className="text-sm text-slate-500">
-              Add a rail per settlement currency. The primary method per currency receives the
-              payout when a booking in that currency completes. Admin verifies before live
-              transfers.
+        <section className={`${MOGZU_MODULE_CONTAINER} py-6`}>
+          <div className="mb-6 rounded-2xl border border-white/60 bg-white/55 p-5 backdrop-blur-xl shadow-[0_16px_36px_rgba(37,99,235,0.12)]">
+            <h1 className={MOGZU_PAGE_TITLE}>Payout methods</h1>
+            <p className={`mt-2 max-w-2xl ${MOGZU_PAGE_SUBTITLE}`}>
+              Add a rail per settlement currency. The primary method per currency receives the payout when a
+              booking in that currency completes. Admin verifies before live transfers.
             </p>
           </div>
 
           {error && (
-            <p className="mb-4 flex items-center gap-2 rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+            <p className="mb-4 flex items-center gap-2 rounded-xl border border-rose-100 bg-rose-50/90 px-4 py-2.5 text-sm text-rose-700">
               <AlertCircle className="size-4" /> {error}
             </p>
           )}
 
-          <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5">
-            <h2 className="mb-3 text-sm font-semibold text-slate-900">Add new method</h2>
+          <section className={`${MOGZU_FILTER_SIDEBAR} mb-6`}>
+            <h2 className="mb-3 text-sm font-semibold text-[#0e1e3f]">Add new method</h2>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <label className="text-xs font-medium text-slate-600">Currency</label>
                 <select
                   value={form.currency}
                   onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-xl border border-white/70 bg-white/60 px-3 py-2 text-sm backdrop-blur-sm"
                 >
                   {currencies.map((c) => (
                     <option key={c.code} value={c.code}>
@@ -211,7 +219,7 @@ export default function VendorPayoutMethodsPage() {
                   onChange={(e) =>
                     setForm((f) => ({ ...f, rail: e.target.value as PayoutRail }))
                   }
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-xl border border-white/70 bg-white/60 px-3 py-2 text-sm backdrop-blur-sm"
                 >
                   {PAYOUT_RAILS.map((r) => (
                     <option key={r} value={r}>
@@ -229,7 +237,7 @@ export default function VendorPayoutMethodsPage() {
                     setForm((f) => ({ ...f, account_holder: e.target.value }))
                   }
                   placeholder="As on account"
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-xl border border-white/70 bg-white/60 px-3 py-2 text-sm backdrop-blur-sm"
                 />
               </div>
               <div>
@@ -241,7 +249,7 @@ export default function VendorPayoutMethodsPage() {
                     setForm((f) => ({ ...f, account_number: e.target.value }))
                   }
                   placeholder="e.g. 1234567890"
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono"
+                  className="mt-1 w-full rounded-xl border border-white/70 bg-white/60 px-3 py-2 font-mono text-sm backdrop-blur-sm"
                 />
               </div>
               <div className="sm:col-span-2">
@@ -255,7 +263,7 @@ export default function VendorPayoutMethodsPage() {
                     setForm((f) => ({ ...f, routing_info: e.target.value }))
                   }
                   placeholder='{"ifsc":"HDFC0000123"} or {"swift":"DEUTDEFF"}'
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono"
+                  className="mt-1 w-full rounded-xl border border-white/70 bg-white/60 px-3 py-2 font-mono text-sm backdrop-blur-sm"
                 />
               </div>
               <div className="sm:col-span-2 flex items-center gap-2">
@@ -276,7 +284,7 @@ export default function VendorPayoutMethodsPage() {
               type="button"
               disabled={busy === 'add'}
               onClick={() => void addMethod()}
-              className="mt-4 rounded-lg bg-[#2563eb] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+              className={`mt-4 ${MOGZU_CTA_GRADIENT} disabled:opacity-40`}
             >
               {busy === 'add' ? 'Saving…' : 'Add method'}
             </button>
@@ -287,22 +295,19 @@ export default function VendorPayoutMethodsPage() {
               <Loader2 className="size-6 animate-spin text-slate-400" />
             </div>
           ) : grouped.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-10 text-center text-sm text-slate-500">
+            <p className={`${MOGZU_PRODUCT_CARD} p-10 text-center text-sm text-slate-500`}>
               No payout methods configured yet.
             </p>
           ) : (
             <div className="space-y-5">
               {grouped.map(([currency, list]) => (
-                <section
-                  key={currency}
-                  className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
-                >
-                  <header className="border-b border-slate-100 bg-slate-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600">
+                <section key={currency} className={`${MOGZU_GLASS_PANEL} overflow-hidden`}>
+                  <header className="border-b border-white/60 bg-white/40 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#0e1e3f]">
                     {currency} settlement
                   </header>
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-slate-100 text-left text-xs uppercase tracking-wide text-slate-500">
+                      <tr className="border-b border-white/60 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-500">
                         <th className="px-4 py-2">Rail</th>
                         <th className="px-4 py-2">Account holder</th>
                         <th className="px-4 py-2">Account</th>

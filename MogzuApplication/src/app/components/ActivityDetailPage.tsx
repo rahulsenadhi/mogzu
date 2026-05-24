@@ -683,6 +683,13 @@ export default function ActivityDetailPage() {
                   </div>
 
                   <div className="pt-4 border-t border-[#ececec] space-y-3">
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/dashboard/activities/${activity.id}/booking`)}
+                      className="w-full py-3 px-4 bg-[#4379ee] text-white text-sm font-semibold rounded-lg hover:bg-[#3568dd] transition-colors"
+                    >
+                      Book this activity
+                    </button>
                     <div className="flex items-center gap-2 text-sm text-[#0e1e3f]">
                       <Calendar className="w-4 h-4 text-[#4379ee]" />
                       <span>Flexible booking dates</span>

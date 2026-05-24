@@ -137,44 +137,49 @@ export default function CompanySettingsPage() {
 
         <MogzuCorporateScrollSurface>
           <div className="max-w-4xl mx-auto px-8 py-10">
-            <div className="mb-10 flex items-end justify-between gap-4">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900 font-['Montserrat']">
-                  {corporateAccount?.name ?? 'Company Settings'}
-                </h1>
-                <p className="mt-2 text-gray-500">
-                  Manage your organization&apos;s details, team members, and corporate policies.
-                </p>
+
+            {/* Header card */}
+            <div className="mb-8 rounded-2xl border border-white/60 bg-white/70 px-7 py-6 shadow-[0_10px_30px_rgba(67,121,238,0.10)] backdrop-blur-md">
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+                    {corporateAccount?.name ?? 'Company Settings'}
+                  </h1>
+                  <p className="mt-1.5 text-sm text-gray-500">
+                    Manage your organisation's details, team members, and corporate policies.
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-full border border-blue-200/80 bg-blue-50 px-3.5 py-1.5 text-xs font-semibold uppercase tracking-widest text-blue-700">
+                  {planLabel} plan
+                </span>
               </div>
-              <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-blue-700">
-                {planLabel} plan
-              </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {sections.map((section) => {
                 const Icon = section.icon;
                 return (
-                  <div
+                  <button
                     key={section.id}
+                    type="button"
                     onClick={section.action}
-                    className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md hover:border-blue-200 transition-all cursor-pointer group"
+                    className="group rounded-2xl border border-white/60 bg-white/70 p-6 text-left shadow-[0_8px_24px_rgba(67,121,238,0.08)] backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(67,121,238,0.16)] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/50"
                   >
-                    <div className="w-12 h-12 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center mb-5 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                      <Icon className="w-6 h-6" />
+                    <div className="mb-5 flex size-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600 transition-colors group-hover:bg-blue-600 group-hover:text-white">
+                      <Icon className="size-6" />
                     </div>
-                    <h3 className="text-lg font-bold text-gray-900 mb-1">{section.title}</h3>
+                    <h3 className="text-base font-bold text-gray-900">{section.title}</h3>
                     {section.stat && (
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-blue-600">
+                      <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-blue-600">
                         {section.stat}
                       </p>
                     )}
-                    <p className="text-sm text-gray-500 mb-4 h-10">{section.description}</p>
-                    <div className="flex items-center text-sm font-medium text-blue-600 group-hover:text-blue-700">
+                    <p className="mt-2 mb-4 text-sm leading-relaxed text-gray-500">{section.description}</p>
+                    <div className="flex items-center gap-1.5 text-sm font-semibold text-blue-600 group-hover:text-blue-700">
                       Manage settings
-                      <ArrowRight className="w-4 h-4 ml-1 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
+                      <ArrowRight className="size-4 -translate-x-1 opacity-0 transition-all group-hover:translate-x-0 group-hover:opacity-100" />
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>

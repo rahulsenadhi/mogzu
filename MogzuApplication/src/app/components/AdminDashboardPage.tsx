@@ -19,6 +19,7 @@ import { getAdminSession } from '@/app/lib/adminSession';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/db';
 import { listInvoiceRuns } from '@/lib/contracts';
+import { DevMockDataBanner } from '@/app/components/global/DevMockDataBanner';
 
 function adminDisplayName(): string {
   const s = getAdminSession();
@@ -487,7 +488,13 @@ export default function AdminDashboardPage() {
   const pendingIssues = stats.pendingIssueList.length > 0 ? stats.pendingIssueList : DEMO_PENDING_ISSUES;
   const resolvedIssues = stats.resolvedIssueList.length > 0 ? stats.resolvedIssueList : DEMO_RESOLVED_ISSUES;
 
+  const hasRealRevenue = stats.revenueByMonth.some((m) => m.value > 0);
+  const hasRealCommission =
+    stats.commissionTotalSales > 0 || stats.commissionPending > 0 || stats.commissionCompleted > 0;
+
   const usingAnyDemo =
+    !hasRealRevenue ||
+    !hasRealCommission ||
     stats.toReceive.length === 0 ||
     stats.toPay.length === 0 ||
     stats.loginLog.length === 0 ||
@@ -530,20 +537,20 @@ export default function AdminDashboardPage() {
   );
 
   return (
-    <>
-      <div
-        className="mb-4 lg:mb-6 rounded-2xl border border-slate-200/90 bg-gradient-to-r from-white via-[#F8FAFF] to-white pl-4 pr-4 py-5 shadow-sm shadow-slate-200/40 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5"
-        style={{ borderLeftWidth: 4, borderLeftColor: CORP.brandRose }}
-      >
+    <div className="min-h-screen bg-gradient-to-br from-[#eaf1ff] via-[#f8fbff] to-[#fff2f8] px-6 py-8">
+
+      {/* Hero header */}
+      <div className="mb-6 rounded-2xl border border-white/60 bg-white/70 p-6 shadow-[0_10px_30px_rgba(37,99,235,0.14)] backdrop-blur-md flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
         <div>
-          <p
-            className="text-xl sm:text-2xl font-bold tracking-tight"
-            style={{ color: CORP.titleNavy }}
-          >
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#CFE0FF] bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-[#1E4DB7]">
+            <TrendingUp className="size-3.5" />
+            Admin console
+          </span>
+          <p className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900">
             {greetingPrefix()}, {displayName}
           </p>
-          <p className="text-sm text-slate-500 mt-1">
-            Admin console · <span className="text-slate-600">{todayLabel}</span>
+          <p className="mt-1 text-sm text-slate-500">
+            {todayLabel}
           </p>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 shrink-0">
@@ -551,7 +558,7 @@ export default function AdminDashboardPage() {
             <Link
               key={to}
               to={to}
-              className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200/90 bg-white px-3 py-4 text-center shadow-sm shadow-slate-200/30 transition-all hover:-translate-y-0.5 hover:shadow-md hover:border-slate-300/90"
+              className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-white/70 bg-white/80 px-3 py-4 text-center shadow-sm backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#93c5fd]/60"
             >
               <span
                 className="flex size-11 items-center justify-center rounded-xl ring-1 ring-slate-100"
@@ -566,36 +573,34 @@ export default function AdminDashboardPage() {
       </div>
 
       {loading && (
-        <div className="mb-3 flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
-          <Loader2 className="size-3 animate-spin" />
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-white/60 bg-white/60 px-4 py-2.5 text-xs text-slate-500 backdrop-blur-sm">
+          <Loader2 className="size-3.5 animate-spin" />
           Loading admin stats…
         </div>
       )}
       {loadError && (
-        <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50/80 px-4 py-2.5 text-xs text-red-700 backdrop-blur-sm">
           {loadError}
         </div>
       )}
+      {!loading && !loadError && usingAnyDemo && (
+        <div className="mb-4">
+          <DevMockDataBanner />
+        </div>
+      )}
 
-      <div className="grid grid-cols-2 xl:grid-cols-6 gap-3 lg:gap-4 mb-2">
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 xl:grid-cols-6 gap-3 lg:gap-4 mb-6">
         {kpiCards.map((card) => (
           <div
             key={card.title}
-            className="group relative bg-white rounded-2xl border border-slate-200/90 shadow-sm shadow-slate-200/40 p-4 flex flex-col min-h-[112px] transition-all hover:-translate-y-0.5 hover:shadow-md overflow-hidden"
+            className="group relative rounded-2xl border border-white/60 bg-white/70 shadow-[0_8px_24px_rgba(37,99,235,0.10)] backdrop-blur-md p-4 flex flex-col min-h-[112px] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(37,99,235,0.18)] overflow-hidden"
           >
             {'accentBar' in card && card.accentBar === 'rose' && (
-              <span
-                className="absolute top-0 left-3 right-3 h-0.5 rounded-full opacity-45"
-                style={{ background: '#93C5FD' }}
-                aria-hidden
-              />
+              <span className="absolute top-0 left-3 right-3 h-0.5 rounded-full bg-[#93C5FD]/60" aria-hidden />
             )}
             {'accentBar' in card && card.accentBar === 'mint' && (
-              <span
-                className="absolute top-0 left-3 right-3 h-0.5 rounded-full opacity-45"
-                style={{ background: '#C4B5FD' }}
-                aria-hidden
-              />
+              <span className="absolute top-0 left-3 right-3 h-0.5 rounded-full bg-[#C4B5FD]/60" aria-hidden />
             )}
             <p className="text-xs font-medium text-slate-500 mb-1">{card.title}</p>
             <div className="flex items-end justify-between gap-2 mt-auto">
@@ -604,7 +609,7 @@ export default function AdminDashboardPage() {
               </p>
               {'spark' in card && card.spark && <MiniSparkline color={CORP.green} points={sparkPoints} />}
             </div>
-            <p className="text-[11px] text-slate-400 mt-2 flex items-center gap-0.5">
+            <p className="text-[11px] text-slate-400 mt-2 flex items-center gap-1">
               <TrendingUp className="size-3 text-emerald-500" />
               {loading ? '—' : 'Live'}
             </p>
@@ -612,10 +617,10 @@ export default function AdminDashboardPage() {
         ))}
       </div>
 
-      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">Performance</p>
+      <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-3">Performance</p>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 mb-4 lg:mb-6">
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/90 shadow-sm shadow-slate-200/40 p-4 lg:p-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-5 mb-6">
+        <div className="lg:col-span-2 rounded-2xl border border-white/60 bg-white/70 shadow-[0_10px_30px_rgba(37,99,235,0.14)] backdrop-blur-md p-5">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <h2 className="text-base font-semibold text-slate-900">Revenue</h2>
             <select
@@ -666,7 +671,7 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm shadow-slate-200/40 p-4 lg:p-5 flex flex-col">
+        <div className="rounded-2xl border border-white/60 bg-white/70 shadow-[0_10px_30px_rgba(37,99,235,0.14)] backdrop-blur-md p-5 flex flex-col">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-base font-semibold text-slate-900">Commission Overview</h2>
             <button
@@ -711,12 +716,12 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
-      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3 mt-2">
+      <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-3 mt-2">
         Receivables, login &amp; issues
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm shadow-slate-200/40 p-4 flex flex-col min-h-[280px]">
+        <div className="rounded-2xl border border-white/60 bg-white/70 shadow-[0_8px_24px_rgba(37,99,235,0.10)] backdrop-blur-md p-4 flex flex-col min-h-[280px]">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-slate-900">To Receive</h3>
             <button
@@ -756,7 +761,7 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm shadow-slate-200/40 p-4 flex flex-col min-h-[280px]">
+        <div className="rounded-2xl border border-white/60 bg-white/70 shadow-[0_8px_24px_rgba(37,99,235,0.10)] backdrop-blur-md p-4 flex flex-col min-h-[280px]">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-slate-900">To Pay</h3>
             <button
@@ -796,7 +801,7 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm shadow-slate-200/40 p-4 flex flex-col min-h-[280px]">
+        <div className="rounded-2xl border border-white/60 bg-white/70 shadow-[0_8px_24px_rgba(37,99,235,0.10)] backdrop-blur-md p-4 flex flex-col min-h-[280px]">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-slate-900">Login Log</h3>
             <button
@@ -822,7 +827,7 @@ export default function AdminDashboardPage() {
 
         <div
           id="admin-issues"
-          className="bg-white rounded-2xl border border-slate-200/90 shadow-sm shadow-slate-200/40 p-4 flex flex-col min-h-[280px] scroll-mt-4"
+          className="rounded-2xl border border-white/60 bg-white/70 shadow-[0_8px_24px_rgba(37,99,235,0.10)] backdrop-blur-md p-4 flex flex-col min-h-[280px] scroll-mt-4"
         >
           <div className="flex justify-end mb-2">
             <Link
@@ -891,10 +896,10 @@ export default function AdminDashboardPage() {
       </div>
 
       {usingAnyDemo && !loading && (
-        <p className="text-center text-[11px] text-slate-400 mt-6 pb-2">
-          Some panels rendered with demo fallback rows (empty Supabase slice).
+        <p className="text-center text-[11px] italic text-slate-400 mt-6 pb-4">
+          Some panels showing demo data — connect to Supabase to see live figures.
         </p>
       )}
-    </>
+    </div>
   );
 }

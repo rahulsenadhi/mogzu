@@ -33,7 +33,7 @@ export default function AdminTeamActivityPage() {
     setError('')
     const [{ data: profileRow, error: pErr }, { data: evs, error: eErr }] = await Promise.all([
       db.userProfiles.getByIdMaybe(userId),
-      db.userActivity.listByActor(userId, 100),
+      db.userActivity.listByUser(userId, 100),
     ])
     if (pErr || !profileRow) {
       setError(pErr?.message ?? 'User not found.')

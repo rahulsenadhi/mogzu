@@ -8,8 +8,11 @@ import {
   XCircle,
 } from 'lucide-react';
 import { AdminPageTitleRow } from '@/app/components/admin/AdminPageChrome';
+import { DevMockDataBanner } from '@/app/components/global/DevMockDataBanner';
 import { useNavigate } from 'react-router';
 import { useEffect, useMemo, useState } from 'react';
+import { db } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
 import {
   ADMIN_PENDING_LISTINGS_KEY,
   ADMIN_PENDING_LISTINGS_UPDATED_EVENT,
@@ -33,12 +36,12 @@ type OverviewCard = {
   tone: string;
 };
 
-const overviewCards: OverviewCard[] = [
-  { title: 'Total Vendors', value: '175', delta: '+3.25', tone: 'bg-blue-50' },
-  { title: 'Total Shops', value: '64', delta: '+3.25', tone: 'bg-amber-50' },
-  { title: 'Total Products', value: '36', delta: '+3.25', tone: 'bg-cyan-50' },
-  { title: 'Total Orders', value: '25', delta: '+3.25', tone: 'bg-emerald-50' },
-  { title: 'Pending Approvals', value: '15', delta: '+3.25', tone: 'bg-rose-50' },
+const overviewCardMeta: OverviewCard[] = [
+  { title: 'Total Vendors', value: '—', delta: 'live', tone: 'bg-blue-50' },
+  { title: 'Total Shops', value: '—', delta: 'active listings', tone: 'bg-amber-50' },
+  { title: 'Total Products', value: '—', delta: 'gifting module', tone: 'bg-cyan-50' },
+  { title: 'Total Orders', value: '—', delta: 'all bookings', tone: 'bg-emerald-50' },
+  { title: 'Pending Approvals', value: '—', delta: 'vendors + listings', tone: 'bg-rose-50' },
 ];
 
 const orderCards = [
@@ -75,6 +78,15 @@ export default function AdminVendorManagementDashboardPage() {
   const [salesRange, setSalesRange] = useState<'day' | 'month' | 'year'>('year');
   const [pendingPartners, setPendingPartners] = useState<AdminPendingVendor[]>([]);
   const [pendingListings, setPendingListings] = useState<AdminPendingListing[]>([]);
+  const [platformStats, setPlatformStats] = useState({
+    vendors: 0,
+    activeListings: 0,
+    giftingProducts: 0,
+    bookings: 0,
+    pendingVendors: 0,
+    pendingListings: 0,
+  });
+  const [statsUsingDemo, setStatsUsingDemo] = useState(false);
 
   useEffect(() => {
     const sync = () => {
@@ -100,19 +112,85 @@ export default function AdminVendorManagementDashboardPage() {
     };
   }, []);
 
-  const overviewCardsLive = useMemo(
-    () =>
-      overviewCards.map((card) =>
-        card.title === 'Pending Approvals'
-          ? { ...card, value: String(pendingPartners.length) }
-          : card
-      ),
-    [pendingPartners.length]
-  );
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [vendorsRes, listingsRes, giftingRes, bookingsRes, pendingVendorsRes, pendingListingsRes] =
+        await Promise.all([
+          supabase.from('vendors').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+          supabase.from('listings').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+          supabase.from('listings').select('id', { count: 'exact', head: true }).eq('module', 'gifting'),
+          supabase.from('bookings').select('id', { count: 'exact', head: true }),
+          db.vendors.listPending(),
+          db.listings.listPendingApproval(),
+        ]);
+      if (cancelled) return;
+      const allZero =
+        (vendorsRes.count ?? 0) === 0 &&
+        (listingsRes.count ?? 0) === 0 &&
+        (bookingsRes.count ?? 0) === 0;
+      setStatsUsingDemo(allZero);
+      setPlatformStats({
+        vendors: vendorsRes.count ?? 0,
+        activeListings: listingsRes.count ?? 0,
+        giftingProducts: giftingRes.count ?? 0,
+        bookings: bookingsRes.count ?? 0,
+        pendingVendors: pendingVendorsRes.data?.length ?? 0,
+        pendingListings: pendingListingsRes.data?.length ?? 0,
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const overviewCardsLive = useMemo(() => {
+    const pendingTotal =
+      platformStats.pendingVendors +
+      platformStats.pendingListings +
+      pendingPartners.length +
+      pendingListings.length;
+    const values: Record<string, string> = statsUsingDemo
+      ? {
+          'Total Vendors': '175',
+          'Total Shops': '64',
+          'Total Products': '36',
+          'Total Orders': '25',
+          'Pending Approvals': String(pendingTotal || 15),
+        }
+      : {
+          'Total Vendors': String(platformStats.vendors),
+          'Total Shops': String(platformStats.activeListings),
+          'Total Products': String(platformStats.giftingProducts),
+          'Total Orders': String(platformStats.bookings),
+          'Pending Approvals': String(pendingTotal),
+        };
+    return overviewCardMeta.map((card) => ({
+      ...card,
+      value: values[card.title] ?? card.value,
+    }));
+  }, [platformStats, pendingListings.length, pendingPartners.length, statsUsingDemo]);
 
   return (
     <div className="space-y-4">
       <AdminPageTitleRow title="Vendor Management Dashboard" totalLabel="" />
+
+      {statsUsingDemo && import.meta.env.DEV && (
+        <DevMockDataBanner message="Supabase vendor/booking counts empty — overview cards show demo figures." />
+      )}
+
+      {!statsUsingDemo && platformStats.pendingListings > 0 && (
+        <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+          {platformStats.pendingListings} listing(s) awaiting approval in Supabase.{' '}
+          <button
+            type="button"
+            onClick={() => navigate('/admin/listings/queue')}
+            className="font-semibold text-[#2563EB] underline"
+          >
+            Open approval queue
+          </button>
+        </div>
+      )}
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4">
         <h3 className="mb-3 text-sm font-semibold text-slate-700">Partners pending approval</h3>

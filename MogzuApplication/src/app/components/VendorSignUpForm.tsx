@@ -159,6 +159,7 @@ export default function VendorSignUpForm() {
   const [vendorName, setVendorName] = useState('John');
   const [businessDisplayName, setBusinessDisplayName] = useState('');
   const [onboardingId, setOnboardingId] = useState('');
+  const [vendorId, setVendorId] = useState('');
   const [form, setForm] = useState<ListingFormState>(emptyForm);
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
   const [galleryDrag, setGalleryDrag] = useState(false);
@@ -204,6 +205,7 @@ export default function VendorSignUpForm() {
       }
       const completed = JSON.parse(raw) as {
         onboardingId?: string;
+        vendorId?: string;
         fullName?: string;
         businessName?: string;
       };
@@ -212,6 +214,9 @@ export default function VendorSignUpForm() {
         return;
       }
       setOnboardingId(completed.onboardingId);
+      if (completed.vendorId?.trim()) {
+        setVendorId(completed.vendorId.trim());
+      }
       if (completed.fullName?.trim()) {
         setVendorName(completed.fullName.trim().split(' ')[0] ?? 'John');
       }
@@ -299,6 +304,7 @@ export default function VendorSignUpForm() {
     }
     const listingPayload = {
       onboardingId,
+      vendorId: vendorId || undefined,
       spaceName: form.listingTitle.trim(),
       description: form.shortDescription.trim(),
       location: form.location.trim(),

@@ -10,6 +10,7 @@ import {
 import { MogzuLogo } from '@/app/components/branding/MogzuLogo';
 import { enqueuePendingVendorForAdmin } from '@/app/lib/adminVendorQueueStorage';
 import type { VendorOnboardingSubmitPayload } from '@/app/lib/vendorOnboardingApi';
+import { submitVendorOnboarding } from '@/app/lib/vendorOnboardingApi';
 import {
   LISTING_SUBMITTED_KEY,
   ONBOARDING_COMPLETED_KEY,
@@ -239,6 +240,30 @@ export default function VendorOnboardingPage() {
     setIsSubmitting(true);
     setError(null);
 
+    const onboardingPayload: VendorOnboardingSubmitPayload = {
+      fullName: fullName.trim(),
+      businessName: businessName.trim(),
+      email: email.trim().toLowerCase(),
+      phone: phone.trim(),
+      city: city.trim(),
+      stateRegion: stateRegion.trim(),
+      gstOptional: gstOptional.trim() || undefined,
+      pitch: pitch.trim() || undefined,
+      selection: selectionItems,
+    };
+
+    // If VITE_VENDOR_API_BASE_URL is configured this calls the backend onboarding
+    // endpoint; otherwise it safely falls back to local generated ids.
+    let onboardingId = `onb-${Date.now()}`;
+    try {
+      const onboardingRes = await submitVendorOnboarding(onboardingPayload);
+      onboardingId = onboardingRes.onboardingId || onboardingId;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not submit onboarding payload.');
+      setIsSubmitting(false);
+      return;
+    }
+
     // 1. Create Supabase auth user
     const { data: authData, error: signUpError } = await authActions.signUp(
       email.trim(),
@@ -253,57 +278,73 @@ export default function VendorOnboardingPage() {
     }
 
     const userId = authData?.user?.id;
-    const onboardingId = userId ?? `onb-${Date.now()}`;
-
-    // 2. Create vendor row
-    if (userId) {
-      const { data: vendorRow } = await db.vendors.create({
-        user_id: userId,
-        business_name: businessName.trim(),
-        city: city.trim(),
-        state: stateRegion.trim(),
-        gst_number: gstOptional.trim() || null,
-        description: pitch.trim() || null,
-        status: 'pending',
-        bank_account_verified: false,
-        rejection_reasons: null,
-        logo_url: null,
-      });
-
-      // 3. Persist module selection -> vendor_modules
-      if (vendorRow?.id) {
-        const dbModules = Array.from(
-          new Set(
-            selectionItems
-              .map((s) => mapVendorModuleToDbModule(s.module))
-              .filter((m): m is DbModuleId => m !== null),
-          ),
-        );
-        if (dbModules.length > 0) {
-          await db.vendors.setModules(vendorRow.id, dbModules);
-        }
-      }
-
-      // 4. Create user_profiles row
-      await db.userProfiles.upsert({
-        id: userId,
-        email: email.trim().toLowerCase(),
-        full_name: fullName.trim(),
-        role: 'vendor',
-        status: 'active',
-        corporate_id: null,
-        vendor_id: vendorRow?.id ?? null,
-        phone: phone.trim(),
-        avatar_url: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      });
+    if (!userId) {
+      setError('Signup succeeded but no user was returned. Please retry.');
+      setIsSubmitting(false);
+      return;
     }
 
-    // 4. Keep localStorage for admin queue (admin UI still reads this)
+    // 2. Create vendor row
+    const { data: vendorRow, error: vendorCreateError } = await db.vendors.create({
+      user_id: userId,
+      business_name: businessName.trim(),
+      city: city.trim(),
+      state: stateRegion.trim(),
+      gst_number: gstOptional.trim() || null,
+      description: pitch.trim() || null,
+      status: 'pending',
+      bank_account_verified: false,
+      rejection_reasons: null,
+      logo_url: null,
+    });
+    if (vendorCreateError || !vendorRow?.id) {
+      setError(vendorCreateError?.message ?? 'Could not create vendor profile.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    // 3. Persist module selection -> vendor_modules
+    const dbModules = Array.from(
+      new Set(
+        selectionItems
+          .map((s) => mapVendorModuleToDbModule(s.module))
+          .filter((m): m is DbModuleId => m !== null),
+      ),
+    );
+    if (dbModules.length > 0) {
+      const { error: setModulesError } = await db.vendors.setModules(vendorRow.id, dbModules);
+      if (setModulesError) {
+        setError(setModulesError.message);
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
+    // 4. Create user_profiles row
+    const { error: profileError } = await db.userProfiles.upsert({
+      id: userId,
+      email: email.trim().toLowerCase(),
+      full_name: fullName.trim(),
+      role: 'vendor',
+      status: 'active',
+      corporate_id: null,
+      vendor_id: vendorRow.id,
+      phone: phone.trim(),
+      avatar_url: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+    if (profileError) {
+      setError(profileError.message);
+      setIsSubmitting(false);
+      return;
+    }
+
+    // 5. Keep localStorage for admin queue (legacy admin helpers still read this)
     localStorage.setItem(ONBOARDING_DRAFT_KEY, JSON.stringify({ fullName, businessName, email, phone, city, stateRegion, step: 4 }));
     localStorage.setItem(ONBOARDING_COMPLETED_KEY, JSON.stringify({
       onboardingId,
+      vendorId: vendorRow.id,
       submittedAt: Date.now(),
       fullName,
       email,

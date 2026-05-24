@@ -1,6 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router';
-import { ArrowLeft, Calendar, Users, Clock, MapPin, Check, ChevronRight, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Calendar, Users, Clock, MapPin, Check, ChevronRight, AlertCircle, Loader2 } from 'lucide-react';
+import { DevMockDataBanner } from './global/DevMockDataBanner';
+import { useAuth } from '@/lib/auth';
+import { db } from '@/lib/db';
+import type { Listing } from '@/lib/database.types';
+import {
+  parseDurationHours,
+  parseInrAmount,
+  resolveEventsListing,
+} from '@/app/lib/activityListingResolver';
 
 interface Activity {
   id: number;
@@ -10,6 +19,9 @@ interface Activity {
   price: string;
   teamSize: string;
   duration?: string;
+  listingId?: string;
+  vendorId?: string | null;
+  basePrice?: number | null;
 }
 
 const activities: Activity[] = [
@@ -82,10 +94,64 @@ const activities: Activity[] = [
 export default function ActivityBookingFlow() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { corporateId, profile } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [isFailed, setIsFailed] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [usingDemoListing, setUsingDemoListing] = useState(false);
+  const [resolvedListing, setResolvedListing] = useState<Listing | null>(null);
+  const [loadingListing, setLoadingListing] = useState(true);
 
-  const activity = activities.find((a) => a.id === parseInt(id || '0'));
+  const [activity, setActivity] = useState<Activity | undefined>(() =>
+    activities.find((a) => a.id === parseInt(id || '0')),
+  );
+
+  const loadListing = useCallback(async () => {
+    if (!id) {
+      setLoadingListing(false);
+      return;
+    }
+    setLoadingListing(true);
+    const listing = await resolveEventsListing(id);
+    if (listing) {
+      setResolvedListing(listing);
+      setUsingDemoListing(false);
+      const meta = (listing.metadata ?? {}) as Record<string, unknown>;
+      const category = typeof meta.category === 'string' ? meta.category : 'Activity';
+      const teamSize =
+        listing.min_capacity != null && listing.max_capacity != null
+          ? `${listing.min_capacity}-${listing.max_capacity} people`
+          : listing.max_capacity != null
+            ? `Up to ${listing.max_capacity} people`
+            : 'Any team size';
+      const priceLabel =
+        listing.base_price != null
+          ? `₹${listing.base_price.toLocaleString('en-IN')}${listing.price_unit ? `/${listing.price_unit.replace('_', ' ')}` : ''}`
+          : 'On request';
+      setActivity({
+        id: parseInt(id, 10) || 0,
+        category,
+        subcategory: listing.title,
+        location: listing.location_city ?? listing.location_address ?? '',
+        price: priceLabel,
+        teamSize,
+        duration: typeof meta.duration === 'string' ? meta.duration : '2-3 hours',
+        listingId: listing.id,
+        vendorId: listing.vendor_id,
+        basePrice: listing.base_price,
+      });
+    } else {
+      const mock = activities.find((a) => a.id === parseInt(id || '0'));
+      setActivity(mock);
+      setUsingDemoListing(true);
+    }
+    setLoadingListing(false);
+  }, [id]);
+
+  useEffect(() => {
+    void loadListing();
+  }, [loadListing]);
 
   // Step 1: Date, Time & Participants
   const [bookingDate, setBookingDate] = useState('');
@@ -105,6 +171,14 @@ export default function ActivityBookingFlow() {
   const [contactPhone, setContactPhone] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [billingAddress, setBillingAddress] = useState('');
+
+  if (loadingListing) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#f7f9fc]">
+        <Loader2 className="size-8 animate-spin text-slate-400" />
+      </div>
+    );
+  }
 
   if (!activity) {
     return (
@@ -129,18 +203,85 @@ export default function ActivityBookingFlow() {
     { number: 4, title: 'Review', icon: Check },
   ];
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentStep < 4) {
       setCurrentStep(currentStep + 1);
-    } else {
-      // Simulate random failure 20% of the time
-      if (Math.random() < 0.2) {
-        setIsFailed(true);
-        return;
-      }
-      // Submit booking
-      navigate('/dashboard/activities');
+      return;
     }
+
+    if (!activity) return;
+    setSubmitError('');
+    setSubmitting(true);
+
+    if (!resolvedListing?.id || !resolvedListing.vendor_id || !corporateId || !profile?.id) {
+      setSubmitting(false);
+      setUsingDemoListing(true);
+      navigate('/bookings', {
+        state: {
+          notice: 'Demo activity saved locally. Connect a live listing to create a Supabase booking.',
+        },
+      });
+      return;
+    }
+
+    const startTime = new Date(`${bookingDate}T${bookingTime || '10:00'}:00`);
+    const hours = parseDurationHours(duration || activity.duration || '2');
+    const endTime = new Date(startTime.getTime() + hours * 60 * 60 * 1000);
+    const groupSize = Math.max(1, Number(numParticipants) || 1);
+    const baseAmount = resolvedListing.base_price ?? parseInrAmount(activity.price) ?? 0;
+    const totalAmount = baseAmount * groupSize;
+
+    const { data, error } = await db.bookings.create({
+      corporate_id: corporateId,
+      user_id: profile.id,
+      vendor_id: resolvedListing.vendor_id,
+      listing_id: resolvedListing.id,
+      module: 'events',
+      status: 'pending_vendor',
+      group_size: groupSize,
+      start_time: startTime.toISOString(),
+      end_time: endTime.toISOString(),
+      base_amount: baseAmount,
+      add_ons_amount: 0,
+      platform_fee: 0,
+      total_amount: totalAmount,
+      commission_rate: null,
+      payment_method: null,
+      payment_reference: null,
+      payment_status: 'pending',
+      purpose_note: [
+        specialRequests.trim(),
+        dietaryRestrictions.trim() ? `Dietary: ${dietaryRestrictions.trim()}` : '',
+        accessibility.trim() ? `Accessibility: ${accessibility.trim()}` : '',
+        addOns.length ? `Add-ons: ${addOns.join(', ')}` : '',
+        contactName.trim() ? `Contact: ${contactName.trim()} (${contactEmail.trim()}, ${contactPhone.trim()})` : '',
+        companyName.trim() ? `Company: ${companyName.trim()}` : '',
+        billingAddress.trim() ? `Billing: ${billingAddress.trim()}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      approved_by: null,
+      approved_at: null,
+      cancelled_at: null,
+      cancellation_reason: null,
+      cancellation_fee: null,
+      vendor_response_deadline: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      completed_at: null,
+      partner_id: null,
+      partner_markup_pct: null,
+      partner_margin_amount: null,
+      partner_invoice_token: null,
+    });
+
+    setSubmitting(false);
+
+    if (error || !data) {
+      setIsFailed(true);
+      setSubmitError(error?.message ?? 'Could not submit booking.');
+      return;
+    }
+
+    navigate(`/bookings/${data.id}/track`, { replace: true });
   };
 
   const handleBack = () => {
@@ -183,7 +324,7 @@ export default function ActivityBookingFlow() {
                   Booking unsuccessful
                 </h1>
                 <p className="text-lg text-gray-600 mb-8">
-                  Something went wrong while processing your request. Your payment has not been charged.
+                  {submitError || 'Something went wrong while processing your request. Your payment has not been charged.'}
                 </p>
 
                 {/* Action Buttons */}
@@ -213,6 +354,11 @@ export default function ActivityBookingFlow() {
 
   return (
     <div className="min-h-screen bg-[#f7f9fc]">
+      {usingDemoListing ? (
+        <div className="mx-auto max-w-5xl px-6 pt-4">
+          <DevMockDataBanner />
+        </div>
+      ) : null}
       {/* Header */}
       <div className="bg-white border-b border-[#ececec]">
         <div className="max-w-5xl mx-auto px-6 py-4">
@@ -638,12 +784,21 @@ export default function ActivityBookingFlow() {
               Back
             </button>
             <button
-              onClick={handleNext}
-              disabled={!canProceed()}
+              onClick={() => void handleNext()}
+              disabled={!canProceed() || submitting}
               className="flex-1 px-6 py-3 bg-[#4379ee] text-white font-semibold rounded-lg hover:bg-[#3568dd] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {currentStep === 4 ? 'Confirm Booking' : 'Continue'}
-              <ChevronRight className="w-5 h-5" />
+              {submitting ? (
+                <>
+                  <Loader2 className="size-5 animate-spin" />
+                  Submitting…
+                </>
+              ) : (
+                <>
+                  {currentStep === 4 ? 'Confirm Booking' : 'Continue'}
+                  <ChevronRight className="w-5 h-5" />
+                </>
+              )}
             </button>
           </div>
         </div>

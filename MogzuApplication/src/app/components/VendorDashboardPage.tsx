@@ -1,12 +1,16 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Bell, ChevronDown, Eye, Search } from 'lucide-react';
+import { Bell, ChevronDown, Eye, Loader2, Search } from 'lucide-react';
 import { Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import imgProductThumb from 'figma:asset/f6108faddc403caf1eea34c754f31b43ab0fb55b.png';
 import { VendorAppShell } from './layouts/VendorAppShell';
 import { VendorTopRightMenu } from './layouts/VendorTopRightMenu';
 import { VendorPerformanceStatsDrawer, type VendorPerformanceListing } from './vendor/VendorPerformanceStatsDrawer';
 import { getVendorNavVisibility } from '@/app/lib/vendorModuleSelection';
+import { useAuth } from '@/lib/auth';
+import { db } from '@/lib/db';
+import type { Booking, Listing } from '@/lib/database.types';
+import { DevMockDataBanner } from './global/DevMockDataBanner';
 
 const DEMO_PERF_LISTING: VendorPerformanceListing = {
   id: 'es-1',
@@ -66,6 +70,43 @@ const topSellingRows = [
   { productId: '001021', name: "Women's Cotton Stretch Half Sleeve", sold: 12, stockRemaining: '₹ 4,520' },
 ];
 
+type BookingRow = Booking & {
+  listings: Listing | null;
+  user_profiles: { full_name: string | null } | null;
+};
+
+type DashboardOrder = (typeof orders)[number] & { bookingId?: string };
+
+const AVATAR_TONES = [
+  'bg-rose-100 text-rose-600',
+  'bg-violet-100 text-violet-600',
+  'bg-cyan-100 text-cyan-600',
+  'bg-amber-100 text-amber-600',
+  'bg-emerald-100 text-emerald-600',
+];
+
+const METRIC_TONES = metricCards.map((card) => card.tone);
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function formatInr(amount: number | null): string {
+  if (amount == null) return '₹ —';
+  return `₹ ${amount.toLocaleString('en-IN')}`;
+}
+
+function avatarTone(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i += 1) {
+    hash = (hash + name.charCodeAt(i)) % AVATAR_TONES.length;
+  }
+  return AVATAR_TONES[hash] ?? AVATAR_TONES[0]!;
+}
+
+function orderStatusLabel(status: Booking['status']): string {
+  if (status === 'confirmed') return 'Processing';
+  if (status === 'completed') return 'Completed';
+  return 'Pending';
+}
+
 function Sparkline({ idx }: { idx: number }) {
   const paths = [
     'M4 18 L12 13 L18 14 L24 8 L30 10',
@@ -83,11 +124,150 @@ function Sparkline({ idx }: { idx: number }) {
 
 export default function VendorDashboardPage() {
   const navigate = useNavigate();
+  const { vendorId } = useAuth();
   const navVisibility = useMemo(() => getVendorNavVisibility(), []);
   const [search, setSearch] = useState('');
   const [ordersView, setOrdersView] = useState<'upcoming' | 'latest-order' | 'latest-products' | 'top-selling'>('upcoming');
   const [uiNotice, setUiNotice] = useState('');
   const [performanceOpen, setPerformanceOpen] = useState(false);
+  const [bookings, setBookings] = useState<BookingRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadBookings = useCallback(async () => {
+    if (!vendorId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const { data } = await db.bookings.listByVendor(vendorId);
+    setBookings((data ?? []) as BookingRow[]);
+    setLoading(false);
+  }, [vendorId]);
+
+  useEffect(() => {
+    loadBookings();
+  }, [loadBookings]);
+
+  const {
+    hasRealData,
+    metricCards: displayMetricCards,
+    revenueData: displayRevenueData,
+    orders: liveOrders,
+    topSellingRows: displayTopSellingRows,
+  } = useMemo(() => {
+    if (bookings.length === 0) {
+      return {
+        hasRealData: false,
+        metricCards,
+        revenueData,
+        orders,
+        topSellingRows,
+      };
+    }
+
+    const confirmedCompleted = bookings.filter((b) =>
+      ['confirmed', 'completed'].includes(b.status),
+    );
+    const totalRevenue = confirmedCompleted.reduce(
+      (sum, b) => sum + (b.total_amount ?? 0),
+      0,
+    );
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = todayStart.getTime() + 86_400_000;
+    const todayCount = bookings.filter((b) => {
+      const createdAt = new Date(b.created_at).getTime();
+      return createdAt >= todayStart.getTime() && createdAt < todayEnd;
+    }).length;
+    const orderRequests = bookings.filter((b) => b.status === 'pending_vendor').length;
+    const completedCount = bookings.filter((b) => b.status === 'completed').length;
+    const pendingCount = bookings.filter((b) =>
+      ['pending_vendor', 'pending_approval'].includes(b.status),
+    ).length;
+    const totalSalesValue =
+      totalRevenue >= 100_000
+        ? Math.round((totalRevenue / 100_000) * 10) / 10
+        : confirmedCompleted.length;
+
+    const computedMetricCards: MetricCard[] = [
+      { title: 'Total Sales', value: totalSalesValue, delta: 'Live', tone: METRIC_TONES[0]! },
+      { title: 'Today Orders', value: todayCount, delta: 'Live', tone: METRIC_TONES[1]! },
+      { title: 'Order Requests', value: orderRequests, delta: 'Live', tone: METRIC_TONES[2]! },
+      { title: 'Completed Orders', value: completedCount, delta: 'Live', tone: METRIC_TONES[3]! },
+      { title: 'Pending Orders', value: pendingCount, delta: 'Live', tone: METRIC_TONES[4]! },
+    ];
+
+    const computedRevenueData = Array.from({ length: 7 }, (_, index) => {
+      const monthDate = new Date();
+      monthDate.setDate(1);
+      monthDate.setHours(0, 0, 0, 0);
+      monthDate.setMonth(monthDate.getMonth() - (6 - index));
+      const year = monthDate.getFullYear();
+      const month = monthDate.getMonth();
+      const monthRevenue = bookings
+        .filter((b) => {
+          if (!['confirmed', 'completed'].includes(b.status)) return false;
+          const createdAt = new Date(b.created_at);
+          return createdAt.getFullYear() === year && createdAt.getMonth() === month;
+        })
+        .reduce((sum, b) => sum + (b.total_amount ?? 0), 0);
+      return { month: MONTH_LABELS[month]!, value: Math.round(monthRevenue / 1000) };
+    });
+
+    const computedOrders: DashboardOrder[] = [...bookings]
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
+      .slice(0, 5)
+      .map((b) => {
+        const name = b.user_profiles?.full_name ?? 'Guest';
+        return {
+          id: b.id.slice(-6).toUpperCase(),
+          bookingId: b.id,
+          name,
+          date: new Date(b.created_at).toLocaleDateString('en-IN', {
+            year: 'numeric',
+            month: 'short',
+            day: '2-digit',
+          }),
+          qty: b.group_size ?? 1,
+          price: formatInr(b.total_amount),
+          status: orderStatusLabel(b.status),
+          avatarTone: avatarTone(name),
+        };
+      });
+
+    const listingSales = new Map<string, { sold: number; revenue: number; productId: string; name: string }>();
+    bookings.forEach((b) => {
+      if (!['confirmed', 'completed'].includes(b.status)) return;
+      const name = b.listings?.title ?? 'Unknown listing';
+      const current = listingSales.get(name) ?? {
+        sold: 0,
+        revenue: 0,
+        productId: b.listing_id.slice(-6).toUpperCase(),
+        name,
+      };
+      current.sold += 1;
+      current.revenue += b.total_amount ?? 0;
+      listingSales.set(name, current);
+    });
+    const computedTopSellingRows = Array.from(listingSales.values())
+      .sort((a, b) => b.sold - a.sold)
+      .slice(0, 5)
+      .map((row) => ({
+        productId: row.productId,
+        name: row.name,
+        sold: row.sold,
+        stockRemaining: formatInr(row.revenue),
+      }));
+
+    return {
+      hasRealData: true,
+      metricCards: computedMetricCards,
+      revenueData: computedRevenueData,
+      orders: computedOrders,
+      topSellingRows: computedTopSellingRows,
+    };
+  }, [bookings]);
+
   const effectiveOrdersView = useMemo(() => {
     if (
       !navVisibility.showProducts &&
@@ -99,8 +279,8 @@ export default function VendorDashboardPage() {
   }, [navVisibility.showProducts, ordersView]);
 
   const filteredOrders = useMemo(
-    () => orders.filter((order) => order.name.toLowerCase().includes(search.toLowerCase()) || order.id.includes(search)),
-    [search]
+    () => liveOrders.filter((order) => order.name.toLowerCase().includes(search.toLowerCase()) || order.id.includes(search)),
+    [search, liveOrders]
   );
 
   const todayLabel = new Date().toLocaleDateString('en-IN', {
@@ -153,6 +333,15 @@ export default function VendorDashboardPage() {
                 </p>
               ) : null}
 
+              {!hasRealData && !loading ? <DevMockDataBanner /> : null}
+
+              {loading ? (
+                <div className="flex justify-center py-16" role="status" aria-live="polite">
+                  <Loader2 className="h-8 w-8 animate-spin text-[#2563eb]" aria-hidden="true" />
+                  <span className="sr-only">Loading dashboard</span>
+                </div>
+              ) : (
+                <>
               <div className="rounded-xl border border-slate-200/90 bg-white px-4 py-3 shadow-sm sm:px-5 sm:py-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
                   <div className="min-w-0">
@@ -235,7 +424,7 @@ export default function VendorDashboardPage() {
               <section className="rounded-xl border border-slate-200/90 bg-[#F5F7FD] p-3 shadow-sm sm:p-4">
                 <h2 className="mb-2 text-sm font-semibold text-slate-800">Overview</h2>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 lg:gap-2.5">
-                  {metricCards.map((card, idx) => (
+                  {displayMetricCards.map((card, idx) => (
                     <article
                       key={card.title}
                       className={`rounded-lg border border-slate-100/90 bg-gradient-to-br ${card.tone} p-2.5 shadow-sm transition-shadow hover:shadow-md sm:p-3`}
@@ -277,7 +466,7 @@ export default function VendorDashboardPage() {
                   </div>
                   <div className="h-40 min-h-[10rem] sm:h-44">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={revenueData} margin={{ top: 8, right: 8, left: -24, bottom: 0 }}>
+                      <LineChart data={displayRevenueData} margin={{ top: 8, right: 8, left: -24, bottom: 0 }}>
                         <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
                         <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} width={32} />
                         <Tooltip />
@@ -442,7 +631,7 @@ export default function VendorDashboardPage() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-xs text-slate-700 sm:text-sm">
-                          {topSellingRows.map((row, idx) => (
+                          {displayTopSellingRows.map((row, idx) => (
                             <tr key={`${row.productId}-${idx}`} className="transition-colors hover:bg-slate-50/80">
                               <td className="whitespace-nowrap px-3 py-2 font-medium text-slate-900">{row.productId}</td>
                               <td className="px-3 py-2">
@@ -517,7 +706,7 @@ export default function VendorDashboardPage() {
                               <td className="whitespace-nowrap px-3 py-2 text-right">
                                 <button
                                   type="button"
-                                  onClick={() => navigate(`/vendor/orders/${order.id}`)}
+                                  onClick={() => navigate(`/vendor/orders/${order.bookingId ?? order.id}`)}
                                   className="inline-flex rounded-md p-1.5 text-slate-400 transition-colors hover:bg-gray-100 hover:text-slate-600"
                                 >
                                   <Eye className="h-4 w-4" />
@@ -531,6 +720,8 @@ export default function VendorDashboardPage() {
                   </div>
                 </article>
               </section>
+                </>
+              )}
         </div>
       </main>
     </VendorAppShell>

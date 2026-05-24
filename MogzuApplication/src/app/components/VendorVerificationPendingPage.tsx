@@ -23,6 +23,8 @@ export default function VendorVerificationPendingPage() {
   const [resubmitting, setResubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  const [statusMessage, setStatusMessage] = useState('');
+  const [resubmitNote, setResubmitNote] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
@@ -50,15 +52,39 @@ export default function VendorVerificationPendingPage() {
   }, [vendorId]);
 
   const handleResubmit = async () => {
-    if (!vendorId) return;
+    if (!vendorId || !vendor) return;
     setResubmitting(true);
     setError('');
+    setStatusMessage('');
+    const note = resubmitNote.trim();
     const { error: err } = await db.vendors.updateStatus(vendorId, 'pending');
-    setResubmitting(false);
     if (err) {
+      setResubmitting(false);
       setError(err.message);
       return;
     }
+    const { data: opsUsers } = await db.subUsers.listInternal();
+    const notifyTargets = (opsUsers ?? []).filter((u) => u.role === 'mogzu_admin' || u.role === 'support');
+    for (const user of notifyTargets) {
+      await db.notifications.notify({
+        userId: user.id,
+        type: 'system',
+        title: 'Vendor application resubmitted',
+        body: `${vendor.business_name} has resubmitted their onboarding application.`,
+        linkUrl: '/admin/vendor-applications',
+        metadata: {
+          kind: 'vendor_application_resubmitted',
+          vendorId: vendor.id,
+          vendorName: vendor.business_name,
+          previousRejectionReasons: vendor.rejection_reasons ?? [],
+          resubmissionNote: note || null,
+          resubmittedAt: new Date().toISOString(),
+        },
+      });
+    }
+    setResubmitNote('');
+    setStatusMessage('Application resubmitted. Our team has been notified.');
+    setResubmitting(false);
     await load();
   };
 
@@ -99,7 +125,7 @@ export default function VendorVerificationPendingPage() {
   const kycStatus: VendorKycStatus = (vendor?.kyc_status as VendorKycStatus) ?? 'not_started';
   const reasons: string[] = (vendor?.rejection_reasons ?? []) as string[];
   const isRejected = status === 'rejected';
-  const canUpload = !isRejected && (kycStatus === 'not_started' || kycStatus === 'rejected');
+  const canUpload = kycStatus === 'not_started' || kycStatus === 'rejected';
 
   return (
     <div className="min-h-screen bg-[#F4F7FE] text-[#0e1e3f]">
@@ -136,6 +162,75 @@ export default function VendorVerificationPendingPage() {
                   {error}
                 </p>
               )}
+              {statusMessage && (
+                <p className="mt-4 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                  {statusMessage}
+                </p>
+              )}
+
+              <section className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/70 p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">KYC document</div>
+                    <div className="mt-1 text-sm text-slate-600">
+                      Re-upload a corrected document if KYC was rejected.
+                    </div>
+                    <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-slate-700 ring-1 ring-slate-200">
+                      <ShieldCheck className="h-3.5 w-3.5 text-[#2563EB]" />
+                      Status: {KYC_LABEL[kycStatus]}
+                    </div>
+                    {vendor?.kyc_doc_url && (
+                      <a
+                        href={vendor.kyc_doc_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-[#2563EB] hover:underline"
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                        View uploaded document
+                      </a>
+                    )}
+                  </div>
+                  {canUpload && (
+                    <>
+                      <input
+                        ref={fileRef}
+                        type="file"
+                        accept="application/pdf,image/*"
+                        className="hidden"
+                        onChange={onFileChange}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileRef.current?.click()}
+                        disabled={uploading}
+                        className="inline-flex items-center gap-2 rounded-lg bg-[#2563EB] px-4 py-2 text-sm font-medium text-white hover:bg-[#1E4FCC] disabled:opacity-50"
+                      >
+                        <Upload className="h-4 w-4" />
+                        {uploading ? 'Uploading…' : kycStatus === 'rejected' ? 'Re-upload' : 'Upload'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </section>
+
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
+                <label className="text-sm font-semibold text-slate-800" htmlFor="vendor-resubmit-note">
+                  What did you change? (optional)
+                </label>
+                <p className="mt-1 text-xs text-slate-500">
+                  This note is sent to Mogzu Admin with your resubmission.
+                </p>
+                <textarea
+                  id="vendor-resubmit-note"
+                  value={resubmitNote}
+                  onChange={(e) => setResubmitNote(e.target.value.slice(0, 500))}
+                  rows={3}
+                  placeholder="Example: Uploaded GST certificate and corrected business registration details."
+                  className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+                />
+                <p className="mt-1 text-right text-xs text-slate-400">{resubmitNote.length} / 500</p>
+              </div>
 
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <button
@@ -227,6 +322,11 @@ export default function VendorVerificationPendingPage() {
               {error && (
                 <p className="mt-4 rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-sm text-rose-700">
                   {error}
+                </p>
+              )}
+              {statusMessage && (
+                <p className="mt-4 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                  {statusMessage}
                 </p>
               )}
 

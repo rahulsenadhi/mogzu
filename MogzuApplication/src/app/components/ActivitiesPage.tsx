@@ -34,7 +34,7 @@ const navItems = [
   { id: 'users', label: 'Users', icon: 'p29193540', path: '/user-management' },
   { id: 'notification', label: 'Notification', icon: 'p4e64800', path: '/corporate/notifications' },
   { id: 'communication', label: 'Communication', icon: 'p319d300', path: '/communication' },
-  { id: 'report', label: 'Report', icon: 'p1f81a280', path: '/report' },
+  { id: 'report', label: 'Report', icon: 'p1f81a280', path: '/corporate/spend-report' },
   { id: 'transactions', label: 'Transactions', icon: 'p2683f80', path: '/corporate/transactions' },
   { id: 'settings', label: 'Settings', icon: 'pde1bb00', path: '/settings/workflow' },
 ];

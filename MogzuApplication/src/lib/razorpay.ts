@@ -74,6 +74,20 @@ export type CreateOrderResult = {
   error?: string
 }
 
+export type CreateRefundInput = {
+  paymentId: string
+  amount: number
+  bookingId: string
+  refundId: string
+}
+
+export type CreateRefundResult = {
+  ok: boolean
+  refund_id?: string
+  status?: 'pending' | 'processed' | 'failed' | string
+  error?: string
+}
+
 function getEdgeBaseUrl(): string {
   const env = (import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? ''
   if (!env) return ''
@@ -108,6 +122,37 @@ export async function createRazorpayOrder(input: CreateOrderInput): Promise<Crea
     return { ok: false, error: `create-order failed: ${text}` }
   }
   return (await res.json()) as CreateOrderResult
+}
+
+export async function createRazorpayRefund(
+  input: CreateRefundInput,
+): Promise<CreateRefundResult> {
+  const base = getEdgeBaseUrl()
+  if (!base) return { ok: false, error: 'VITE_SUPABASE_URL not configured.' }
+
+  const { data: sessionData } = await supabase.auth.getSession()
+  const token = sessionData.session?.access_token
+  if (!token) return { ok: false, error: 'Not authenticated.' }
+
+  const res = await fetch(`${base}/razorpay-create-refund`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      payment_id: input.paymentId,
+      amount: input.amount,
+      booking_id: input.bookingId,
+      refund_id: input.refundId,
+    }),
+  })
+
+  if (!res.ok) {
+    const text = await res.text()
+    return { ok: false, error: `create-refund failed: ${text}` }
+  }
+  return (await res.json()) as CreateRefundResult
 }
 
 export async function openRazorpayCheckout(opts: {

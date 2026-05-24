@@ -1,23 +1,83 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { Search, Plus, Eye, Trash2, Pencil } from 'lucide-react';
+import { Loader2, Search, Plus, Eye, Trash2 } from 'lucide-react';
 import {
   AdminPageTitleRow,
   AdminProductLineTabs,
   type AdminProductLine,
 } from '@/app/components/admin/AdminPageChrome';
-import { MOCK_PRODUCTS } from '@/app/lib/adminProductsMock';
+import { DevMockDataBanner } from '@/app/components/global/DevMockDataBanner';
+import { MOCK_PRODUCTS, type MockProduct } from '@/app/lib/adminProductsMock';
+import { db } from '@/lib/db';
 
-const TOTAL_PRODUCTS_LABEL = '500 total products';
+const PLACEHOLDER_IMAGE =
+  'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=80&h=80&fit=crop';
+
+type ListingRow = {
+  id: string;
+  title: string;
+  module: string;
+  status: string;
+  vendors: { business_name: string | null } | null;
+};
+
+function moduleToProductLine(module: string): AdminProductLine | null {
+  if (module === 'gifting') return 'gifting';
+  if (module === 'events') return 'events';
+  if (module === 'spacex_coworking' || module === 'spacex_stay') return 'spacex';
+  return null;
+}
+
+function mapListingToProduct(row: ListingRow): MockProduct | null {
+  const vertical = moduleToProductLine(row.module);
+  if (!vertical) return null;
+  return {
+    id: row.id,
+    name: row.title,
+    image: PLACEHOLDER_IMAGE,
+    seller: row.vendors?.business_name ?? '—',
+    category: row.module.replace(/_/g, ' '),
+    qty: '—',
+    price: '—',
+    stock: row.status === 'active' ? 'available' : 'out',
+    vertical,
+  };
+}
 
 export default function AdminProductsPage() {
   const [line, setLine] = useState<AdminProductLine>('gifting');
   const [query, setQuery] = useState('');
   const [activePage, setActivePage] = useState(1);
   const [uiNotice, setUiNotice] = useState('');
+  const [products, setProducts] = useState<MockProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [usingMock, setUsingMock] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const { data, error } = await db.listings.listForPublicAdmin();
+      if (cancelled) return;
+      const mapped = (data ?? [])
+        .map((row) => mapListingToProduct(row as ListingRow))
+        .filter((p): p is MockProduct => p !== null);
+      if (error || mapped.length === 0) {
+        setProducts(MOCK_PRODUCTS);
+        setUsingMock(true);
+      } else {
+        setProducts(mapped);
+        setUsingMock(false);
+      }
+      setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const filtered = useMemo(() => {
-    let list = MOCK_PRODUCTS.filter((p) => p.vertical === line);
+    let list = products.filter((p) => p.vertical === line);
     const q = query.trim().toLowerCase();
     if (q) {
       list = list.filter(
@@ -28,12 +88,24 @@ export default function AdminProductsPage() {
       );
     }
     return list;
-  }, [line, query]);
+  }, [line, query, products]);
+
+  const totalLabel = loading
+    ? 'Loading products…'
+    : `${products.length} total product${products.length === 1 ? '' : 's'}`;
 
   return (
     <div className="space-y-4">
-      <AdminPageTitleRow title="All Products" totalLabel={TOTAL_PRODUCTS_LABEL} />
+      <AdminPageTitleRow title="All Products" totalLabel={totalLabel} />
       <AdminProductLineTabs value={line} onChange={setLine} />
+
+      {loading && (
+        <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
+          <Loader2 className="size-4 animate-spin" />
+          Loading products…
+        </div>
+      )}
+      {!loading && usingMock && <DevMockDataBanner />}
 
       <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
         <div className="p-4 lg:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
@@ -154,7 +226,9 @@ export default function AdminProductsPage() {
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-t border-slate-100 bg-slate-50/50">
-          <span className="text-sm text-slate-500">Showing {filtered.length} in demo dataset</span>
+          <span className="text-sm text-slate-500">
+            Showing {filtered.length} {usingMock ? 'in demo dataset' : 'products'}
+          </span>
           <div className="flex items-center gap-1">
             {[1, 2, 3, 4, 5].map((n) => (
               <button

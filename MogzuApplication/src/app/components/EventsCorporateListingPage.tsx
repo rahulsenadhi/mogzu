@@ -208,7 +208,7 @@ export default function EventsCorporateListingPage() {
                     <label className="text-[12px] font-semibold text-[#0e1e3f]">Budget max</label>
                     <div className="mt-1">
                       <div className="flex items-center justify-between text-[11px] text-[#878e9e]">
-                        <span>₹0</span>
+                        <span>{formatInr(0)}</span>
                         <span>{formatInr(100000)}</span>
                       </div>
                       <input

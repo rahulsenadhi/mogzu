@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import type { UserProfile } from '@/lib/database.types'
+import type { ModuleId, UserProfile } from '@/lib/database.types'
 
 const STORAGE_KEY = 'mogzu_corporate_onboarding'
 const COMPLETE_KEY = 'mogzu_corporate_onboarding_complete'
@@ -105,6 +105,7 @@ export async function linkProfileToCorporate(
   userId: string,
   corporateId: string,
   fullName?: string,
+  role: UserProfile['role'] = 'l3_admin',
 ): Promise<{ error: string | null }> {
   const { supabase } = await import('@/lib/supabase')
   const now = new Date().toISOString()
@@ -113,9 +114,123 @@ export async function linkProfileToCorporate(
     .update({
       corporate_id: corporateId,
       full_name: fullName ?? undefined,
+      role,
       updated_at: now,
     })
     .eq('id', userId)
   if (error) return { error: error.message }
+  return { error: null }
+}
+
+const DEFAULT_MODULES: Record<ModuleId, boolean> = {
+  events: true,
+  gifting: true,
+  spacex_coworking: true,
+  spacex_stay: false,
+}
+
+export function interestIdsToModulesEnabled(interestIds: string[] | undefined): Record<ModuleId, boolean> {
+  const enabled = { ...DEFAULT_MODULES }
+  if (!interestIds?.length) return enabled
+  const set = new Set(interestIds)
+  enabled.events = set.has('event') || set.has('spacex')
+  enabled.gifting = set.has('gifting')
+  enabled.spacex_coworking = set.has('spacex')
+  enabled.spacex_stay = false
+  return enabled
+}
+
+export function accessLevelToPlan(accessLevel: string | undefined): 'starter' | 'growth' | 'enterprise' {
+  switch (accessLevel) {
+    case 'enterprise':
+    case 'business-plus':
+      return 'enterprise'
+    case 'professional':
+      return 'growth'
+    case 'free-trial':
+    default:
+      return 'starter'
+  }
+}
+
+export async function ensureCorporateAccount(params: {
+  companyName: string
+  domain: string
+  region?: string
+  defaultCurrency?: string | null
+}): Promise<{ corporateId: string | null; error: string | null; created: boolean }> {
+  const domain = params.domain.trim().toLowerCase()
+  if (!domain) return { corporateId: null, error: 'Invalid email domain.', created: false }
+
+  const existing = await db.corporateAccounts.getByDomain(domain)
+  if (existing.data?.id) {
+    return { corporateId: existing.data.id, error: null, created: false }
+  }
+
+  const { data, error } = await db.corporateAccounts.create({
+    name: params.companyName.trim() || domain,
+    domain,
+    plan: 'starter',
+    status: 'active',
+    account_manager_id: null,
+    modules_enabled: { ...DEFAULT_MODULES },
+    region: params.region ?? 'IN',
+    default_currency: params.defaultCurrency ?? 'INR',
+  })
+
+  if (error || !data?.id) {
+    return { corporateId: null, error: error?.message ?? 'Could not register company.', created: false }
+  }
+  return { corporateId: data.id, error: null, created: true }
+}
+
+export async function finalizeCorporateOnboarding(params: {
+  userId: string
+  corporateId: string | null | undefined
+  accessLevel: string
+  draft: CorporateOnboardingDraft | null
+}): Promise<{ error: string | null }> {
+  const { userId, accessLevel, draft } = params
+  let corporateId = params.corporateId ?? null
+
+  if (!corporateId && draft?.companyDetails) {
+    const details = draft.companyDetails as { email?: string; companyName?: string; region?: string }
+    const email = typeof details.email === 'string' ? details.email.trim().toLowerCase() : ''
+    const domain = email.split('@')[1]?.trim().toLowerCase() ?? ''
+    const companyName = typeof details.companyName === 'string' ? details.companyName : domain
+    const regionOpt = typeof details.region === 'string' ? details.region : 'IN'
+    const ensured = await ensureCorporateAccount({
+      companyName,
+      domain,
+      region: regionOpt,
+    })
+    if (ensured.error) return { error: ensured.error }
+    corporateId = ensured.corporateId
+  }
+
+  if (!corporateId) {
+    return { error: 'Company profile is missing. Complete company details first.' }
+  }
+
+  const modules_enabled = interestIdsToModulesEnabled(draft?.interests)
+  const plan = accessLevelToPlan(accessLevel)
+
+  const { error: corpError } = await db.corporateAccounts.update(corporateId, {
+    plan,
+    modules_enabled,
+  })
+  if (corpError) return { error: corpError.message }
+
+  const fullName =
+    typeof draft?.companyDetails === 'object' &&
+    draft.companyDetails &&
+    typeof (draft.companyDetails as { fullName?: string }).fullName === 'string'
+      ? (draft.companyDetails as { fullName: string }).fullName
+      : undefined
+
+  const { error: linkError } = await linkProfileToCorporate(userId, corporateId, fullName, 'l3_admin')
+  if (linkError) return { error: linkError }
+
+  setCorporateOnboardingComplete(true)
   return { error: null }
 }

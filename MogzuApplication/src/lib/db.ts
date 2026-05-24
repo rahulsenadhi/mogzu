@@ -3,6 +3,7 @@
 
 import { supabase } from './supabase'
 import { CRITICAL_NOTIFICATION_TYPES } from './database.types'
+import { createRazorpayRefund } from './razorpay'
 import type {
   Booking,
   BookingAddOn,
@@ -117,6 +118,13 @@ export const userProfiles = {
       .eq('corporate_id', corporateId)
       .order('full_name'),
 
+  listByVendor: async (vendorId: string) =>
+    supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('vendor_id', vendorId)
+      .order('full_name'),
+
   listByRole: async (corporateId: string, role: UserRole) =>
     supabase
       .from('user_profiles')
@@ -142,6 +150,9 @@ export const userProfiles = {
 export const vendors = {
   getById: async (id: string) =>
     supabase.from('vendors').select('*, vendor_modules(*)').eq('id', id).single(),
+
+  getByUserId: async (userId: string) =>
+    supabase.from('vendors').select('*, vendor_modules(*)').eq('user_id', userId).maybeSingle(),
 
   listPending: async () =>
     supabase.from('vendors').select('*').eq('status', 'pending').order('created_at'),
@@ -191,6 +202,30 @@ export const vendors = {
       .from('vendors')
       .update({ kyc_status: kycStatus, updated_at: new Date().toISOString() })
       .eq('id', id),
+
+  countActiveByModule: async () => {
+    const { data, error } = await supabase
+      .from('vendor_modules')
+      .select('module, vendor_id, vendors!inner(status)')
+      .eq('status', 'active')
+      .eq('vendors.status', 'active')
+    if (error) return { data: null as Record<ModuleId, number> | null, error: error.message }
+    const counts: Record<ModuleId, number> = {
+      events: 0,
+      gifting: 0,
+      spacex_coworking: 0,
+      spacex_stay: 0,
+    }
+    const seen = new Set<string>()
+    for (const row of data ?? []) {
+      const key = `${row.vendor_id}:${row.module}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      const mod = row.module as ModuleId
+      if (mod in counts) counts[mod] += 1
+    }
+    return { data: counts, error: null }
+  },
 
   setModules: async (vendorId: string, modules: ModuleId[]) => {
     await supabase.from('vendor_modules').delete().eq('vendor_id', vendorId)
@@ -346,6 +381,13 @@ export const bookings = {
       .from('bookings')
       .select('*, listings(*), vendors(*)')
       .eq('user_id', userId)
+      .order('created_at', { ascending: false }),
+
+  listByPartner: async (partnerId: string) =>
+    supabase
+      .from('bookings')
+      .select('*, listings(*), vendors(*), corporate_accounts(*)')
+      .eq('partner_id', partnerId)
       .order('created_at', { ascending: false }),
 
   listByVendor: async (vendorId: string) =>
@@ -618,6 +660,53 @@ export const bookings = {
           })
           .eq('corporate_id', booking.corporate_id)
       }
+      return { refundId: refund.id, error: null }
+    }
+
+    const paymentRef = booking.payment_reference?.trim()
+    if (!paymentRef) {
+      await supabase
+        .from('refunds')
+        .update({
+          status: 'failed',
+          failure_reason: 'Missing payment reference on booking.',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', refund.id)
+      return { refundId: refund.id, error: 'Refund failed: missing payment reference.' }
+    }
+
+    const gatewayRefund = await createRazorpayRefund({
+      paymentId: paymentRef,
+      amount: refundable,
+      bookingId: booking.id,
+      refundId: refund.id,
+    })
+    if (!gatewayRefund.ok || !gatewayRefund.refund_id) {
+      await supabase
+        .from('refunds')
+        .update({
+          status: 'failed',
+          failure_reason: gatewayRefund.error ?? 'Razorpay refund request failed',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', refund.id)
+      return { refundId: refund.id, error: gatewayRefund.error ?? 'Razorpay refund failed.' }
+    }
+
+    const gatewayStatus = gatewayRefund.status ?? 'pending'
+    const { error: updateRefundErr } = await supabase
+      .from('refunds')
+      .update({
+        status: gatewayStatus === 'processed' ? 'processed' : 'pending',
+        gateway_reference: gatewayRefund.refund_id,
+        failure_reason: null,
+        processed_at: gatewayStatus === 'processed' ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', refund.id)
+    if (updateRefundErr) {
+      return { refundId: refund.id, error: updateRefundErr.message }
     }
 
     return { refundId: refund.id, error: null }
@@ -1372,6 +1461,7 @@ const INTERNAL_ROLES: ReadonlyArray<UserRole> = [
   'support',
   'sales_agent',
   'field_agent',
+  'partner',
 ]
 
 export const subUsers = {
@@ -1485,6 +1575,17 @@ export const userActivity = {
       .from('user_activity_events')
       .select('*')
       .eq('actor_id', actorId)
+      .order('created_at', { ascending: false })
+      .limit(limit),
+
+  // Consolidated per-user activity feed for admin review pages:
+  // includes events done by the user (actor_id) and admin/system actions
+  // that targeted the user (target_id).
+  listByUser: async (userId: string, limit = 100) =>
+    supabase
+      .from('user_activity_events')
+      .select('*')
+      .or(`actor_id.eq.${userId},target_id.eq.${userId}`)
       .order('created_at', { ascending: false })
       .limit(limit),
 }
@@ -1996,6 +2097,87 @@ export const notifications = {
       email_sent_at: null,
     })
     return { error: error?.message ?? null }
+  },
+
+  /** Admin broadcast — inserts in-app notifications for each recipient (bypasses opt-out). */
+  broadcastSystem: async (input: {
+    title: string
+    body: string
+    userIds: string[]
+    senderLabel?: string
+    audienceLabel?: string
+  }): Promise<{ error: string | null; broadcastId: string | null }> => {
+    if (input.userIds.length === 0) {
+      return { error: 'No recipients matched the selected audience.', broadcastId: null }
+    }
+    const broadcastId = crypto.randomUUID()
+    const rows = input.userIds.map((userId) => ({
+      user_id: userId,
+      type: 'system' as const,
+      title: input.title,
+      body: input.body,
+      link_url: null,
+      metadata: {
+        broadcast: true,
+        broadcast_id: broadcastId,
+        sender: input.senderLabel ?? 'Mogzu Admin',
+        audience: input.audienceLabel ?? '',
+      },
+      is_read: false,
+      read_at: null,
+      email_status: 'skipped' as const,
+      email_sent_at: null,
+    }))
+    const { error } = await supabase.from('notifications').insert(rows)
+    return { error: error?.message ?? null, broadcastId: error ? null : broadcastId }
+  },
+
+  listRecentBroadcasts: async (limit = 20) => {
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('id, title, body, created_at, metadata')
+      .eq('type', 'system')
+      .order('created_at', { ascending: false })
+      .limit(300)
+    if (error) return { data: [], error: error.message }
+    const seen = new Set<string>()
+    const out: Array<{
+      id: string
+      title: string
+      meta: string
+      time: string
+      initials: string
+    }> = []
+    for (const row of data ?? []) {
+      const meta = (row.metadata ?? {}) as Record<string, unknown>
+      if (meta.broadcast !== true) continue
+      const bid = String(meta.broadcast_id ?? row.id)
+      if (seen.has(bid)) continue
+      seen.add(bid)
+      const sender = String(meta.sender ?? 'Admin')
+      const audience = String(meta.audience ?? '')
+      out.push({
+        id: bid,
+        title: row.title,
+        meta: audience ? `Added by ${sender} · ${audience}` : `Added by ${sender}`,
+        time: new Date(row.created_at).toLocaleString('en-GB', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        }),
+        initials: sender
+          .split(' ')
+          .map((w) => w[0])
+          .join('')
+          .slice(0, 2)
+          .toUpperCase(),
+      })
+      if (out.length >= limit) break
+    }
+    return { data: out, error: null }
   },
 }
 

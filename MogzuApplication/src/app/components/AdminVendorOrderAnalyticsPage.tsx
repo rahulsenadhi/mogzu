@@ -1,7 +1,10 @@
-import { useMemo, useState } from 'react';
-import { ArrowLeft, Eye, ListFilter, Pencil, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
+import { ArrowLeft, Eye, ListFilter, Loader2, Pencil, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import imgAvatar from 'figma:asset/e67667939a12621af070c82a05583b9248a7c28e.png';
+import { DevMockDataBanner } from '@/app/components/global/DevMockDataBanner';
+import { supabase } from '@/lib/supabase';
+import type { Booking, ModuleId } from '@/lib/database.types';
 
 type StatusTab = 'Pending' | 'Confirmed' | 'Processing' | 'Delivered' | 'On the way' | 'Pick up' | 'Cancelled';
 
@@ -18,7 +21,7 @@ type OrderRow = {
 
 const statusTabs: StatusTab[] = ['Pending', 'Confirmed', 'Processing', 'Delivered', 'On the way', 'Pick up', 'Cancelled'];
 
-const orderRows: OrderRow[] = [
+const DEMO_ORDER_ROWS: OrderRow[] = [
   { id: 'o1', vendorName: 'Kapil Dev', orderId: 'ENZ004130', category: 'SpaceX', orderedItem: 'NESCO IT Park', customer: 'Riya Singh', pendingAmount: '₹ 9710', status: 'Pending' },
   { id: 'o2', vendorName: 'Riya Nair', orderId: 'ENZ004130', category: 'Event', orderedItem: 'Printed Round Neck Co..', customer: 'Ravi Kumar', pendingAmount: '₹ 228', status: 'Pending' },
   { id: 'o3', vendorName: 'Kapil Dev', orderId: 'ENZ004130', category: 'Gifting', orderedItem: 'Printed Round Neck Co..', customer: 'Ravi Kumar', pendingAmount: '₹ 228', status: 'Pending' },
@@ -244,6 +247,23 @@ export const adminGiftingOrdersMock: AdminGiftingOrderRecord[] = [
   },
 ]
 
+function moduleToCategory(module: ModuleId): OrderRow['category'] {
+  if (module === 'gifting') return 'Gifting';
+  if (module === 'events') return 'Event';
+  return 'SpaceX';
+}
+
+function mapBookingToStatusTab(b: Booking): StatusTab {
+  if (b.status === 'cancelled') return 'Cancelled';
+  if (b.status === 'completed' || b.fulfilment_stage === 'delivered') return 'Delivered';
+  if (b.fulfilment_stage === 'out_for_delivery' || b.fulfilment_stage === 'dispatched') {
+    return 'On the way';
+  }
+  if (b.fulfilment_stage === 'packed' || b.fulfilment_stage === 'ordered') return 'Processing';
+  if (b.status === 'confirmed') return 'Confirmed';
+  return 'Pending';
+}
+
 function categoryClass(category: OrderRow['category']) {
   if (category === 'SpaceX') return 'bg-orange-50 text-orange-600 border-orange-200';
   if (category === 'Event') return 'bg-rose-50 text-rose-600 border-rose-200';
@@ -259,7 +279,49 @@ export default function AdminVendorOrderAnalyticsPage() {
   const [profileTab, setProfileTab] = useState<'general' | 'permissions' | 'sales' | 'orders'>('general');
   const [uiNotice, setUiNotice] = useState('');
   const [salesPage, setSalesPage] = useState(1);
+  const [orderRows, setOrderRows] = useState<OrderRow[]>(DEMO_ORDER_ROWS);
+  const [loading, setLoading] = useState(true);
+  const [usingDemo, setUsingDemo] = useState(true);
   const pageSize = 7;
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('bookings')
+      .select(
+        'id, module, status, fulfilment_stage, total_amount, listings(title), vendors(business_name), user_profiles!user_id(full_name)',
+      )
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (error || !data?.length) {
+      setUsingDemo(true);
+      setOrderRows(DEMO_ORDER_ROWS);
+      setLoading(false);
+      return;
+    }
+    setUsingDemo(false);
+    setOrderRows(
+      (data as Array<Booking & {
+        listings: { title: string | null } | null;
+        vendors: { business_name: string | null } | null;
+        user_profiles: { full_name: string | null } | null;
+      }>).map((b) => ({
+        id: b.id,
+        vendorName: b.vendors?.business_name ?? '—',
+        orderId: b.id.slice(0, 8).toUpperCase(),
+        category: moduleToCategory(b.module),
+        orderedItem: b.listings?.title ?? 'Booking',
+        customer: b.user_profiles?.full_name ?? '—',
+        pendingAmount: `₹ ${Math.round(b.total_amount ?? 0).toLocaleString('en-IN')}`,
+        status: mapBookingToStatusTab(b),
+      })),
+    );
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -273,7 +335,7 @@ export default function AdminVendorOrderAnalyticsPage() {
         r.orderedItem.toLowerCase().includes(q)
       );
     });
-  }, [activeTab, query]);
+  }, [activeTab, query, orderRows]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -285,7 +347,11 @@ export default function AdminVendorOrderAnalyticsPage() {
         Vendor Management Dashboard <span className="px-1">›</span> <span className="text-slate-500">Order Analytics</span>
       </div>
       <h1 className="text-3xl font-semibold text-slate-900">Order Analytics</h1>
-      <p className="text-xs text-slate-500">500 total user</p>
+      <p className="text-xs text-slate-500">{filtered.length} orders · {usingDemo ? 'demo data' : 'live bookings'}</p>
+
+      {usingDemo && import.meta.env.DEV && (
+        <DevMockDataBanner message="No bookings in Supabase — showing demo order analytics rows." />
+      )}
 
       <div className="rounded-2xl border border-slate-200 bg-[#ECEFF6] p-4">
         <div className="mb-4 flex flex-wrap border-b border-slate-200">

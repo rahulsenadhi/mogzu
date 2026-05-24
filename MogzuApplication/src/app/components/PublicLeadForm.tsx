@@ -11,6 +11,10 @@ import {
 } from '@/lib/publicLeads'
 import TurnstileWidget, { TURNSTILE_SITE_KEY } from '@/app/components/TurnstileWidget'
 import { t } from '@/lib/i18n'
+import { MOGZU_GLASS_PANEL, MOGZU_PRIMARY_BTN } from '@/app/components/ui/mogzuGlassStyles'
+
+const fieldClass =
+  'rounded-xl border border-white/70 bg-white/60 px-3 py-2 text-sm text-slate-800 outline-none backdrop-blur-sm transition focus:border-[#93c5fd] focus:ring-2 focus:ring-[#93c5fd]/40'
 
 export default function PublicLeadForm({
   listingId,
@@ -91,7 +95,7 @@ export default function PublicLeadForm({
       className={
         compact
           ? 'space-y-3'
-          : 'rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-3'
+          : `${MOGZU_GLASS_PANEL} p-6 space-y-3`
       }
     >
       {!compact && (
@@ -116,14 +120,14 @@ export default function PublicLeadForm({
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder={t('leads.name_placeholder')}
-          className="rounded-md border border-slate-200 px-3 py-2 text-sm"
+          className={fieldClass}
         />
         <input
           type="text"
           value={company}
           onChange={(e) => setCompany(e.target.value)}
           placeholder={t('leads.company_placeholder')}
-          className="rounded-md border border-slate-200 px-3 py-2 text-sm"
+          className={fieldClass}
         />
         <input
           type="email"
@@ -131,19 +135,19 @@ export default function PublicLeadForm({
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder={t('leads.email_placeholder')}
-          className="rounded-md border border-slate-200 px-3 py-2 text-sm"
+          className={fieldClass}
         />
         <input
           type="tel"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           placeholder={t('leads.phone_placeholder')}
-          className="rounded-md border border-slate-200 px-3 py-2 text-sm"
+          className={fieldClass}
         />
         <select
           value={budget}
           onChange={(e) => setBudget(e.target.value as BudgetBand)}
-          className="rounded-md border border-slate-200 px-3 py-2 text-sm"
+          className={fieldClass}
         >
           <option value="">{t('leads.budget_placeholder')}</option>
           {BUDGET_BANDS.map((b) => (
@@ -155,7 +159,7 @@ export default function PublicLeadForm({
         <select
           value={timeline}
           onChange={(e) => setTimeline(e.target.value as Timeline)}
-          className="rounded-md border border-slate-200 px-3 py-2 text-sm"
+          className={fieldClass}
         >
           <option value="">{t('leads.timeline_placeholder')}</option>
           {TIMELINES.map((t) => (
@@ -171,7 +175,7 @@ export default function PublicLeadForm({
         value={requirement}
         onChange={(e) => setRequirement(e.target.value)}
         placeholder={t('leads.requirement_placeholder')}
-        className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+        className={`w-full ${fieldClass}`}
       />
 
       {/* Honeypot — hidden from humans, bots fill it, server flags as spam. */}
@@ -191,7 +195,7 @@ export default function PublicLeadForm({
       <button
         type="submit"
         disabled={submitting}
-        className="inline-flex items-center gap-1.5 rounded-md bg-[#2563eb] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1d4ed8] disabled:opacity-60"
+        className={MOGZU_PRIMARY_BTN + ' inline-flex items-center gap-1.5 disabled:opacity-60'}
       >
         {submitting && <Loader2 className="size-4 animate-spin" />}
         {t('catalogue.request_quote')}

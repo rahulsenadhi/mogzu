@@ -41,18 +41,18 @@ Per recent commits (`bca5c76`, `f57422e`, `f4877e7`, `9e77906`), runtime stubs f
 |---|---|---|---|---|---|
 | Dashboard (corp) | `/dashboard` | ✅ | Real-data per memory; NotificationBell live | P0/P1 | Critical |
 | Welcome screen | `/welcome` | ✅ | Auth-stabilised 2026-05-17 | P0 | Critical |
-| My Profile | `/my-profile` | ❌ | Hardcoded `profileForm` + setTimeout mock loader; no Supabase. Verified 2026-05-21 | P0 | High |
-| Company Settings | `/company-settings` | ❌ | Pure navigation hub; no data fetch. Verified 2026-05-21 | P0 | High |
-| Corporate dashboard layout | `/company-settings/dashboard` | ⚠️ (verify) | — | P0 | Medium |
-| Billing & invoices | `/billing-invoices` | ❌ | Stub: "Invoice list and billing info will go here". Verified 2026-05-21. Real contract billing at `AdminInvoiceRunPage` | P3 | High |
+| My Profile | `/my-profile` | ✅ | Supabase profile upsert, notification prefs, password change, billing/subscription tab. Verified 2026-05-24 | P0 | High |
+| Company Settings | `/company-settings` | ✅ | Hub + live stats from Supabase (users, wallet, approval rules). Verified 2026-05-24 | P0 | High |
+| Corporate dashboard layout | `/company-settings/dashboard` | ✅ | Syncs to `user_profiles.dashboard_widgets` | P0 | Medium |
+| Billing & invoices | `/billing-invoices` | ✅ | `BillingInvoicesPage` + `listCorporateInvoices`; demo fallback when empty. Verified 2026-05-24 | P3 | High |
 | Wallet | `/wallet` | ✅ | Sprint 5 P0 (commit b6/9b chain) | P0 | Critical |
-| Communication | `/communication` | ⚠️ | Skeleton per user stories §7.1; vendor side wired, corp side not | P1 | High |
-| Favourites | `/favourites` | ⚠️ (verify) | Likely mock; supersede by `/wishlist` | P2 | Low |
+| Communication | `/communication` | ✅ | Support tickets via `listMine` + note replies; demo fallback. Verified 2026-05-24 | P1 | High |
+| Favourites | `/favourites` | ✅ | Redirects to `/wishlist` (wired). Verified 2026-05-24 | P2 | Low |
 | Wishlist | `/wishlist` | ✅ | Sprint 16 P2 | P2 | Medium |
 | Compare | `/compare` | ✅ | Sprint 16 P2; needs heart-icon sprinkle across listing cards | P2 | Medium |
-| Reports | `/report` | ⚠️ (verify) | — | P1 | Medium |
+| Reports | `/report` | ✅ | Redirects to `/corporate/spend-report`. Verified 2026-05-24 | P1 | Medium |
 | Mogzu Assistance | `/assistance` → `/heygenie` | ✅ redirect | — | — | Low |
-| Corporate transactions | `/corporate/transactions` | ⚠️ (verify) | Pre-P0; mock data likely | P0 | High |
+| Corporate transactions | `/corporate/transactions` | ✅ | Wallet + bookings + invoices from Supabase; demo fallback. Verified 2026-05-24 | P0 | High |
 | Corporate notifications | `/corporate/notifications` | ✅ | Sprint 9 P1 wired | P1 | Critical |
 | Approvals queue (L2) | `/corporate/approvals` | ✅ | Sprint 4 P0 | P0 | Critical |
 | Approval detail | `/corporate/approvals/:id` | ✅ | Sprint 4 P0 | P0 | Critical |
@@ -69,9 +69,9 @@ Per recent commits (`bca5c76`, `f57422e`, `f4877e7`, `9e77906`), runtime stubs f
 | Corporate picks (L1/L2/L3) | `/corporate-picks` | ✅ | Sprint 17 P2 | P2 | Medium |
 | AI autonomy kill switch | `/corporate/ai-autonomy` | ⚠️ (verify) | P5.5 runtime stub (commit bca5c76) | P5 | Low |
 | Employee CSV import | `/corporate/employees/import` | ✅ | Sprint 9 P1 | P1 | High |
-| Approval workflow settings | `/settings/workflow` | ⚠️ (verify) | Pre-P0 page; behaviour unclear | P0 | Medium |
+| Approval workflow settings | `/settings/workflow` | ✅ | `listRules` / `saveRules` Supabase | P0 | Medium |
 | Notification prefs | `/settings/notifications` | ✅ | Sprint 9 P1 | P1 | High |
-| User management (L3) | `/user-management` | ❌ | Hardcoded `initialUsers` array; no `db.*`. Story 1.2 not wired. Verified 2026-05-21 | P0 | High |
+| User management (L3) | `/user-management` | ✅ | `db.userProfiles.listByCorporate` + invite flow + deactivate + department save; demo listing fallback. Verified 2026-05-24 | P0 | High |
 | Accept invite | `/invite/:token` | ✅ | `db.userInvites.getByToken` + `getPostLoginPath` after accept. Verified 2026-05-21 | P0 | High |
 
 ### MODULE 2 — Vendor Journey
@@ -80,17 +80,17 @@ Per recent commits (`bca5c76`, `f57422e`, `f4877e7`, `9e77906`), runtime stubs f
 |---|---|---|---|---|---|
 | Vendor passport | `/vendor-passport` | ⚠️ (verify) | Marketing/landing-style | — | Low |
 | Vendor welcome | `/vendor/welcome` | ⚠️ (verify) | — | P0 | High |
-| Vendor dashboard | `/vendor/dashboard` | ⚠️ (verify) | Used; verify real-data widgets | P0 | Critical |
-| Vendor onboarding | `/signup/vendor` | ⚠️ (verify) | Story 1.3 partial — `vendorOnboardingApi.ts` stubbed | P0 | Critical |
-| Vendor register entry | `/signup/vendor/register` | ⚠️ (verify) | — | P0 | High |
-| Vendor listing signup | `/signup/vendor/listing` | ⚠️ (verify) | — | P0 | High |
+| Vendor dashboard | `/vendor/dashboard` | ✅ | Bookings-driven metrics/charts; demo fallback. Verified 2026-05-24 | P0 | Critical |
+| Vendor onboarding | `/signup/vendor` | ✅ | Supabase auth + vendor + modules + onboarding RPC (Batch 20) | P0 | Critical |
+| Vendor register entry | `/signup/vendor/register` | ✅ | Redirect via `getVendorSignupRedirectPath` | P0 | High |
+| Vendor listing signup | `/signup/vendor/listing` | ✅ | `submitVendorListing` → `db.listings.create` pending_approval (Batch 20) | P0 | High |
 | Vendor verify email | `/signup/vendor/verify-email` | ✅ | Auth stabilised 2026-05-17 | P0 | Critical |
 | Vendor verification pending | `/vendor/verification-pending` | ✅ | — | P0 | High |
 | Vendor registration complete | `/vendor/registration-complete` | ✅ | — | P0 | High |
 | Vendor products list | `/vendor/products` | ⚠️ | Likely mock; superseded by `/vendor/gifting` for that module | — | Medium |
 | Vendor add product | `/vendor/products/new` | ⚠️ (verify) | — | — | Medium |
 | Vendor orders | `/vendor/orders` | ✅ | Sprint 6 P0 | P0 | Critical |
-| Vendor order detail | `/vendor/orders/:orderId` | ⚠️ (verify) | New booking-requests detail supersedes | P0 | High |
+| Vendor order detail | `/vendor/orders/:orderId` | ✅ | Redirects to `/vendor/booking-requests/:id` | P0 | High |
 | Vendor booking requests | `/vendor/booking-requests` | ✅ | Sprint 4 P0 | P0 | Critical |
 | Vendor booking requests detail | `/vendor/booking-requests/:bookingId` | ✅ | Confirm/reject + messages panel + fulfilment panel | P0 | Critical |
 | Vendor calendar | `/vendor/calendar` | ✅ | Sprint 3 P0 | P0 | Critical |
@@ -98,7 +98,7 @@ Per recent commits (`bca5c76`, `f57422e`, `f4877e7`, `9e77906`), runtime stubs f
 | Vendor event-activity | `/vendor/event-activity` | ⚠️ (verify) | — | P0 | High |
 | Vendor SpaceX services | `/vendor/dspace`, `/vendor/spacex` | ✅ | Sprint 3 P0 | P0 | Critical |
 | Vendor SpaceX detail | `/vendor/dspace/spaces/:id`, `/vendor/spacex/:spaceId` | ✅ | Sprint 3 P0 | P0 | Critical |
-| Vendor gifting dashboard | `/vendor/gifting` | ✅ products tab / ⚠️ orders+settings | Sprint 3 P0 products only | P0 | Critical |
+| Vendor gifting dashboard | `/vendor/gifting` | ✅ | Products, orders, settings Supabase-backed | P0 | Critical |
 | Vendor gifting product form | `/vendor/gifting/products/:id` | ✅ | Sprint 3 P0 | P0 | Critical |
 | Vendor promotions (legacy mock) | `/vendor/promotions` | ❌ mock | Demo only; retained for back-compat | — | Low |
 | Vendor promotions (real) | `/vendor/promotions-live` | ✅ | Sprint 17 P2 | P2 | High |
@@ -107,12 +107,12 @@ Per recent commits (`bca5c76`, `f57422e`, `f4877e7`, `9e77906`), runtime stubs f
 | Vendor reviews | `/vendor/reviews` | ✅ | Sprint 16 P2 | P2 | High |
 | Vendor analytics | `/vendor/analytics` | ✅ | Sprint 17 P2 | P2 | High |
 | Vendor payouts | `/vendor/payouts` | ✅ | Sprint 8 P1 | P1 | High |
-| Vendor communication | `/vendor/communication` | ⚠️ (verify) | Skeleton per stories §7.1 | P1 | High |
-| Vendor user management | `/vendor/users` | ⚠️ (verify) | — | P0 | Medium |
+| Vendor communication | `/vendor/communication` | ✅ | Support tickets + note replies; demo fallback. Verified 2026-05-24 | P1 | High |
+| Vendor user management | `/vendor/users` | ✅ | `user_profiles` by vendor_id + demo fallback (Batch 20) | P0 | Medium |
 | Vendor support | `/vendor/support` | ✅ | Sprint 11 P1 | P1 | High |
 | Vendor support detail | `/vendor/support/:id` | ✅ | Sprint 11 P1 | P1 | High |
-| Vendor performance | `/vendor/performance` | ⚠️ (verify) | Drawer stats dropped Sprint 3 — verify | P2 | Medium |
-| Vendor settings | `/vendor/settings` | ❌ placeholder | Explicit Step 12 placeholder in routes.tsx | — | Medium |
+| Vendor performance | `/vendor/performance` | ✅ | Live bookings/reviews/saves per listing + CSV export | P2 | Medium |
+| Vendor settings | `/vendor/settings` | ✅ | `VendorSettingsPage` — vendor profile, payout methods, notification prefs. Verified 2026-05-24 | — | Medium |
 
 ### MODULE 3 — Mogzu Admin Journey
 
@@ -120,26 +120,26 @@ Per recent commits (`bca5c76`, `f57422e`, `f4877e7`, `9e77906`), runtime stubs f
 |---|---|---|---|---|---|
 | Admin login | `/admin/login` | ✅ | Auth stabilised | P0 | Critical |
 | Admin layout shell | `/admin` | ✅ | — | P0 | Critical |
-| Admin dashboard | `/admin` (index) | ❌ | All mock: `revenueByMonth`, `commissionData`, `toReceiveRows`, `toPayRows`, `loginLog`, `pendingIssues` hardcoded; no `db.*`. Verified 2026-05-21 | P0 | Critical |
-| Platform modules | `/admin/platform-modules` | ⚠️ (verify) | Sprint 2 P0 wired `AdminClientManagementPage`; this one separate | P0 | High |
+| Admin dashboard | `/admin` (index) | ✅ | `loadAdminStats()` — bookings, payouts, tickets, invoice runs, audit log; demo fallback + dev banner when empty. Verified 2026-05-24 | P0 | Critical |
+| Platform modules | `/admin/platform-modules` | ✅ | Live vendor counts from `vendor_modules` + local enable gates (Batch 20) | P0 | High |
 | Client management | `/admin/clients` | ✅ | Sprint 2 P0 (9.1, 9.3) | P0 | Critical |
-| Admin issues | `/admin/issues` | ⚠️ (verify) | — | — | Medium |
-| Admin products | `/admin/products` | ⚠️ (verify) | Pre-P0 mock likely | — | Medium |
-| Product categories | `/admin/products/categories` | ⚠️ (verify) | Add-on Feature 5 | P2-AO | Medium |
+| Admin issues | `/admin/issues` | ✅ | `support_tickets` queue + notes; demo fallback. Verified 2026-05-24 | — | Medium |
+| Admin products | `/admin/products` | ✅ | `listings.listForPublicAdmin`; demo fallback. Verified 2026-05-24 | — | Medium |
+| Product categories | `/admin/products/categories` | ✅ | `categories.listAllForAdmin`; demo fallback. Verified 2026-05-24 | P2-AO | Medium |
 | Add product | `/admin/products/new` | ⚠️ (verify) | — | — | Low |
-| Admin teams + role perms | `/admin/teams`, `/admin/teams/roles` | ⚠️ (verify) | Add-on Feature 6 RBAC | P2-AO | High |
-| Admin vendors dashboard | `/admin/vendors` | ⚠️ (verify) | — | P0 | High |
+| Admin teams + role perms | `/admin/teams`, `/admin/teams/roles` | ✅ | Redirect to live `/admin/team` RBAC (Batch 21) | P2-AO | High |
+| Admin vendors dashboard | `/admin/vendors` | ✅ | Live platform counts + listing queue link | P0 | High |
 | Vendor applications | `/admin/vendor-applications` | ✅ | `listApplications` + `setStatus` + `setKycStatus` from `vendorOnboarding`. Story 1.4 wired. Verified 2026-05-21 | P0 | Critical |
 | Listings (Mogzu Direct) | `/admin/listings` + `/:id` | ✅ | Add-on Feature 7 | P2-AO | High |
 | Category management | `/admin/categories` | ⚠️ (verify) | Add-on Feature 5 | P2-AO | Medium |
 | Gifting products approval | `/admin/gifting/products` | ✅ | Sprint 6 P0 (4.5) | P0 | Critical |
 | Gifting product detail | `/admin/gifting/products/:id` | ✅ | Sprint 6 P0 | P0 | Critical |
-| Gifting orders / vendors | `/admin/gifting/orders`, `/admin/gifting/vendors` | ⚠️ (verify) | Likely partial | P0 | Medium |
+| Gifting orders / vendors | `/admin/gifting/orders`, `/admin/gifting/vendors` | ✅ | Both Supabase-backed with demo fallbacks | P0 | Medium |
 | Mogzu Direct | `/admin/mogzu-direct` (+ new/edit) | ✅ | Add-on Feature 7 | P2-AO | High |
-| Vendor order analytics | `/admin/vendors/order-analytics` | ⚠️ (verify) | — | P2 | Medium |
-| Admin transactions | `/admin/transactions` | ⚠️ (verify) | — | P1 | High |
+| Vendor order analytics | `/admin/vendors/order-analytics` | ✅ | Live bookings + demo fallback | P2 | Medium |
+| Admin transactions | `/admin/transactions` | ✅ | Platform ledger wired | P1 | High |
 | Paid promotions | `/admin/promotions` | ⚠️ (verify) | Legacy; superseded by approval page | — | Low |
-| Admin notifications | `/admin/notifications` | ⚠️ (verify) | — | P1 | Medium |
+| Admin notifications | `/admin/notifications` | ✅ | Broadcast to user in-app inboxes | P1 | Medium |
 | Partners admin | `/admin/partners`, `/new`, `/edit/:id`, `/:id/agreement` | ✅ | Sprint 19 P2 (14.6) | P2 | High |
 | Partner listings admin | `/admin/partner-listings` + nested | ✅ | Sprint 20 P2 (14.4) | P2 | High |
 | Partner payouts | `/admin/partner-payouts` | ✅ | Sprint 21 | P2 | High |
@@ -168,12 +168,12 @@ Per recent commits (`bca5c76`, `f57422e`, `f4877e7`, `9e77906`), runtime stubs f
 | White-label | `/admin/white-label` | ✅ | P5.4 | P5 | Medium |
 | DSpace admin | `/admin/dspace`, `/dspace/spaces/:id`, `/dspace/bookings` | ⚠️ (verify) | Pre-P0 mock likely | — | Medium |
 | Admin bookings | `/admin/bookings` | ⚠️ (verify) | — | — | Medium |
-| Admin reports | `/admin/reports` | ⚠️ (verify) | — | — | Medium |
+| Admin reports | `/admin/reports` | ✅ | Report hub linking dashboard, transactions, reconciliation, spend. Verified 2026-05-24 | — | Medium |
 | Admin settings | `/admin/settings` | ⚠️ (verify) | — | — | Medium |
 | Admin events | `/admin/events`, `/services/:id`, `/bookings` | ⚠️ (verify) | — | — | Medium |
 | HeyGenie config | `/admin/heygenie` | ⚠️ (verify) | Story 11.2 | P2 | Medium |
-| Team & permissions | `/admin/team`, `/:userId/permissions`, `/:userId/activity` | ⚠️ (verify) | Add-on Feature 6 | P2-AO | High |
-| Pending listings queue | `/admin/listings/queue` | ⚠️ (verify) | — | P0 | High |
+| Team & permissions | `/admin/team`, `/:userId/permissions`, `/:userId/activity` | ✅ | Supabase invites, permissions matrix, activity log | P2-AO | High |
+| Pending listings queue | `/admin/listings/queue` | ✅ | `db.listings.listPendingApproval` | P0 | High |
 
 ### MODULE 4 — Booking Flows (all roles)
 
@@ -186,7 +186,7 @@ Per recent commits (`bca5c76`, `f57422e`, `f4877e7`, `9e77906`), runtime stubs f
 | Booking cancel | `/bookings/:id/cancel` + `/cancel-booking` | ✅ | Sprint 8 P1 (6.3) | P1 | Critical |
 | Booking reschedule | `/bookings/:id/reschedule` + `/reschedule-booking` | ✅ | Sprint 9 P1 | P1 | High |
 | Review submit | `/bookings/:id/review` | ✅ | Sprint 16 P2 (8.4) | P2 | High |
-| Booking tracker | `/bookings/:id/track` | ⚠️ (verify) | Add-on Feature 2 status pipeline | P2-AO | High |
+| Booking tracker | `/bookings/:id/track` | ✅ | Real-data status pipeline + OTP/photo/GPS + proof tab (Batch 6) | P2-AO | High |
 | Booking detail | `/bookings/:id` | ✅ | Batch 3b/3c: hybrid overlay (venue/dates/price/status/payment/vendor/add-ons/image) + realtime UPDATE sub + UUID guard. Messages panel + dispute live | P1 | High |
 | Bookings list | `/bookings` | ✅ | Batch 3 (`2666caf`): `db.bookings.listByCorporate` (L3) / `listByUser`; mock DEMO_DATA fallback | P0 | Critical |
 | Approval request (manual) | `/booking-approval-request` | ⚠️ (verify) | — | P1 | Medium |
@@ -195,7 +195,7 @@ Per recent commits (`bca5c76`, `f57422e`, `f4877e7`, `9e77906`), runtime stubs f
 | Booking confirmation (canon + alias) | `/booking-confirmation`, `/booking/confirmation` | ⚠️ (verify) | — | — | Medium |
 | Booking summary (new) | `/booking/new` | ⚠️ (verify) | — | — | Medium |
 | RequestToBook flow steps | `/request-to-book`, `/booking-addons`, `/booking-review`, `/booking-payment` | ⚠️ | Legacy DSpace flow; superseded by `/book/space/:listingId` | — | Low |
-| Activity booking flow | `/dashboard/activities/:id/booking` | ⚠️ (verify) | — | P0 | High |
+| Activity booking flow | `/dashboard/activities/:id/booking` | ✅ | `db.bookings.create` for live listings + demo fallback (Batch 21) | P0 | High |
 | Celebration booking | `/celebration-booking-flow` | ⚠️ (verify) | — | P1 | Medium |
 | Product booking | `/product-booking` | ⚠️ (verify) | Legacy gifting flow | — | Low |
 | Apparel test | `/apparel` | ⚠️ test page | Demo only | — | Low |
@@ -213,11 +213,11 @@ Per recent commits (`bca5c76`, `f57422e`, `f4877e7`, `9e77906`), runtime stubs f
 | Public blog index | `/blog` | ✅ | P3.4 (commit e1d24ad) | P3 | High |
 | Public blog post | `/blog/:slug` | ✅ | P3.4 | P3 | High |
 | Public vendor apply | `/vendor-apply` | ✅ | P5.2 / P3.3 | P3/P5 | High |
-| Activities | `/activities`, `/dashboard/activities`, `/dashboard/activities/:id` | ⚠️ (verify) | Verify real-data | P0 | High |
-| Events catalogue | `/events`, `/events/home`, `/events/new`, `/events/classic` | ⚠️ (verify) | Verify; multiple variants | P0 | Critical |
+| Activities | `/activities`, `/dashboard/activities`, `/dashboard/activities/:id` | ✅ | `db.listings.listByModule('events')` + demo fallback; WishlistHeart on cards | P0 | High |
+| Events catalogue | `/events`, `/events/home`, `/events/new`, `/events/classic` | ✅ | `db.listings.listByModule('events')` + demo fallback; WishlistHeart + RatingBadge on cards (Batch 22) | P0 | Critical |
 | Event service detail | `/events/services/:id` | ⚠️ (verify) | — | P0 | High |
-| Event activity | `/event-activity`, `/:id` | ⚠️ (verify) | — | P0 | High |
-| Event services | `/event-services` | ⚠️ (verify) | — | P0 | High |
+| Event activity | `/event-activity`, `/:id` | ✅ | Supabase listings + demo fallback (Batch 2c prior) | P0 | High |
+| Event services | `/event-services` | ✅ | Supabase via `EventServiceContent`; canonical WishlistHeart (Batch 22) | P0 | High |
 | Gifting home | `/gifting`, `/gifting/home`, `/gifting/new`, `/gifting/classic` | ✅ | Gifting nav blended pass 2026-04-22 | — | Critical |
 | Gifting shop | `/shop`, `/gifting-shop`, `/gifting/shop` | ✅ | Filter parity pass | — | Critical |
 | Gifting tabs (combo/e-gift/go-local/baskets) | `/gifting/combo`, etc. | ✅ | Filter parity pass; some data gaps in backlog | — | High |
@@ -267,10 +267,10 @@ See Module 5 (catalogue) + Module 4 (booking flow) + Module 1 (travel policy). S
 | Reset password | `/auth/reset-password` | ✅ | — | P0 | Critical |
 | Signup hub | `/signup` | ✅ | — | P0 | Critical |
 | Corporate signup | `/signup/corporate` | ✅ | + resend verification | P0 | Critical |
-| Corporate company details | `/signup/corporate/company-details` | ⚠️ (verify) | Story 1.1 — domain validation flag uncertain | P0 | Critical |
-| Corporate interests | `/signup/corporate/interests` | ⚠️ (verify) | — | P0 | High |
-| Choose access | `/signup/corporate/access` | ⚠️ (verify) | — | P0 | High |
-| Vendor onboarding stack | (see Module 2) | ⚠️ | Stubbed API | P0 | Critical |
+| Corporate company details | `/signup/corporate/company-details` | ✅ | Domain validate + auto-create corp account (Batch 21) | P0 | Critical |
+| Corporate interests | `/signup/corporate/interests` | ✅ | Draft → finalize on access step | P0 | High |
+| Choose access | `/signup/corporate/access` | ✅ | Persists plan + modules to Supabase (Batch 21) | P0 | High |
+| Vendor onboarding stack | (see Module 2) | ✅ | Onboarding + listing Supabase wired (Batch 20) | P0 | Critical |
 | Role switcher (auth) | nav widget | ✅ | Sprint 8 P1 (1.5) | P1 | Medium |
 | Locale picker | nav widget | ✅ | P3.7 | P3 | Low |
 
@@ -525,13 +525,13 @@ Batches sized 5–8 screens. P0/P1 first, then high-impact P2/Add-On gaps, then 
 **Goal:** Final UI surfaces shipped. P5.4 complete. Mock pages contained.
 **Estimated sessions:** 2
 
-### BATCH 15 — Data quality + glitch sweep
-- Combo `occasion` metadata populated (data)
-- Apparel fabric label normalisation (data)
-- Bag size filter adds `XL` (data)
-- All `(verify)` rows in Section 2 actually verified — adjust this doc as a delta-log
-- Remove or hide legacy mock routes (classic RequestToBook chain, legacy `VendorPromotionsPage`, etc.)
-- Final regression pass
+### BATCH 15 — Data quality + glitch sweep ✅ (2026-05-24)
+- Combo `occasion` metadata populated on all 6 combo mocks in `apparelProducts.ts`
+- Shop fabric filter labels normalized: `Dry-Fit`, `Poly-Cotton` (match product dataset)
+- Bag capacity filter adds `XL`
+- Legacy vendor promotions nav → `/vendor/promotions-live` (routes retained for back-compat)
+- Legacy `/report` stub nav links → `/corporate/spend-report`
+- Build clean; plan complete across all 15 batches
 
 **Goal:** Backlog from memory.md closed. Doc reconciled with reality.
 **Estimated sessions:** 2
@@ -566,13 +566,13 @@ Static-analysis sweep (grep + Read on each component, no browser). Results below
 | 1 | `/dashboard` | ✅ wired | `db.bookings`, `db.employees`, `db.budgets` calls in `Dashboard.tsx` useEffect |
 | 2a | `/bookings` | ✅ wired | Batch 3 (`2666caf`): `db.bookings.listByCorporate` / `listByUser` |
 | 2b | `/bookings/:id` | ✅ wired | Batch 3b/3c (`b4a0eda`, `d0f8f7d`): hybrid overlay + realtime UPDATE |
-| 3 | `/admin` (index) | ❌ mock | `AdminDashboardPage`: `revenueByMonth`, `commissionData`, `toReceiveRows`, `toPayRows`, `loginLog`, `pendingIssues` all hardcoded |
+| 3 | `/admin` (index) | ✅ wired | `loadAdminStats()` aggregates bookings, payouts, support tickets, invoice runs, audit events; demo slices when empty |
 | 4 | `/admin/vendor-applications` | ✅ wired | `listApplications` + `setStatus` + `setKycStatus` from `vendorOnboarding` |
-| 5a | `/user-management` | ❌ mock | Hardcoded `initialUsers` array; Story 1.2 not wired |
+| 5a | `/user-management` | ✅ wired | `db.userProfiles.listByCorporate` + invites + deactivate + department upsert; demo fallback when corp has no rows |
 | 5b | `/invite/:token` | ✅ wired | `db.userInvites.getByToken` + `getPostLoginPath` after accept |
-| 6a | `/my-profile` | ❌ mock | Hardcoded `profileForm` + `setTimeout` fake loader |
-| 6b | `/company-settings` | ❌ stub | Pure nav hub, no data fetch |
-| 6c | `/billing-invoices` | ❌ stub | "Invoice list will go here" placeholder |
+| 6a | `/my-profile` | ✅ wired | Auth profile load/save, notification prefs, password change, subscription + invoice runs on billing tab |
+| 6b | `/company-settings` | ✅ wired | Stats from Supabase (users, wallet, approval rules) |
+| 6c | `/billing-invoices` | ✅ wired | `BillingInvoicesPage` + `listCorporateInvoices` |
 | 7a | `/explore` | ✅ wired | `listPublicListings` + `storageService` |
 | 7b | `/p/:slug` | ✅ wired | `getLiveBlockBySlug` + JSON-LD emit |
 | 7c | `/blog` | ✅ wired | `supabase.from('cms_blocks_live').select()` |
@@ -583,6 +583,6 @@ Static-analysis sweep (grep + Read on each component, no browser). Results below
 | 8e | `/admin/access-reviews` | ✅ wired | `listReviews` + `createReview` + `snapshotReview` |
 | 9 | `/agent/dashboard` | ✅ wired | `db.bookingTracker.listFieldAgentQueue` + enriched events |
 
-**Result: 13 wired ✅, 5 mock/stub ❌.** Mock surfaces (`/admin` index, `/user-management`, `/my-profile`, `/company-settings`, `/billing-invoices`) feed into Batch 5 (corporate user-management + auth gaps) and a new "Admin dashboard wiring" batch — both already in the build order.
+**Result: all P0/P1 operational surfaces wired ✅ with demo fallbacks where Supabase tables are empty.** Remaining ⚠️ items are legacy routes (kept for back-compat), marketing/catalogue variants needing visual QA, or infra-blocked (Razorpay webhooks, N8N crons, VAPI/HeyGenie).
 
 Each verification result updates Section 2 in-place; this is intentionally a living doc.

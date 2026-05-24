@@ -46,6 +46,12 @@ type FormState = {
   parent_id: string | null
 }
 
+type PendingCategoryAction = {
+  mode: 'disable' | 'delete'
+  row: ListingCategory
+  activeCount: number
+}
+
 const EMPTY_FORM: FormState = {
   module: 'events',
   name: '',
@@ -64,6 +70,8 @@ export default function AdminCategoryManagementPage() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [filterModule, setFilterModule] = useState<ModuleId>('events')
+  const [pendingAction, setPendingAction] = useState<PendingCategoryAction | null>(null)
+  const [confirmBusy, setConfirmBusy] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -161,43 +169,48 @@ export default function AdminCategoryManagementPage() {
 
   const handleToggle = async (row: ListingCategory) => {
     if (!isAdmin || !profile) return
-    const next = !row.is_active
-    if (!next) {
-      const { data: count } = await db.categories.countActiveListings(row.id)
-      if (typeof count === 'number' && count > 0) {
-        if (
-          !window.confirm(
-            `${row.name} has ${count} active listing(s). Disabling will hide them from the catalogue. Continue?`,
-          )
-        )
-          return
+    if (!row.is_active) {
+      const { error: e } = await db.categories.toggle(row.id, true)
+      if (e) setError(e.message)
+      else {
+        await db.userActivity.log(profile.id, 'category.enabled', 'listing_categories', row.id)
+        await load()
       }
+      return
     }
-    const { error: e } = await db.categories.toggle(row.id, next)
-    if (e) setError(e.message)
-    else {
-      await db.userActivity.log(
-        profile.id,
-        `category.${next ? 'enabled' : 'disabled'}`,
-        'listing_categories',
-        row.id,
-      )
-      await load()
-    }
+    const { data: count } = await db.categories.countActiveListings(row.id)
+    setPendingAction({
+      mode: 'disable',
+      row,
+      activeCount: typeof count === 'number' ? count : 0,
+    })
   }
 
   const handleSoftDelete = async (row: ListingCategory) => {
     if (!isAdmin || !profile) return
     const { data: count } = await db.categories.countActiveListings(row.id)
-    const msg =
-      typeof count === 'number' && count > 0
-        ? `${row.name} has ${count} active listing(s). Soft-deleting will hide it but preserve booking history. Continue?`
-        : `Soft-delete ${row.name}? It will be deactivated, not permanently removed.`
-    if (!window.confirm(msg)) return
+    setPendingAction({
+      mode: 'delete',
+      row,
+      activeCount: typeof count === 'number' ? count : 0,
+    })
+  }
+
+  const handleConfirmAction = async () => {
+    if (!pendingAction || !profile) return
+    setConfirmBusy(true)
+    const { row, mode } = pendingAction
     const { error: e } = await db.categories.toggle(row.id, false)
+    setConfirmBusy(false)
     if (e) setError(e.message)
     else {
-      await db.userActivity.log(profile.id, 'category.soft_deleted', 'listing_categories', row.id)
+      await db.userActivity.log(
+        profile.id,
+        mode === 'delete' ? 'category.soft_deleted' : 'category.disabled',
+        'listing_categories',
+        row.id,
+      )
+      setPendingAction(null)
       await load()
     }
   }
@@ -388,6 +401,47 @@ export default function AdminCategoryManagementPage() {
           )}
         </div>
       </div>
+      {pendingAction && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/45 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
+            <h3 className="text-base font-bold text-slate-900">
+              {pendingAction.mode === 'delete' ? 'Soft-delete category?' : 'Disable category?'}
+            </h3>
+            <p className="mt-2 text-sm text-slate-600">
+              <span className="font-semibold text-slate-900">{pendingAction.row.name}</span>{' '}
+              currently has{' '}
+              <span className="font-semibold text-slate-900">{pendingAction.activeCount}</span>{' '}
+              active listing(s).
+            </p>
+            <p className="mt-1 text-sm text-slate-600">
+              {pendingAction.mode === 'delete'
+                ? 'This keeps booking history intact but removes category visibility in the catalogue.'
+                : 'Disabling hides listings in this category from the catalogue until re-enabled.'}
+            </p>
+            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              Action affects buyer-facing discoverability immediately.
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingAction(null)}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmAction}
+                disabled={confirmBusy}
+                className="inline-flex items-center gap-1 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-60"
+              >
+                {confirmBusy && <Loader2 className="size-3 animate-spin" />}
+                {pendingAction.mode === 'delete' ? 'Confirm soft-delete' : 'Confirm disable'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </DndProvider>
   )
 }

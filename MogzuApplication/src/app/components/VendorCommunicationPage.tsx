@@ -27,6 +27,10 @@ import imgProductThumb from 'figma:asset/f6108faddc403caf1eea34c754f31b43ab0fb55
 import quoteSentPreviewImg from 'figma:asset/f6108faddc403caf1eea34c754f31b43ab0fb55b.png';
 import { VendorAppShell } from './layouts/VendorAppShell';
 import { VendorTopRightMenu } from './layouts/VendorTopRightMenu';
+import { useAuth } from '@/lib/auth';
+import { db } from '@/lib/db';
+import type { SupportTicket } from '@/lib/database.types';
+import { DevMockDataBanner } from '@/app/components/global/DevMockDataBanner';
 
 type StatusTag = { label: string; className: string };
 
@@ -325,9 +329,43 @@ const apparelSubs = [
   'Accessories',
 ];
 
+const statusFromTicket = (t: SupportTicket): StatusTag | null => {
+  const map: Record<string, StatusTag> = {
+    open: { label: 'Open', className: 'bg-amber-100 text-amber-800' },
+    in_progress: { label: 'In progress', className: 'bg-sky-100 text-sky-800' },
+    waiting_user: { label: 'Action needed', className: 'bg-amber-100 text-amber-900' },
+    resolved: { label: 'Resolved', className: 'bg-emerald-100 text-emerald-800' },
+    closed: { label: 'Closed', className: 'bg-slate-100 text-slate-600' },
+  };
+  return map[t.status] ?? null;
+};
+
+const vendorTicketToThread = (t: SupportTicket): ChatThread => {
+  const snippet = t.body.length > 80 ? `${t.body.slice(0, 80)}…` : t.body;
+  return {
+    id: t.id,
+    scope: 'mogzu',
+    contactName: t.subject,
+    company: t.category,
+    status: statusFromTicket(t),
+    lastMessage: snippet,
+    timestamp: new Date(t.updated_at || t.created_at).toLocaleString('en-IN', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }),
+    memberSince: new Date(t.created_at).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }),
+    location: 'Mogzu Support',
+  };
+};
+
 export default function VendorCommunicationPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { profile } = useAuth();
+  const [hasRealData, setHasRealData] = useState(false);
+  const [realTicketIds, setRealTicketIds] = useState<Set<string>>(new Set());
   const [headerSearch, setHeaderSearch] = useState('');
   const [uiNotice, setUiNotice] = useState<string | null>(null);
   const [commScope, setCommScope] = useState<VendorCommScope>('client');
@@ -356,6 +394,39 @@ export default function VendorCommunicationPage() {
   >([]);
   const [quoteProcessingFee, setQuoteProcessingFee] = useState(1000);
   const [quoteDiscount, setQuoteDiscount] = useState(0);
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await db.supportTickets.listMine(profile.id);
+      if (cancelled) return;
+      const tickets = ((data ?? []) as SupportTicket[]).filter((t) => t.audience === 'vendor');
+      if (tickets.length === 0) return;
+      const mapped = tickets.map(vendorTicketToThread);
+      const msgs: Record<string, ChatMessage[]> = {};
+      for (const t of tickets) {
+        msgs[t.id] = [
+          {
+            id: `body-${t.id}`,
+            kind: 'text',
+            sender: 'corporate',
+            text: t.body,
+            time: new Date(t.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+          },
+        ];
+      }
+      setThreads(mapped);
+      setMessagesByThread(msgs);
+      setActiveThreadId(mapped[0].id);
+      setCommScope('mogzu');
+      setRealTicketIds(new Set(tickets.map((t) => t.id)));
+      setHasRealData(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [profile?.id]);
 
   useEffect(() => {
     const state = location.state as { channel?: string } | null;
@@ -461,6 +532,14 @@ export default function VendorCommunicationPage() {
     }));
     bumpThreadPreview(activeThreadId, t);
     setComposer('');
+    if (hasRealData && realTicketIds.has(activeThreadId) && profile?.id) {
+      void db.supportTicketNotes.create({
+        ticket_id: activeThreadId,
+        author_id: profile.id,
+        body: t,
+        is_internal: false,
+      });
+    }
   };
 
   const openCreateQuote = () => {
@@ -575,6 +654,7 @@ export default function VendorCommunicationPage() {
               {uiNotice}
             </div>
           ) : null}
+          {!hasRealData && <DevMockDataBanner />}
 
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#FFFDF9] text-slate-900 lg:flex-row">
             {/* Middle: lists */}

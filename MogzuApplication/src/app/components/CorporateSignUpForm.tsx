@@ -92,10 +92,6 @@ export default function CorporateSignUpForm() {
     }
 
     const domainCheck = await validateCorporateEmailDomain(formData.email.trim());
-    if (!domainCheck.ok) {
-      setError(domainCheck.message ?? 'This email domain is not registered.');
-      return;
-    }
 
     setIsSubmitting(true);
     const { error: signUpError, data } = await authActions.signUp(

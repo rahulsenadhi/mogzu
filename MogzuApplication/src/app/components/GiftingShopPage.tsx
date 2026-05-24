@@ -657,8 +657,8 @@ export default function GiftingShopPage() {
     categories: initialCategoryFilters,
     fabricType: {
       'Cotton': false,
-      'Dirt fit': false,
-      'Polycotton': false,
+      'Dry-Fit': false,
+      'Poly-Cotton': false,
     },
     apparelBranding: initialApparelBrandingFilters,
     brands: { adidas: false, puma: false, nike: false, reebok: false },
@@ -680,6 +680,7 @@ export default function GiftingShopPage() {
       'Small': false,
       'Medium': false,
       'Large': false,
+      'XL': false,
     },
     laptopFit: {
       '13"': false,
@@ -1254,8 +1255,8 @@ export default function GiftingShopPage() {
       categories: initialCategoryFilters,
       fabricType: {
         'Cotton': false,
-        'Dirt fit': false,
-        'Polycotton': false,
+        'Dry-Fit': false,
+        'Poly-Cotton': false,
       },
       apparelBranding: initialApparelBrandingFilters,
       brands: { adidas: false, puma: false, nike: false, reebok: false },
@@ -1277,6 +1278,7 @@ export default function GiftingShopPage() {
         'Small': false,
         'Medium': false,
         'Large': false,
+        'XL': false,
       },
       laptopFit: {
         '13"': false,
@@ -3827,12 +3829,12 @@ export default function GiftingShopPage() {
                             <span className="text-sm text-[#475569]">Cotton</span>
                           </label>
                           <label className="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" checked={filters.fabricType['Dirt fit']} className="w-4 h-4 rounded border-gray-300 text-blue-600" onChange={() => handleFabricTypeChange('Dirt fit')} />
-                            <span className="text-sm text-[#475569]">Dirt fit</span>
+                            <input type="checkbox" checked={filters.fabricType['Dry-Fit']} className="w-4 h-4 rounded border-gray-300 text-blue-600" onChange={() => handleFabricTypeChange('Dry-Fit')} />
+                            <span className="text-sm text-[#475569]">Dry-Fit</span>
                           </label>
                           <label className="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" checked={filters.fabricType.Polycotton} className="w-4 h-4 rounded border-gray-300 text-blue-600" onChange={() => handleFabricTypeChange('Polycotton')} />
-                            <span className="text-sm text-[#475569]">Polycotton</span>
+                            <input type="checkbox" checked={filters.fabricType['Poly-Cotton']} className="w-4 h-4 rounded border-gray-300 text-blue-600" onChange={() => handleFabricTypeChange('Poly-Cotton')} />
+                            <span className="text-sm text-[#475569]">Poly-Cotton</span>
                           </label>
                         </div>
                       )}

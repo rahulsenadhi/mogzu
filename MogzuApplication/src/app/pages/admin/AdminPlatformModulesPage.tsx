@@ -11,6 +11,8 @@ import {
   setPlatformMarketplaceSettings,
   subscribePlatformMarketplaceSettings,
 } from '@/app/lib/platformMarketplaceSettings';
+import { db } from '@/lib/db';
+import { DevMockDataBanner } from '@/app/components/global/DevMockDataBanner';
 
 const MODULE_LABELS: Record<MarketplaceModuleKey, string> = {
   gifting: 'Gifting',
@@ -23,11 +25,16 @@ function GateRow({
   label,
   gate,
   onChange,
+  liveCount,
 }: {
   label: string;
   gate: ListingGate;
   onChange: (next: ListingGate) => void;
+  liveCount?: number | null;
 }) {
+  const countLabel = liveCount != null ? 'Active vendors (live)' : 'Active count';
+  const countValue = liveCount != null ? liveCount : gate.activeVendorCount;
+
   return (
     <div className="grid gap-3 rounded-xl border border-slate-200/90 bg-white/80 p-4 shadow-sm sm:grid-cols-[1fr_auto_auto_auto] sm:items-center">
       <div className="font-medium text-slate-800">{label}</div>
@@ -52,18 +59,24 @@ function GateRow({
           className="h-9 w-full rounded-lg border border-slate-200 px-2 text-sm text-slate-800 sm:w-24"
         />
       </label>
-      <label className="flex flex-col gap-1 text-xs text-slate-500">
-        <span>Active count (demo)</span>
-        <input
-          type="number"
-          min={0}
-          value={gate.activeVendorCount}
-          onChange={(e) =>
-            onChange({ ...gate, activeVendorCount: Math.max(0, Number(e.target.value) || 0) })
-          }
-          className="h-9 w-full rounded-lg border border-slate-200 px-2 text-sm text-slate-800 sm:w-24"
-        />
-      </label>
+      <div className="flex flex-col gap-1 text-xs text-slate-500">
+        <span>{countLabel}</span>
+        {liveCount != null ? (
+          <div className="flex h-9 items-center rounded-lg border border-emerald-200 bg-emerald-50 px-2 text-sm font-semibold text-emerald-800 sm:w-24">
+            {countValue}
+          </div>
+        ) : (
+          <input
+            type="number"
+            min={0}
+            value={gate.activeVendorCount}
+            onChange={(e) =>
+              onChange({ ...gate, activeVendorCount: Math.max(0, Number(e.target.value) || 0) })
+            }
+            className="h-9 w-full rounded-lg border border-slate-200 px-2 text-sm text-slate-800 sm:w-24"
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -71,8 +84,50 @@ function GateRow({
 export default function AdminPlatformModulesPage() {
   const [settings, setSettings] = useState<PlatformMarketplaceSettings>(() => getPlatformMarketplaceSettings());
   const [subOpen, setSubOpen] = useState(true);
+  const [liveModuleCounts, setLiveModuleCounts] = useState<Partial<Record<MarketplaceModuleKey, number>> | null>(null);
+  const [usingDemoCounts, setUsingDemoCounts] = useState(true);
 
   useEffect(() => subscribePlatformMarketplaceSettings(setSettings), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await db.vendors.countActiveByModule();
+      if (cancelled) return;
+      if (error || !data) {
+        setLiveModuleCounts(null);
+        setUsingDemoCounts(true);
+        return;
+      }
+      setLiveModuleCounts({
+        gifting: data.gifting,
+        events: data.events,
+        dSpace: data.spacex_coworking + data.spacex_stay,
+        heyGenie: 0,
+      });
+      setUsingDemoCounts(false);
+
+      setSettings((prev) => {
+        const next: PlatformMarketplaceSettings = {
+          ...prev,
+          modules: {
+            ...prev.modules,
+            gifting: { ...prev.modules.gifting, activeVendorCount: data.gifting },
+            events: { ...prev.modules.events, activeVendorCount: data.events },
+            dSpace: {
+              ...prev.modules.dSpace,
+              activeVendorCount: data.spacex_coworking + data.spacex_stay,
+            },
+          },
+        };
+        setPlatformMarketplaceSettings(next);
+        return next;
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const persist = useCallback((next: PlatformMarketplaceSettings) => {
     setSettings(next);
@@ -109,8 +164,8 @@ export default function AdminPlatformModulesPage() {
             <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Platform modules &amp; listings</h1>
           </div>
           <p className="text-sm text-slate-600">
-            Turn corporate marketplace modules on or off and simulate vendor depth. Counts are demo-only until wired to
-            your vendor registry.
+            Turn corporate marketplace modules on or off and set listing depth thresholds. Active vendor counts sync from
+            Supabase when available; enable toggles stay in local admin settings.
           </p>
         </div>
         <button
@@ -122,6 +177,8 @@ export default function AdminPlatformModulesPage() {
         </button>
       </div>
 
+      {usingDemoCounts ? <DevMockDataBanner /> : null}
+
       <section className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Modules</h2>
         {moduleKeys.map((key) => (
@@ -130,6 +187,7 @@ export default function AdminPlatformModulesPage() {
             label={MODULE_LABELS[key]}
             gate={settings.modules[key]}
             onChange={(g) => updateModule(key, g)}
+            liveCount={liveModuleCounts?.[key] ?? null}
           />
         ))}
       </section>

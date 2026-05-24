@@ -13,6 +13,7 @@ const INTERNAL_ROLES: UserRole[] = [
   'support',
   'sales_agent',
   'field_agent',
+  'partner',
 ]
 
 const ROLE_LABELS: Record<UserRole, string> = {
