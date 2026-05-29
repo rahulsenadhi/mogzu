@@ -1,5 +1,6 @@
 export interface WellnessProduct {
   id: number;
+  mogzuListingId?: string;
   name: string;
   subcategory: 'hampers' | 'aromatherapy' | 'candles' | 'diffusers' | 'herbaltea' | 'yogamats' | 'bottles' | 'fitnessbands' | 'skincarekits' | 'bathbodysets' | 'healthkits';
   brand: string;

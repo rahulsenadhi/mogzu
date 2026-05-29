@@ -20,7 +20,7 @@ import { useDemoRole } from '@/app/lib/demoRole';
 import { getEventActivityCategoryConfigs, getEventIconByCategoryText, getEventServiceCategoryIconConfig } from '@/app/lib/eventsIconMapping';
 import { db } from '@/lib/db';
 import { storageService } from '@/lib/storage';
-import type { Listing, ListingImage } from '@/lib/database.types';
+import { isListingUuid } from '@/app/lib/activityListingResolver';
 import svgPathsSpaceX from '@/imports/svg-5pj2l0pukf';
 import { Utensils } from 'lucide-react';
 const imgImage25026 = QA_IMAGES.category.tabActive;
@@ -77,6 +77,20 @@ function listingToCatalogueItem(l: Listing & { listing_images?: ListingImage[] }
     rating: typeof meta.rating === 'number' ? meta.rating : undefined,
     city: l.location_city ?? undefined,
     tags,
+  };
+}
+
+function eventDetailRoute(
+  id: string,
+  pricingType: 'transparent' | 'offer_price' | 'request_for_price',
+) {
+  const routeId = String(id);
+  return {
+    pathname: `/event-activity/${encodeURIComponent(routeId)}`,
+    state: {
+      source_listing_id: isListingUuid(routeId) ? routeId : undefined,
+      pricing_type: pricingType,
+    },
   };
 }
 
@@ -854,11 +868,10 @@ export default function EventsPage() {
                         key={activity.id}
                         className="group bg-white/65 backdrop-blur-md rounded-2xl overflow-hidden border border-white/50 shadow-[0_10px_30px_rgba(37,99,235,0.14)] hover:shadow-[0_18px_36px_rgba(37,99,235,0.22)] cursor-pointer transition-all duration-200 hover:-translate-y-0.5 h-full flex flex-col"
                         style={{ animation: 'pageEnter 300ms ease-out both', animationDelay: `${Math.min(400, Number(activity.id.toString().slice(-2)) * 40)}ms` }}
-                        onClick={() =>
-                          navigate(`/event-activity/${encodeURIComponent(activity.id)}`, {
-                            state: { pricing_type: normalizedPricingType },
-                          })
-                        }
+                        onClick={() => {
+                          const route = eventDetailRoute(String(activity.id), normalizedPricingType);
+                          navigate(route.pathname, { state: route.state });
+                        }}
                       >
                       {/* Image */}
                       <div className="relative h-52 overflow-hidden">
@@ -993,9 +1006,8 @@ export default function EventsPage() {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigate(`/event-activity/${encodeURIComponent(activity.id)}`, {
-                                state: { pricing_type: normalizedPricingType },
-                              });
+                              const route = eventDetailRoute(String(activity.id), normalizedPricingType);
+                              navigate(route.pathname, { state: route.state });
                             }}
                             className={`w-full rounded-lg py-2 text-sm font-semibold transition-colors ${
                               normalizedPricingType === 'transparent'

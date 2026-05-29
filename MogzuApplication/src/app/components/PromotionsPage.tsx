@@ -17,6 +17,9 @@ import {
   CORPORATE_ADMIN_PROMOTIONS_UPDATED_EVENT,
   loadCorporateAdminPromotions,
 } from '@/app/lib/corporateAdminPromotionsStorage';
+import { DevMockDataBanner } from '@/app/components/global/DevMockDataBanner';
+import { db } from '@/lib/db';
+import { mapPromotionRowToDeal, type CatalogDeal } from '@/app/lib/promotionOffers';
 
 interface Promotion {
   id: number;
@@ -66,6 +69,13 @@ export default function PromotionsPage() {
   const [adminPromos, setAdminPromos] = useState(() =>
     loadCorporateAdminPromotions().filter((p) => p.active),
   );
+  const [liveVendorOffers, setLiveVendorOffers] = useState<CatalogDeal[]>([]);
+
+  useEffect(() => {
+    void db.promotions.listActive().then(({ data }) => {
+      setLiveVendorOffers((data ?? []).map((row) => mapPromotionRowToDeal(row as never)));
+    });
+  }, []);
 
   useEffect(() => {
     const sync = () => setAdminPromos(loadCorporateAdminPromotions().filter((p) => p.active));
@@ -691,6 +701,33 @@ export default function PromotionsPage() {
                   Clear
                 </button>
               </div>
+
+              {liveVendorOffers.length > 0 ? (
+                <div className="mb-6 rounded-2xl border border-emerald-200/80 bg-emerald-50/40 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">
+                    Live vendor offers
+                  </p>
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {liveVendorOffers.slice(0, 6).map((offer) => (
+                      <button
+                        key={offer.id}
+                        type="button"
+                        onClick={() => navigate(`/deals/claim/${offer.id}`)}
+                        className="flex flex-col rounded-xl border border-white bg-white p-3 text-left shadow-sm transition hover:border-emerald-300 hover:shadow-md"
+                      >
+                        <span className="text-[10px] font-bold text-emerald-700">{offer.discount}</span>
+                        <span className="mt-1 text-sm font-semibold text-[#0e1e3f] line-clamp-2">{offer.title}</span>
+                        <span className="mt-1 text-xs text-slate-500">{offer.provider}</span>
+                        <span className="mt-2 text-[11px] font-medium text-[#2563eb]">Claim offer →</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="mb-4">
+                  <DevMockDataBanner message="Vendor discount offers from Supabase appear above when active. Ad inventory cards below remain demo catalogue data." />
+                </div>
+              )}
 
               <div className="mb-4">
                 <h2 className="text-[16px] font-semibold text-[#0e1e3f]">

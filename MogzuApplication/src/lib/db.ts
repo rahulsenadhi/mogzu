@@ -254,6 +254,14 @@ export const listings = {
       .eq('status', status)
       .order('created_at', { ascending: false }),
 
+  listByModuleWithCategories: async (module: ModuleId, status: ListingStatus = 'active') =>
+    supabase
+      .from('listings')
+      .select('*, listing_images(*), vendors(*), listing_categories(*)')
+      .eq('module', module)
+      .eq('status', status)
+      .order('created_at', { ascending: false }),
+
   listByVendor: async (vendorId: string) =>
     supabase
       .from('listings')
@@ -478,6 +486,33 @@ export const bookings = {
         status: 'pending_vendor',
         approved_by: approverId,
         approved_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id),
+
+  updatePurposeNote: async (id: string, purposeNote: string | null) =>
+    supabase
+      .from('bookings')
+      .update({
+        purpose_note: purposeNote,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id),
+
+  updateApprovalProgress: async (
+    id: string,
+    data: {
+      purpose_note: string | null
+      required_approval_levels: string[]
+      approved_approval_levels: string[]
+    },
+  ) =>
+    supabase
+      .from('bookings')
+      .update({
+        purpose_note: data.purpose_note,
+        required_approval_levels: data.required_approval_levels,
+        approved_approval_levels: data.approved_approval_levels,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id),
@@ -1610,6 +1645,13 @@ export const partnerWallets = {
 // ─── Promotions (Stories 8.7, 9.6) ────────────────────────────────────────────
 
 export const promotions = {
+  getById: async (id: string) =>
+    supabase
+      .from('promotions')
+      .select('*, listings(title, module), vendors(business_name)')
+      .eq('id', id)
+      .single(),
+
   listByVendor: async (vendorId: string) =>
     supabase
       .from('promotions')
@@ -1620,10 +1662,55 @@ export const promotions = {
   listActive: async () =>
     supabase
       .from('promotions')
-      .select('*, listings(title)')
+      .select('*, listings(title, module), vendors(business_name)')
       .eq('status', 'active')
       .gt('ends_at', new Date().toISOString())
       .order('ends_at'),
+
+  redeem: async (id: string) => {
+    const { data: row, error: fetchError } = await supabase
+      .from('promotions')
+      .select('id, status, ends_at, max_redemptions, redemptions')
+      .eq('id', id)
+      .single()
+
+    if (fetchError || !row) {
+      return { data: null, error: fetchError ?? { message: 'Promotion not found' } }
+    }
+    if (row.status !== 'active') {
+      return {
+        data: null,
+        error: { message: 'This promotion is no longer active.', details: '', hint: '', code: 'inactive' } as never,
+      }
+    }
+    if (new Date(row.ends_at).getTime() < Date.now()) {
+      return {
+        data: null,
+        error: { message: 'This promotion has expired.', details: '', hint: '', code: 'expired' } as never,
+      }
+    }
+    if (row.max_redemptions != null && row.redemptions >= row.max_redemptions) {
+      return {
+        data: null,
+        error: {
+          message: 'This promotion has reached its redemption limit.',
+          details: '',
+          hint: '',
+          code: 'limit',
+        } as never,
+      }
+    }
+
+    return supabase
+      .from('promotions')
+      .update({
+        redemptions: (row.redemptions ?? 0) + 1,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single()
+  },
 
   listQueue: async () =>
     supabase
@@ -1647,6 +1734,15 @@ export const promotions = {
         approved_by: extra?.approved_by ?? null,
         approved_at: status === 'active' ? new Date().toISOString() : null,
         rejection_reason: extra?.rejection_reason ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id),
+
+  setPaymentReference: async (id: string, paymentReference: string) =>
+    supabase
+      .from('promotions')
+      .update({
+        paid_boost_payment_reference: paymentReference,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id),
@@ -2099,35 +2195,58 @@ export const notifications = {
     return { error: error?.message ?? null }
   },
 
-  /** Admin broadcast — inserts in-app notifications for each recipient (bypasses opt-out). */
+  /** Admin/corporate broadcast — in-app for all recipients; email queued per preferences (or forced). */
   broadcastSystem: async (input: {
     title: string
     body: string
     userIds: string[]
     senderLabel?: string
     audienceLabel?: string
+    linkUrl?: string | null
+    /** When true, queue email for every recipient (e.g. high-priority corporate announcement). */
+    forceEmail?: boolean
   }): Promise<{ error: string | null; broadcastId: string | null }> => {
     if (input.userIds.length === 0) {
       return { error: 'No recipients matched the selected audience.', broadcastId: null }
     }
+
+    const { data: prefsRows } = await supabase
+      .from('notification_preferences')
+      .select('user_id, email_enabled_types')
+      .in('user_id', input.userIds)
+
+    const emailTypesByUser = new Map<string, NotificationType[] | null>()
+    for (const row of prefsRows ?? []) {
+      emailTypesByUser.set(
+        row.user_id as string,
+        (row.email_enabled_types as NotificationType[] | null) ?? null,
+      )
+    }
+
     const broadcastId = crypto.randomUUID()
-    const rows = input.userIds.map((userId) => ({
-      user_id: userId,
-      type: 'system' as const,
-      title: input.title,
-      body: input.body,
-      link_url: null,
-      metadata: {
-        broadcast: true,
-        broadcast_id: broadcastId,
-        sender: input.senderLabel ?? 'Mogzu Admin',
-        audience: input.audienceLabel ?? '',
-      },
-      is_read: false,
-      read_at: null,
-      email_status: 'skipped' as const,
-      email_sent_at: null,
-    }))
+    const rows = input.userIds.map((userId) => {
+      const emailTypes = emailTypesByUser.get(userId)
+      const emailEnabled =
+        input.forceEmail === true ||
+        (emailTypes ?? []).includes('system')
+      return {
+        user_id: userId,
+        type: 'system' as const,
+        title: input.title,
+        body: input.body,
+        link_url: input.linkUrl ?? null,
+        metadata: {
+          broadcast: true,
+          broadcast_id: broadcastId,
+          sender: input.senderLabel ?? 'Mogzu Admin',
+          audience: input.audienceLabel ?? '',
+        },
+        is_read: false,
+        read_at: null,
+        email_status: emailEnabled ? ('queued' as const) : ('skipped' as const),
+        email_sent_at: null,
+      }
+    })
     const { error } = await supabase.from('notifications').insert(rows)
     return { error: error?.message ?? null, broadcastId: error ? null : broadcastId }
   },

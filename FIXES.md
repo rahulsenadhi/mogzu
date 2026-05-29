@@ -1,3 +1,371 @@
+## 2026-05-24 — Post-plan Batch 46: Multi-step approval chain (persist + enforce)
+
+- `bookingApprovalMeta.ts` — encode/decode `requiredLevels` / `approvedLevels` in `purpose_note`; `notifyFirstApprovers`, `notifyApproversForLevel`, role→level mapping.
+- `db.ts` — `bookings.updatePurposeNote`.
+- `createCorporatePendingApprovalBooking.ts` — `requiredApprovalLevels` + embedded meta on create.
+- `SpaceBookingPage.tsx`, `EventBookingPage.tsx`, `GiftingSendPage.tsx` — `buildPurposeNoteWithApproval` on submit; first-level approver notifications.
+- `CelebrationBookingFlow.tsx` — workflow rules load; approval vs direct `pending_vendor` path; notify first approver.
+- `CorporateApprovalDetailPage.tsx` — parse chain from note; step approve updates meta; final step → `pending_vendor`; notify next level; chain progress UI.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 59: Corporate notifications realtime inbox
+
+- `CorporateNotificationsPage.tsx` — subscribes to `notifications` realtime (`subscribeToTable`) scoped to current `user_id`; refetches inbox on insert/update/delete.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 58: Corporate inbox filters + email drain worker
+
+- `corporateNotificationInboxFilters.ts` — read/kind/category filters + search.
+- `CorporateNotificationsPage.tsx` — filter panel (unread, action, topic chips); clear filters empty state.
+- `supabase/functions/server/index.tsx` — `POST /make-server-56765691/drain-notification-emails` (Resend; `Authorization: Bearer $CRON_SECRET`).
+
+Verified: `npm run build` exit 0.
+
+**Cron:** `POST https://<project>.supabase.co/functions/v1/make-server-56765691/drain-notification-emails` with `CRON_SECRET`, `RESEND_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY` set on the edge function.
+
+## 2026-05-24 — Post-plan Batch 57: L3-only publish + broadcast email queue
+
+- `db.ts` — `broadcastSystem` loads per-recipient `notification_preferences`; sets `email_status: queued` when `system` is in email types or `forceEmail` is true.
+- `CorporateNotificationsPage.tsx` — publish tab visible only for `l3_admin` / `mogzu_admin`; priority selector (normal vs high); high priority forces email queue; link to `/corporate/notifications`.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 56: Legacy purpose_note migration + corporate broadcast
+
+- `20260527000001_strip_booking_approval_purpose_note.sql` — strips `---mogzu-approval---` JSON from `purpose_note`; backfills `required_approval_levels` / `approved_approval_levels` when empty.
+- `corporateAnnouncementBroadcast.ts` — resolve recipients (all / department / selected members).
+- `CorporateNotificationsPage.tsx` — **Publish Now** calls `notifications.broadcastSystem`; mark-all-read persists via API; team dropdown merges live `department` values.
+- `bookingApprovalMeta.ts` — exports `APPROVAL_PURPOSE_NOTE_MARKER` for migration parity.
+
+Verified: `npm run build` exit 0.
+
+**Apply in Supabase:** `20260527000001_strip_booking_approval_purpose_note.sql`
+
+## 2026-05-24 — Post-plan Batch 55: Approval columns-only + notifications cleanup
+
+- `bookingApprovalMeta.ts` — new bookings/steps write `required_approval_levels` / `approved_approval_levels` only; `purpose_note` is user text (no `---mogzu-approval---` JSON). Legacy rows still read via column fallback + `purpose_note` parse.
+- `CorporateNotificationsPage.tsx` — removed deprecated mock notification block; publish tab loads team from `userProfiles.listByCorporate` (no hardcoded Sarah Jenkins roster).
+- `BookingPayment.tsx` — L3 approver dropdown from live `listByRole('l3_admin')`; optional `Routed to:` line in purpose note.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 54: Lead ops saved views
+
+- `leadSavedViews.ts` — localStorage persistence (inbox + pipeline filter snapshots), auto-name suggestion, 12-view cap per surface.
+- `LeadSavedViewsBar.tsx` — save/apply/delete chips; highlights active view when filters match.
+- `AdminLeadsPage.tsx`, `SalesPipelinePage.tsx` — wired saved views bar below filters.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 53: Sales pipeline kanban drag-and-drop
+
+- `LeadPipelineKanban.tsx` — `react-dnd` column drop targets; grip handle on cards; highlights target column on hover.
+- `SalesPipelinePage.tsx` — uses shared kanban component (status dropdown + drag both call `move()` / `updateLeadStatus`).
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 52: Lead inbox bulk assign
+
+- `LeadBulkAssignBar.tsx` — assignee picker, select-all-visible, clear, exit bulk mode.
+- `LeadInboxCard.tsx` — optional bulk checkbox column when bulk mode is on.
+- `LeadFilterBar.tsx` — optional `trailing` slot for toolbar actions.
+- `AdminLeadsPage.tsx` — bulk mode toggle, multi-select, `assignLeadOwner` loop (demo via `patchDemoLead`); loads assignees from `listLeadAssigneesForPicker`; clears selection on filter change.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 51: Dedicated booking approval level columns
+
+- Migration `20260526000001_booking_approval_levels.sql` — `required_approval_levels`, `approved_approval_levels` on `bookings`.
+- `bookingApprovalMeta.ts` — `buildBookingApprovalFields`, `getBookingApprovalMeta` (columns first, `purpose_note` fallback).
+- All booking create paths spread approval columns; `approveBookingStep` uses `updateApprovalProgress`.
+- UI reads via `getBookingApprovalMeta(booking)`.
+
+Verified: `npm run build` exit 0.
+
+**Apply in Supabase:** `20260526000001_booking_approval_levels.sql`
+
+## 2026-05-24 — Post-plan Batch 50: Budget rules in approval resolver + booking detail chain
+
+- `resolveBookingApprovalOnCreate()` — loads `budget_rules` + workflow rules (was workflow-only).
+- `BookingDetailPage.tsx` — strips approval JSON from purpose note display; amber banner with chain progress + link to `/corporate/approvals/:id` for managers.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 49: Approval on shared booking submit helpers
+
+- `bookingApprovalMeta.ts` — `resolveBookingApprovalOnCreate()` centralizes status + chain resolution.
+- `submitBookingDraftToSupabase.ts` — workflow-aware status, meta in `purpose_note`, first-approver notify; returns `requiresApproval`.
+- `createClassicCheckoutBooking.ts` — same; pay path redirects to `/booking-approval-request` when approval required.
+- `ActivityBookingFlow.tsx` — workflow on live activity bookings + approval redirect.
+- `EventDetailPage.tsx`, `BookingSummaryPage.tsx` — route to approval request when `requiresApproval`.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 48: Approvals queue + classic payment path
+
+- `bookingApprovalMeta.ts` — `canUserApproveBooking`, `approveBookingStep` (shared step/finalize logic).
+- `BookingPayment.tsx` — “Send for Approval” embeds workflow chain + notifies first approver.
+- `CorporateApprovalsPage.tsx` — “Pending for you” filter by role/step; chain column; bulk approve uses multi-step helper.
+- `CorporateApprovalDetailPage.tsx` — uses `approveBookingStep`.
+- `ApprovalRequestPage.tsx` — resubmit preserves approval meta, resets chain, re-notifies first approver.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 47: Booking flow + approval request chain UI
+
+- `BookingFlow.tsx` — workflow rules + `evaluateCorporateApproval`; `pending_approval` vs `pending_vendor`; approval meta in `purpose_note`; `notifyFirstApprovers`; routes to `/booking-approval-request` when approval required; review step shows live chain.
+- `ApprovalRequestPage.tsx` — dynamic L1→L2→L3 chain from `purpose_note` meta (or workflow rules fallback); removed hardcoded “Sarah Jenkins” mock.
+
+Verified: `npm run build` exit 0.
+
+**Deferred:** dedicated `required_levels` column on `bookings`.
+
+## 2026-05-24 — Post-plan Batch 45: Approval workflow enforced on booking submit
+
+- `approvalWorkflow.ts` — `evaluateCorporateApproval()` merges budget rules + workflow thresholds; `formatWorkflowLevels`, preview amounts.
+- `ApprovalWorkflowPage.tsx` — live preview (₹25k / ₹75k / ₹250k), sorted rules, reload after save, migration/template banners.
+- `SpaceBookingPage.tsx`, `EventBookingPage.tsx`, `GiftingSendPage.tsx` — load workflow rules; review step shows approval chain (L1 → L2 → L3).
+
+Verified: `npm run build` exit 0.
+
+**Migration:** `supabase/migrations/20260521000002_approval_workflow_rules.sql` must be applied for Save on `/settings/workflow`.
+
+## 2026-05-24 — Hotfix: Lead ops hub crash (`STATUS_LABELS`)
+
+- `LeadDetailDrawer.tsx` — duplicate row used undefined `STATUS_LABELS`; corrected to `LEAD_STATUS_LABELS`.
+
+## 2026-05-24 — Post-plan Batch 44: Gifting Shop live public catalogue merge
+
+- `giftingPublicCatalogue.ts` — map `listPublicListings({ module: 'gifting' })` into shop product cards with cover images + `mogzuListingId`.
+- `GiftingShopPage.tsx` — merge live + approved + demo per category; catalogue banners for live/demo/error states.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 43: Gifting Shop wishlist + compare for approved listings
+
+- Product types + `corporateApprovedListingsStorage` mappers — `mogzuListingId` on partner-approved gift rows.
+- `GiftingShopPage.tsx` — `WishlistHeart` when `mogzuListingId` present; compare queues UUIDs in session → `/compare`; enquiry passes `listingId` to `ProductBookingPage`.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 42: Vendor calendar polish + compare wishlist
+
+- `VendorCalendarPage.tsx` — click booked slot → `/vendor/booking-requests/:id`; drag legend; green page notice on block; disable block when no listings; `MogzuLegacyDemoBanner`; fix missing `Loader2` import.
+- `ComparePage.tsx` — `WishlistHeart` on each compared listing header.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 41: Lead ops demo parity + inbox triage finish
+
+- `leadDemoPatch.ts` — shared in-memory lead patch with `status_history` (drawer timeline stays accurate in demo).
+- `SalesPipelinePage.tsx` — status dropdown always visible; demo `move()` updates kanban; human labels via `leadStatusLabel`.
+- `AdminLeadsPage.tsx` — demo `setStatus()`; refactored `patchDemoLead`; auto-select first row when filters hide current lead.
+- `LeadFilterBar.tsx` — **Spam** status tab.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 40: Lead ops UX continuation (filters + Quick Share)
+
+- `LeadFilterBar.tsx` — gifting-shop status chips; active filter pills (click × to clear); auto-expand advanced when KPI sets filter.
+- `AdminQuickSharePage.tsx` — `LEAD_OPS.chip` token; module/catalogue chips aligned; `LeadOpsBanner` / `LeadOpsEmptyState`; glass table wrap.
+- `AdminQuickShareDetailPage.tsx` — hub back links + notice banners.
+- `SalesPipelinePage.tsx` — `LeadStatusBadge` on kanban cards; clickable KPIs.
+- `leadOpsStyles.ts` — added missing `chip` + `tableWrap` tokens (fixes undefined classes).
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 39: Lead ops enterprise UX pass (mogzu-enterprise-ux-architect)
+
+- Centralized status language: `leadStatusUi.ts`, `LeadStatusBadge.tsx` (human labels: Won not converted).
+- `LeadOpsBanner.tsx`, `LeadOpsEmptyState.tsx` — demo/success/error/info + guided empty states.
+- `LeadOperationsHub.tsx` — tab panels, contextual hints, ARIA tab/tabpanel wiring.
+- `LeadOpsStats.tsx` — clickable KPIs filter inbox (unassigned, callbacks, week, new).
+- `LeadDetailDrawer.tsx` — assign + **status** in demo; module-accent Quick Share buttons; notice banners.
+- `leadTriageUtils.ts` — owner-based unassigned + `callback` quick filter.
+- Inbox/pipeline demo banners; gifting-shop-aligned tokens (no loud violet/sky CTAs).
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 38: Lead operations hub (unified UX)
+
+- `LeadOperationsHub.tsx` — single `/admin/leads` workspace with tabs: Inbox | Pipeline | Quick Share.
+- `leadOpsNavigation.ts` — session prefill when switching from lead → catalogue tab without leaving hub.
+- `leadAssignees.ts` + `20260525000001_staff_read_lead_assignees.sql` — staff can read assignee profiles for owner dropdown.
+- `LeadDetailDrawer.tsx` — assign owner always visible; demo in-memory patch via `onDemoPatch`; `listLeadAssigneesForPicker`.
+- `AdminLeadsPage.tsx`, `SalesPipelinePage.tsx`, `AdminQuickSharePage.tsx` — `embedded` mode; in-hub Quick Share navigation.
+- `routes.tsx` — `/admin/leads` → hub; `/admin/quick-share` + `/sales/pipeline` redirect into hub; removed stray `,` route entries.
+- `AdminLayout.tsx` — one sidebar item **Lead operations** (replaces separate inbox + pipeline links).
+- `AdminQuickShareDetailPage.tsx` — back links return to hub tabs.
+
+**Apply in Supabase (live assignment):** `20260524000002_staff_update_public_leads.sql`, `20260525000001_staff_read_lead_assignees.sql`.
+
+**Deferred (iteration):** demo status dropdown in drawer; visual polish pass; deep-link smoke on all hub tabs.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 37: legacy promo redirect + plan closure
+
+- `routes.tsx` — `/vendor/promotions` redirects to `/vendor/promotions-live`.
+- `VendorPromotionOfferPage.tsx`, `VendorAdCampaignPage.tsx` — back/save targets live promotions.
+- `db.ts` — `promotions.setPaymentReference`; `VendorPromotionsRealPage` uses typed helper.
+- `FRONTEND_COMPLETION_PLAN.md` — post-plan batches 23–37 table; Section 2 complete note.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 36: admin legacy surfaces + corporate AI autonomy
+
+- `AdminMogzuOrdersPage.tsx` — merge `public_leads` with localStorage Mogzu orders; demo banner when no live leads.
+- `AdminPaidPromotionsPage.tsx` — legacy demo tabs + link to promotions approval + live promo count from `db.promotions`.
+- `AdminAddProductPage.tsx` — demo banner + links to gifting approval / Mogzu Direct new listing.
+- `AdminCategoryManagementPage.tsx` — demo banner when category table empty.
+- `CorporateAiAutonomyPage.tsx` — defaults notice when no stored row (Supabase already wired).
+- `VendorPassportPage.tsx` — demo banner when no admin-approved vendors in directory.
+- `ApparelPage.tsx` — demo banner + link to Gifting Shop.
+- `FRONTEND_COMPLETION_PLAN.md` — mark remaining admin/corp demo routes ✅.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 35: gifting product booking + vendor promo/product legacy surfaces
+
+- `ProductBookingPage.tsx` — `resolveGiftingListing`; pass `listingId`/`vendorId` to `/booking-flow`; demo banner.
+- `BookingFlow.tsx` — demo banner when no live ids; navigate to `/bookings/:id` after Supabase persist.
+- `VendorAdCampaignPage.tsx`, `VendorPromotionOfferPage.tsx` — legacy demo banners + link to `/vendor/promotions-live`.
+- `VendorAddProductPage.tsx` — demo banner + deep links to `/vendor/gifting/products/*` for live listings.
+- `FRONTEND_COMPLETION_PLAN.md` — mark `/product-booking`, `/booking-flow`, vendor promo/product routes ✅.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 34: celebration checkout IDs + browse/shortlist banners
+
+- `activityListingResolver.ts` — `resolveGiftingListing` for celebration detail routes.
+- `CelebrationDetailPage.tsx` — pass `listingId`/`vendorId` into celebration checkout; demo banner when mock catalog.
+- `MogzuDirectCorporateDetailPage.tsx`, `PartnerListingCorporateDetailPage.tsx` — demo banner when Supabase listing not found.
+- `ShortlistCorporatePage.tsx` — `MogzuLegacyDemoBanner` for localStorage proposal flow.
+- `VendorProductManagementPage.tsx` — legacy demo banner on vendor product catalog.
+- `FRONTEND_COMPLETION_PLAN.md` — mark browse routes, shortlist, vendor products, celebration detail ✅.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 33: deals, promotions catalog, HeyGenie corporate
+
+- `promotionOffers.ts` — `CatalogDeal`, `mapPromotionRowToDeal`, `DEMO_CATALOG_DEALS`, `isPromotionUuid`.
+- `db.ts` — `promotions.getById`, extended `listActive` join, `promotions.redeem`.
+- `DealsPage.tsx` — `db.promotions.listActive()` with demo fallback + `DevMockDataBanner`.
+- `DealClaimFlow.tsx` — load/redeem live promotions; demo path for `demo-*` ids.
+- `PromotionsPage.tsx` — live vendor offers strip; demo banner on ad inventory.
+- `HeyGeniePage.tsx` — load corporate HeyGenie config; CTA to dashboard when enabled.
+- `FRONTEND_COMPLETION_PLAN.md` — mark `/deals`, `/deals/claim/:id`, `/promotions`, `/heygenie`, `/admin/heygenie` ✅.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 32: marketing pages + admin settings hub
+
+- `useMarketingCms.ts` — load published CMS blocks by slug for public pages.
+- `LandingPage.tsx` — Book a Demo → `submitLead` RPC; optional hero from CMS slug `home`.
+- `WhyMogzuPage.tsx`, `VendorBenefitsPage.tsx` — CMS copy overrides (`why-mogzu`, `vendor-benefits`).
+- `AdminSettingsPage.tsx` — replace stub with platform stats + configuration deep links.
+- `FRONTEND_COMPLETION_PLAN.md` — mark `/`, `/why-mogzu`, `/vendor-benefits`, `/admin/settings` ✅.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 31: booking confirmation + summary + classic success
+
+- `submitBookingDraftToSupabase.ts` — persist event-activity draft bookings.
+- `createClassicCheckoutBooking.ts` — classic DSpace pay flow booking row.
+- `BookingSummaryPage.tsx` — Supabase submit on confirm; navigate with `bookingId`.
+- `BookingConfirmationFlowPage.tsx` — load confirmation by `bookingId`; draft/demo fallback.
+- `ClassicBookingSuccessPage.tsx` — live booking summary when `bookingId` present.
+- `BookingPayment.tsx` — create booking on Confirm & Pay when `spaceId` is listing UUID.
+- `EventDetailPage.tsx` — RFQ path persists to Supabase when listing is live UUID.
+- `FRONTEND_COMPLETION_PLAN.md` — mark `/booking/new`, `/booking-confirmation`, `/booking-success` ✅.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 30: celebration checkout + approval request persistence
+
+- `createCorporatePendingApprovalBooking.ts` — shared helper for `pending_approval` bookings.
+- `ApprovalRequestPage.tsx` — load by `bookingId` (state/query); withdraw via `db.bookings.cancel`; resubmit via `db.bookings.updateStatus`; `DevMockDataBanner` when no live id.
+- `CelebrationBookingFlow.tsx` — Supabase checkout when `listingId`+`vendorId` on payload; demo localStorage fallback + banner.
+- `BookingPayment.tsx` — `Send for Approval` creates booking when classic `spaceId` is a listing UUID.
+- `FRONTEND_COMPLETION_PLAN.md` — mark `/celebration-booking-flow`, `/booking-approval-request` ✅.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 29: classic booking flow stability + ActivitySuite metrics
+
+- `RequestToBook.tsx` — move `getCategoryContent()` before `validateForm()` (fixes `content` TDZ crash).
+- `BookingAddOns.tsx` — `content` init order fix (prior); add `MogzuLegacyDemoBanner`.
+- `BookingReview.tsx`, `BookingPayment.tsx` — legacy flow banners.
+- `ActivitySuite.tsx` — metric cards load from `db.bookings` for signed-in corporate; demo fallback + `DevMockDataBanner`.
+- `FRONTEND_COMPLETION_PLAN.md` — mark classic flow + ActivitySuite ✅.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Login redirect: corporate `/login` no longer hijacked by admin
+
+- `authRedirect.ts` — `getCorporateLoginRedirectPath`, `sanitizeCorporateReturnPath`, `isCorporatePrimaryRole`.
+- `LoginPage.tsx` — clear role override + demo persona; only auto-redirect corporate users; banner for admin session.
+- `auth.ts` — clear overrides on sign-in; `clearRoleOverride` on context.
+
+## 2026-05-24 — Post-plan Batch 28: admin events/DSpace surfaces
+
+- `adminModuleBookings.ts` — shared admin booking load + demo fallback + status actions via `db.bookings`.
+- `AdminModuleBookingsPanel.tsx` — reusable bookings table with status tabs and detail drawer.
+- `AdminModuleListingsQueuePage.tsx` — reusable listing approval queue (approve/reject bulk).
+- `AdminListingApprovalDetailPage.tsx` — reusable listing review detail with approve/reject/pause.
+- `AdminEventsPage.tsx`, `AdminDspacePage.tsx`, `AdminEventsBookings.tsx`, `AdminDspaceBookings.tsx`, `AdminEventDetailPage.tsx`, `AdminSpaceDetailPage.tsx` — replace stubs with Supabase wiring + demo fallback.
+- `AdminBookingsPage.tsx` — fix `AdminPageTitleRow` required `totalLabel` prop.
+- `FRONTEND_COMPLETION_PLAN.md` — mark `/admin/dspace*`, `/admin/events*`, `/admin/bookings` ✅.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 27: vendor listing lifecycle + events nav
+
+- `VendorEventActivityPage.tsx` — submit/withdraw/resubmit draft listings via `db.listings.updateStatus` for live UUID rows.
+- `EventsPage.tsx` — event card navigation passes `source_listing_id` for Supabase UUID listings.
+- `FRONTEND_COMPLETION_PLAN.md` — mark communication routes ✅ (Batch 16 verify).
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 26: event activity detail + vendor enquiries
+
+- `EventDetailPage.tsx` — Supabase load via `resolveEventsListingDetail`; demo fallback; `WishlistHeart`; live book → `/book/event/:id`.
+- `EventActivityPage.tsx` — pass full listing UUID in routes + nav state; fix wishlist IDs on cards.
+- `VendorEventActivityPage.tsx` — enquiries tab loads `pending_vendor` event bookings from `db.bookings.listByVendor`.
+- `eventsServicesData.ts` — optional `listingUuid` on `EventActivityListing`.
+- `FRONTEND_COMPLETION_PLAN.md` — mark `/event-activity/:id` ✅.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 25: event service detail + vendor event-activity
+
+- `activityListingResolver.ts` — add `resolveEventsListingDetail()` with images and add-ons.
+- `EventServiceDetailPage.tsx` — Supabase load + demo fallback; `WishlistHeart`; `ListingReviewsPanel`; Book Now → `/book/event/:id` for live listings.
+- `EventServiceContent.tsx` — fix detail navigation to pass full UUID (not stripped digits).
+- `VendorEventActivityPage.tsx` — load vendor `events` module listings; demo fallback banner; create draft + pause/activate via `db.listings`.
+- `FRONTEND_COMPLETION_PLAN.md` — mark `/events/services/:id` and `/vendor/event-activity` ✅.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 24: SpaceDetailPage Supabase wiring
+
+- `activityListingResolver.ts` — add `resolveSpacexListing()` for UUID + numeric hash across `spacex_coworking` and `spacex_stay`.
+- `SpaceDetailPage.tsx` — replace fake 700ms loader with Supabase fetch; overlay live title, description, price, capacity, gallery; `DevMockDataBanner` on demo; canonical `<WishlistHeart>`; Book Now → `/book/space/:id` for live listings.
+- `FRONTEND_COMPLETION_PLAN.md` — mark space detail routes ✅.
+
+Verified: `npm run build` exit 0.
+
+## 2026-05-24 — Post-plan Batch 23: SpaceX/coworking catalogue Supabase wiring
+
+- `CoworkingPage.tsx` — load `db.listings.listByModule('spacex_coworking')` with demo fallback + `DevMockDataBanner`; canonical `WishlistHeart` retained on cards.
+- `CoworkingDetailPage.tsx` — resolve listing by UUID or numeric hash; map to detail shape; book CTA → `/book/space/:id` for live listings; demo fallback banner.
+- `SpaceXPage.tsx` — `DevMockDataBanner` when Supabase returns zero coworking/stay rows (existing load path unchanged).
+- `FRONTEND_COMPLETION_PLAN.md` — mark `/coworking`, `/dspace` (SpaceX), `/vendor/welcome`, `/stay` as ✅.
+
+Verified: `npm run build` exit 0.
+
 ## 2026-05-24 — Post-plan Batch 22: events catalogue Supabase + heart sweep completion
 
 - `EventsPage.tsx` — load events from `db.listings.listByModule('events', 'active')` with `getMergedCatalogue` + static demo fallback; `DevMockDataBanner` when demo; canonical `<WishlistHeart>` + `<RatingBadge>` on listing cards (Batch 2c carry-over).
@@ -787,6 +1155,92 @@ Verified: `npm run build` clean.
 Deferred from Batch 1:
 - Unread message badge in `NotificationBell` — already shipped (lines 30-49 sum `db.bookingMessages.unreadCountForUser`). Plan doc Section 3 glitch #14 entry stale.
 - Email digest of unread messages — requires `notification_preferences` schema extension; moved to Batch 10.
+
+## 2026-05-24 — Add-on Batch F: Lead inbox UX redesign (ui-ux-pro-max)
+
+- **Layout:** Master–detail on desktop (list + sticky work panel); mobile keeps slide-over drawer
+- **Header:** Stats strip (new / unassigned / callbacks / this week), clear primary CTAs, secondary links grouped
+- **Filters:** Single `LeadFilterBar` — search + status tabs; advanced filters (vertical, source, quick) behind “Filters” toggle
+- **List:** `LeadInboxCard` — one card per lead, click to select; email/call only; no cluttered status/quick-share rows
+- **Intake:** `LeadIntakeModal` — focused modal instead of inline form on the page
+- **Flow:** Horizontal progress stepper in work panel; “next step” hint
+- New: `leadOpsStyles.ts`, `LeadOpsStats`, `LeadFilterBar`, `LeadInboxCard`, `LeadIntakeModal`
+
+Verified: `npm run build` clean.
+
+## 2026-05-24 — UI/UX Pro Max: Admin aligned to gifting shop + pending pipeline
+
+- `adminModuleStyles.ts` — `ADMIN_MODULE` tokens from `mogzuGiftingStyles` + `mogzuGlassStyles` (1280px container, 22px titles, nav chips, glass cards)
+- `leadOpsStyles.ts` — extends `ADMIN_MODULE`; `leadOpsChipClass` = shop nav chips
+- `.cursor/rules/ui-ux-pro-max-admin.mdc` — enforce skill + tokens on admin/lead pages
+- `SalesPipelinePage.tsx` — same header/stats/toolbar/kanban glass as lead inbox
+- `AdminGiftingProductsPage.tsx` — shop-parity header, tabs, table shell
+- `LeadTriageToolbar.tsx` — unified search + chips
+
+## 2026-05-24 — UI/UX Pro Max: Lead ops design system pass
+
+- Unified `leadOpsStyles.ts` tokens (spacing, buttons, drawer, modal, grid)
+- `LeadOpsPageHeader` — consistent page chrome for inbox + Quick Share
+- `AdminLeadsPage` — fixed master–detail grid; mobile drawer only on `<lg` (no duplicate panel)
+- `LeadDetailDrawer` — aligned sections, status dropdown, sticky footer actions
+- `LeadInboxCard` — fixed nested button/link a11y; separated card select vs email/call
+- `AdminQuickSharePage` — repaired header layout; “Options to share” listing picker
+
+## 2026-05-24 — Add-on Batch G: Catalogue selection UX + auto-mark lead
+
+- Quick Share from lead: in-page steps banner; listings selected via checkboxes / **Select all visible**; filters **all / services / products**
+- After **Generate link**, lead auto-marked `catalogue sent` (links `quick_share_id`)
+- Lead drawer: short “How to select a catalogue” helper
+
+## 2026-05-24 — Add-on Batch E: Lead flow stepper + owner assignment + pipeline sync
+
+- `leadFlow.ts` — 5-step enquiry flow (captured → converted) + next-action hints
+- `LeadFlowStepper.tsx` — visual progress in drawer
+- `publicLeads.ts` — `listLeadOwners`, `assignLeadOwner`, `markLeadCatalogueSent`, `linkRelatedLead`
+- `LeadDetailDrawer.tsx` — assign to me / dropdown, mark catalogue sent, link duplicate, Mogzu orders link
+- `SalesPipelinePage.tsx` — kanban cards open same drawer; owner + source badges; link to lead inbox
+- `AdminLeadsPage.tsx` — owner label on rows; drawer passes current user
+
+Verified: `npm run build` clean.
+
+## 2026-05-24 — Add-on Batch D: Lead detail drawer + duplicates + staff update RLS
+
+- `LeadDetailDrawer.tsx` — slide-over: contact, requirement, notes save, status timeline, duplicates, Quick Share
+- `leadDuplicates.ts` — phone/email normalization + duplicate matching
+- `publicLeads.ts` — `updateLeadMetadata`, `updateLeadStatus` appends `status_history`
+- `AdminLeadsPage.tsx` — open drawer from name / View details; duplicate chip on rows; intake duplicate warning
+- `StaffLeadIntakePanel.tsx` — duplicate warning while typing phone/email
+- `20260524000002_staff_update_public_leads.sql` — sales/support can UPDATE leads
+
+Verified: `npm run build` clean.
+
+## 2026-05-24 — Add-on Batch C: Multi-source staff lead intake (phone, referral, etc.)
+
+- `leadSources.ts` — channel taxonomy, source filters, staff payload builder, display helpers
+- `StaffLeadIntakePanel.tsx` — admin form for phone / WhatsApp / referral / partner / walk-in / social / other
+- `LeadSourceBadge.tsx` — coloured source + referrer chips in inbox
+- `publicLeads.ts` — `metadata` on `PublicLead`, `createStaffLead()`
+- `AdminLeadsPage.tsx` — Log phone call / Log enquiry CTAs, source filter row, intake panel, demo phone+referral rows
+- `leadTriageUtils.ts` — search metadata + source filter
+
+Verified: `npm run build` clean.
+
+## 2026-05-24 — Add-on Batch B: Gifting + events enquiry verticals
+
+- `leadEnquiryVertical.ts` — vertical inference (gifting/events), catalogue kind (services/products), shared prefill type
+- `AdminLeadsPage.tsx` — vertical tabs; per-lead **Gifting catalogue** / **Events catalogue** buttons; vertical badge on rows
+- `AdminQuickSharePage.tsx` — gifting & events only; module toggle; services/products filter; category labels; select all visible; `listByModuleWithCategories`
+- `db.ts` — `listings.listByModuleWithCategories`
+- `leadTriageUtils.ts` — vertical filter in `triageLeads`
+
+Verified: `npm run build` clean.
+
+## 2026-05-24 — Add-on Batch A: Enquiry → Quick Share bridge
+
+- `AdminLeadsPage.tsx` — hero links to Quick Share + Mogzu orders; per-lead **Quick Share catalogue** button (prefills create form; marks `new` → `assigned` when live data)
+- `AdminQuickSharePage.tsx` — reads `location.state.fromLead`; opens create form with client label, note (requirement + contact + lead ref), budget cap hint, module guess from `source_slug`
+
+Verified: `npm run build` clean.
 
 ## OPEN BUGS — fix later
 

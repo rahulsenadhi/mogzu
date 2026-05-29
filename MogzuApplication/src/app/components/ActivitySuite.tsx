@@ -1,5 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
+import { DevMockDataBanner } from '@/app/components/global/DevMockDataBanner'
+import { useAuth } from '@/lib/auth'
+import { db } from '@/lib/db'
+import type { Booking, ModuleId } from '@/lib/database.types'
 import {
   ACTIVITY_SUITE_ID_TO_MODULE,
   getModuleCorporateState,
@@ -108,9 +112,24 @@ const ACTIVITY_SUITE_MODULES: ActivityModule[] = [
     },
 ]
 
+const DEMO_METRIC_TARGETS = {
+  pending: 9,
+  events: 12,
+  gifting: 7,
+  alerts: 5,
+  holds: 3,
+}
+
+const ACTIVE_BOOKING_STATUSES: Booking['status'][] = [
+  'pending_approval',
+  'pending_vendor',
+  'confirmed',
+]
+
 export default function ActivitySuite() {
   const location = useLocation()
   const navigate = useNavigate()
+  const { corporateId, profile } = useAuth()
   const marketplace = usePlatformMarketplaceSettings()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -126,6 +145,8 @@ export default function ActivitySuite() {
     }
   })
   const [metricValues, setMetricValues] = useState<Record<string, number>>({})
+  const [metricTargets, setMetricTargets] = useState(DEMO_METRIC_TARGETS)
+  const [usingDemoMetrics, setUsingDemoMetrics] = useState(false)
   const [pinned, setPinned] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem('mogzu_activitysuite_pinned')
@@ -185,10 +206,48 @@ export default function ActivitySuite() {
     }
   }, [pinned])
 
+  const loadMetrics = useCallback(async () => {
+    if (!corporateId) {
+      setMetricTargets(DEMO_METRIC_TARGETS)
+      setUsingDemoMetrics(true)
+      return
+    }
+    const [pendingRes, corpRes] = await Promise.all([
+      db.bookings.listPendingApproval(corporateId),
+      db.bookings.listByCorporate(corporateId),
+    ])
+    const rows = (corpRes.data ?? []) as Booking[]
+    const pendingCount = pendingRes.data?.length ?? 0
+    if (rows.length === 0 && pendingCount === 0) {
+      setMetricTargets(DEMO_METRIC_TARGETS)
+      setUsingDemoMetrics(true)
+      return
+    }
+    const countModule = (module: ModuleId) =>
+      rows.filter((b) => b.module === module && ACTIVE_BOOKING_STATUSES.includes(b.status)).length
+    const holds = rows.filter(
+      (b) =>
+        (b.module === 'spacex_coworking' || b.module === 'spacex_stay') &&
+        ACTIVE_BOOKING_STATUSES.includes(b.status),
+    ).length
+    setUsingDemoMetrics(false)
+    setMetricTargets({
+      pending: pendingCount,
+      events: countModule('events'),
+      gifting: countModule('gifting'),
+      alerts: unreadCount,
+      holds,
+    })
+  }, [corporateId, unreadCount])
+
+  useEffect(() => {
+    void loadMetrics()
+  }, [loadMetrics])
+
   const metricCards: MetricCard[] = [
     {
       label: 'Pending approvals',
-      value: 9,
+      value: metricTargets.pending,
       icon: ClipboardCheck,
       path: '/corporate/approvals',
       iconBgClass: 'from-[#ffe4f1] to-[#fff1f7]',
@@ -196,7 +255,7 @@ export default function ActivitySuite() {
     },
     {
       label: 'Active events',
-      value: 12,
+      value: metricTargets.events,
       icon: CalendarClock,
       path: '/event-activity',
       iconBgClass: 'from-[#ffedd5] to-[#fff7ed]',
@@ -204,7 +263,7 @@ export default function ActivitySuite() {
     },
     {
       label: 'Gifting campaigns',
-      value: 7,
+      value: metricTargets.gifting,
       icon: Gift,
       path: '/gifting',
       iconBgClass: 'from-[#efe3ff] to-[#f7f0ff]',
@@ -220,7 +279,7 @@ export default function ActivitySuite() {
     },
     {
       label: 'Venue holds',
-      value: 3,
+      value: metricTargets.holds,
       icon: Building,
       path: '/dspace',
       iconBgClass: 'from-[#d1faed] to-[#ecfdf7]',
@@ -348,13 +407,7 @@ export default function ActivitySuite() {
     const start = performance.now()
     const duration = 800
     const from = { pending: 0, events: 0, gifting: 0, alerts: 0, holds: 0 }
-    const to = {
-      pending: metricCards[0].value,
-      events: metricCards[1].value,
-      gifting: metricCards[2].value,
-      alerts: metricCards[3].value,
-      holds: metricCards[4].value,
-    }
+    const to = { ...metricTargets }
     let raf = 0
     const tick = (now: number) => {
       const p = Math.min(1, (now - start) / duration)
@@ -369,7 +422,7 @@ export default function ActivitySuite() {
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [unreadCount])
+  }, [metricTargets, unreadCount])
 
   return (
     <div className="activitysuite-page relative flex h-screen overflow-hidden bg-[#FFFDF9]">
@@ -398,6 +451,12 @@ export default function ActivitySuite() {
                 Your central hub for events, venues, gifting, and AI assistance
               </p>
 
+              {usingDemoMetrics && import.meta.env.DEV && (
+                <div className="mt-3 max-w-xl mx-auto md:mx-0">
+                  <DevMockDataBanner />
+                </div>
+              )}
+
               <div className="mt-4 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
                 <div className="relative">
                   <Search className="size-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -415,7 +474,8 @@ export default function ActivitySuite() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2 justify-center md:justify-end">
                   <span className="text-sm text-slate-600 w-full md:w-auto">
-                    Welcome back, James · Corporate Admin
+                    Welcome back, {profile?.full_name?.split(' ')[0] ?? 'there'}
+                    {profile?.role === 'l3_admin' ? ' · Corporate Admin' : ''}
                   </span>
                   <button
                     type="button"

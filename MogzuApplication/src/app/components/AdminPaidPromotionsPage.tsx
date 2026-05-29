@@ -1,6 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
+import { Link } from 'react-router';
 import { ChevronLeft, Eye, ListFilter, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { AdminPageTitleRow } from '@/app/components/admin/AdminPageChrome';
+import { DevMockDataBanner } from '@/app/components/global/DevMockDataBanner';
+import { db } from '@/lib/db';
 import {
   upsertCorporateAdminPromotion,
   type CorporateAdminPromotion,
@@ -179,6 +182,23 @@ export default function AdminPaidPromotionsPage() {
   const [limitUses, setLimitUses] = useState(false);
   const [productScope, setProductScope] = useState<'categories' | 'all'>('categories');
   const [uiNotice, setUiNotice] = useState('');
+  const [livePromoCount, setLivePromoCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all([db.promotions.listQueue(), db.promotions.listActive()]).then(([queue, active]) => {
+      if (cancelled) return;
+      const ids = new Set<string>();
+      for (const row of [...(queue.data ?? []), ...(active.data ?? [])]) {
+        const id = (row as { id?: string }).id;
+        if (id) ids.add(id);
+      }
+      setLivePromoCount(ids.size);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const filteredAds = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -294,6 +314,14 @@ export default function AdminPaidPromotionsPage() {
   return (
     <div className="space-y-4">
       <AdminPageTitleRow title="Paid Promotion" totalLabel={`${tab === 'ads' ? filteredAds.length : filteredDiscounts.length} total`} />
+      <DevMockDataBanner />
+      <p className="text-sm text-slate-600">
+        Legacy paid-promotion UI (local demo data). Vendor promotions in Supabase are approved at{' '}
+        <Link to="/admin/promotions/approval" className="font-semibold text-blue-600 hover:underline">
+          promotions approval
+        </Link>
+        {livePromoCount > 0 ? ` (${livePromoCount} in queue or active).` : '.'}
+      </p>
 
       <div className="rounded-2xl border border-slate-200 bg-[#ECEFF6] p-4">
         {showDiscountForm ? (

@@ -1,9 +1,14 @@
 import { useNavigate, useParams } from 'react-router';
-import { ChevronRight, MapPin, Users, Star, Wifi, Coffee, Printer, Car, Video, Phone, Mail, Shield, Calendar, Clock, Share2, Check } from 'lucide-react';
+import { ChevronRight, MapPin, Users, Star, Wifi, Coffee, Printer, Car, Video, Phone, Mail, Shield, Calendar, Clock, Share2, Check, Loader2 } from 'lucide-react';
 import { WishlistHeart } from './global/WishlistHeart';
+import { DevMockDataBanner } from './global/DevMockDataBanner';
 import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
+import { isListingUuid, uuidToNumber } from '@/app/lib/activityListingResolver';
+import { db } from '@/lib/db';
+import { storageService } from '@/lib/storage';
+import type { Listing, ListingImage } from '@/lib/database.types';
 import svgPaths from '@/imports/svg-camfkj9vq4';
 import imgAvatar from 'figma:asset/e67667939a12621af070c82a05583b9248a7c28e.png';
 import imgMogzuM from 'figma:asset/d016f8256f9617c2da6226bb1fd8682cacd46dae.png';
@@ -38,6 +43,74 @@ interface CoworkingDetail {
   policies: string[];
   features: string[];
   nearbyTransport: string[];
+}
+
+function listingToCoworkingDetail(l: Listing & { listing_images?: ListingImage[] }): CoworkingDetail {
+  const meta = (l.metadata ?? {}) as Record<string, unknown>;
+  const imgs = (l.listing_images ?? [])
+    .sort((a, b) => a.display_order - b.display_order)
+    .map((img) => storageService.spaceImages.getUrl(img.storage_path));
+  const rawAmenities = meta.amenities;
+  const amenityNames = Array.isArray(rawAmenities)
+    ? rawAmenities.filter((a): a is string => typeof a === 'string')
+    : ['High-Speed WiFi', 'Meeting Rooms', 'Unlimited Coffee'];
+  const iconFor = (name: string): string => {
+    const low = name.toLowerCase();
+    if (low.includes('wifi')) return 'wifi';
+    if (low.includes('coffee') || low.includes('tea')) return 'coffee';
+    if (low.includes('print')) return 'printer';
+    if (low.includes('park')) return 'car';
+    if (low.includes('meet') || low.includes('video')) return 'video';
+    if (low.includes('phone')) return 'phone';
+    if (low.includes('security') || low.includes('reception')) return 'shield';
+    if (low.includes('24') || low.includes('hour')) return 'clock';
+    return 'wifi';
+  };
+  const priceUnit =
+    l.price_unit === 'per_day' ? 'day' : l.price_unit === 'per_hour' ? 'hour' : 'month';
+  const capacity =
+    l.min_capacity != null && l.max_capacity != null
+      ? `${l.min_capacity}-${l.max_capacity}`
+      : l.max_capacity != null
+        ? `Up to ${l.max_capacity}`
+        : '1-50';
+  const vendorName =
+    typeof meta.vendor_name === 'string'
+      ? meta.vendor_name
+      : ((l as Listing & { vendors?: { business_name?: string } }).vendors?.business_name ?? 'Vendor host');
+  return {
+    id: l.id,
+    name: l.title,
+    location: l.location_address ?? l.location_city ?? '',
+    city: l.location_city ?? '',
+    rating: typeof meta.rating === 'number' ? meta.rating : 4.5,
+    reviews: typeof meta.ratingCount === 'number' ? meta.ratingCount : 0,
+    images:
+      imgs.length > 0
+        ? imgs
+        : [`${l.title} coworking workspace`, `${l.location_city ?? 'office'} workspace interior`],
+    capacity,
+    price: l.base_price ?? 8000,
+    priceUnit,
+    description: l.description ?? 'Flexible coworking space available for corporate bookings.',
+    amenities: amenityNames.map((name) => ({ name, icon: iconFor(name) })),
+    type: typeof meta.spaceType === 'string' ? meta.spaceType : 'Hot Desk',
+    availableFrom: typeof meta.availableFrom === 'string' ? meta.availableFrom : 'Immediate',
+    operatingHours: typeof meta.operatingHours === 'string' ? meta.operatingHours : '9 AM – 9 PM',
+    contactPerson: {
+      name: vendorName,
+      role: 'Space Manager',
+      phone: typeof meta.contactPhone === 'string' ? meta.contactPhone : '+91 98765 43210',
+      email: typeof meta.contactEmail === 'string' ? meta.contactEmail : 'spaces@mogzu.app',
+    },
+    policies: Array.isArray(meta.policies)
+      ? meta.policies.filter((p): p is string => typeof p === 'string')
+      : ['Professional behavior expected at all times', 'Booking confirmation subject to availability'],
+    features: amenityNames,
+    nearbyTransport: Array.isArray(meta.nearbyTransport)
+      ? meta.nearbyTransport.filter((t): t is string => typeof t === 'string')
+      : ['Metro and bus connectivity nearby'],
+  };
 }
 
 const mockCoworkingDetail: CoworkingDetail = {
@@ -111,11 +184,53 @@ const mockCoworkingDetail: CoworkingDetail = {
   ]
 };
 
+const resolveCoworkingImage = (src: string) =>
+  src.startsWith('http') ? src : `https://source.unsplash.com/600x400/?${encodeURIComponent(src)}`;
+
 export default function CoworkingDetailPage() {
   const navigate = useNavigate();
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
   const [selectedImage, setSelectedImage] = useState(0);
-  const space = mockCoworkingDetail;
+  const [space, setSpace] = useState<CoworkingDetail>(mockCoworkingDetail);
+  const [loading, setLoading] = useState(true);
+  const [usingDemo, setUsingDemo] = useState(false);
+
+  useEffect(() => {
+    if (!id) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      let listing: (Listing & { listing_images?: ListingImage[] }) | null = null;
+      if (isListingUuid(id)) {
+        const { data } = await db.listings.getById(id);
+        listing = (data as Listing & { listing_images?: ListingImage[] }) ?? null;
+      } else {
+        const numId = Number(id);
+        if (Number.isFinite(numId)) {
+          const { data } = await db.listings.listByModule('spacex_coworking', 'active');
+          listing =
+            ((data ?? []) as (Listing & { listing_images?: ListingImage[] })[]).find(
+              (row) => uuidToNumber(row.id) === numId,
+            ) ?? null;
+        }
+      }
+      if (cancelled) return;
+      if (listing) {
+        setSpace(listingToCoworkingDetail(listing));
+        setUsingDemo(false);
+      } else {
+        setSpace({ ...mockCoworkingDetail, id });
+        setUsingDemo(true);
+      }
+      setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   const getAmenityIcon = (iconName: string) => {
     switch (iconName) {
@@ -184,6 +299,13 @@ export default function CoworkingDetailPage() {
 
         <MogzuCorporateScrollSurface>
           <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
+            {usingDemo ? <DevMockDataBanner /> : null}
+            {loading ? (
+              <div className="flex items-center justify-center py-24">
+                <Loader2 className="size-8 animate-spin text-slate-400" />
+              </div>
+            ) : (
+            <>
             <div className="flex flex-wrap items-center gap-2 text-xs mb-4 min-w-0">
               <button
                 type="button"
@@ -352,7 +474,7 @@ export default function CoworkingDetailPage() {
                           {space.images.map((img, item) => (
                             <div key={item} className="h-48 rounded-lg overflow-hidden relative group">
                               <ImageWithFallback
-                                src={`https://source.unsplash.com/600x400/?${encodeURIComponent(img)}`}
+                                src={resolveCoworkingImage(img)}
                                 alt={`${space.name} — gallery photo ${item + 1} of ${space.images.length}`}
                                 className="w-full h-full object-cover transition-transform group-hover:scale-105"
                               />
@@ -409,7 +531,13 @@ export default function CoworkingDetailPage() {
 
                   <button
                     type="button"
-                    onClick={() => navigate('/request-to-book')}
+                    onClick={() => {
+                      if (isListingUuid(space.id)) {
+                        navigate(`/book/space/${encodeURIComponent(space.id)}`);
+                        return;
+                      }
+                      navigate('/request-to-book');
+                    }}
                     className="w-full py-3 bg-[#2563eb] text-white font-medium rounded-lg hover:bg-[#1d4ed8] transition-colors mb-3"
                   >
                     Request to Book
@@ -450,6 +578,8 @@ export default function CoworkingDetailPage() {
                 </div>
               </div>
             </div>
+            </>
+            )}
           </div>
         </MogzuCorporateScrollSurface>
       </div>

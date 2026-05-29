@@ -22,6 +22,8 @@ import {
   ShoppingCart
 } from 'lucide-react';
 import { MogzuLogo } from '@/app/components/branding/MogzuLogo';
+import { submitLead } from '@/lib/publicLeads';
+import { useMarketingCms } from '@/app/lib/useMarketingCms';
 
 const IMAGES = {
   teamBuilding: "https://images.unsplash.com/photo-1770240090990-0653176ee415?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0ZWFtJTIwYnVpbGRpbmclMjBhY3Rpdml0eSUyMG91dGRvb3J8ZW58MXx8fHwxNzczODEwNzU0fDA&ixlib=rb-4.1.0&q=80&w=1080",
@@ -60,6 +62,13 @@ export default function LandingPage() {
   const [activeTab, setActiveTab] = useState<'venues' | 'gifting' | 'experiences'>('venues');
   const [isDemoModalOpen, setIsDemoModalOpen] = useState(false);
   const [demoFormStatus, setDemoFormStatus] = useState<'idle' | 'submitting' | 'success'>('idle');
+  const [demoEmail, setDemoEmail] = useState('');
+  const [demoFirstName, setDemoFirstName] = useState('');
+  const [demoLastName, setDemoLastName] = useState('');
+  const [demoCompany, setDemoCompany] = useState('');
+  const [demoPhone, setDemoPhone] = useState('');
+  const [demoError, setDemoError] = useState('');
+  const { block: homeCms, fromCms: heroFromCms } = useMarketingCms('home');
 
   useEffect(() => {
     if (location.hash !== '#partner-with-mogzu') return;
@@ -77,14 +86,29 @@ export default function LandingPage() {
     return '/spacex';
   };
 
-  const handleDemoSubmit = (e: React.FormEvent) => {
+  const handleDemoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setDemoError('');
     setDemoFormStatus('submitting');
-    // Simulate API call
-    setTimeout(() => {
-      setDemoFormStatus('success');
-      // In a real app, this would redirect or send an email
-    }, 1500);
+
+    const { error } = await submitLead({
+      client_name: `${demoFirstName.trim()} ${demoLastName.trim()}`.trim(),
+      client_email: demoEmail.trim(),
+      client_company: demoCompany.trim() || null,
+      client_phone: demoPhone.trim() || null,
+      requirement_summary: 'Landing page — Book a Demo request',
+      source_slug: 'landing-demo',
+      budget_band: 'unknown',
+      timeline: 'exploring',
+    });
+
+    if (error) {
+      setDemoError(error);
+      setDemoFormStatus('idle');
+      return;
+    }
+
+    setDemoFormStatus('success');
   };
 
   return (
@@ -134,12 +158,19 @@ export default function LandingPage() {
                   </p>
                 </div>
                 
-                <form onSubmit={handleDemoSubmit} className="space-y-4">
+                <form onSubmit={(e) => void handleDemoSubmit(e)} className="space-y-4">
+                  {demoError ? (
+                    <p className="rounded-lg border-2 border-red-300 bg-red-50 px-3 py-2 text-sm font-bold text-red-800">
+                      {demoError}
+                    </p>
+                  ) : null}
                   <div>
                     <label className="block text-xs font-black text-black mb-1.5 uppercase tracking-wide">Work Email</label>
                     <input 
                       type="email" 
                       required
+                      value={demoEmail}
+                      onChange={(e) => setDemoEmail(e.target.value)}
                       placeholder="you@company.com"
                       className="w-full bg-white text-base font-bold px-4 py-3 rounded-xl input-chunky transition-colors focus:outline-none focus:border-[#EE2A7B]"
                     />
@@ -151,6 +182,8 @@ export default function LandingPage() {
                       <input 
                         type="text" 
                         required
+                        value={demoFirstName}
+                        onChange={(e) => setDemoFirstName(e.target.value)}
                         placeholder="Jane"
                         className="w-full bg-white text-base font-bold px-4 py-3 rounded-xl input-chunky transition-colors focus:outline-none focus:border-[#EE2A7B]"
                       />
@@ -160,6 +193,8 @@ export default function LandingPage() {
                       <input 
                         type="text" 
                         required
+                        value={demoLastName}
+                        onChange={(e) => setDemoLastName(e.target.value)}
                         placeholder="Doe"
                         className="w-full bg-white text-base font-bold px-4 py-3 rounded-xl input-chunky transition-colors focus:outline-none focus:border-[#EE2A7B]"
                       />
@@ -171,6 +206,8 @@ export default function LandingPage() {
                     <input 
                       type="text" 
                       required
+                      value={demoCompany}
+                      onChange={(e) => setDemoCompany(e.target.value)}
                       placeholder="Acme Corp"
                       className="w-full bg-white text-base font-bold px-4 py-3 rounded-xl input-chunky transition-colors focus:outline-none focus:border-[#EE2A7B]"
                     />
@@ -181,6 +218,8 @@ export default function LandingPage() {
                     <input 
                       type="tel" 
                       required
+                      value={demoPhone}
+                      onChange={(e) => setDemoPhone(e.target.value)}
                       placeholder="+1 (555) 000-0000"
                       className="w-full bg-white text-base font-bold px-4 py-3 rounded-xl input-chunky transition-colors focus:outline-none focus:border-[#EE2A7B]"
                     />
@@ -334,15 +373,23 @@ export default function LandingPage() {
             The Corporate OS
           </div>
           
-          <h1 className="text-6xl md:text-[80px] lg:text-[96px] font-black text-[#0e1e3f] tracking-tighter leading-[1] mb-8 drop-shadow-sm">
-            Book your next <br/>
-            <span className="inline-block px-4 bg-[#FFD100] border-3 border-black shadow-[6px_6px_0_0_#111827] transform -rotate-2 mt-2">Offsite</span>
-            <span className="mx-4 text-transparent bg-clip-text bg-gradient-to-r from-[#EE2A7B] to-[#FF5E00]">&</span>
-            <span className="inline-block px-4 bg-[#15D39D] border-3 border-black shadow-[6px_6px_0_0_#111827] transform rotate-2 mt-2">Gifting</span>
-          </h1>
+          {heroFromCms && homeCms?.title ? (
+            <h1 className="text-5xl md:text-7xl lg:text-8xl font-black text-[#0e1e3f] tracking-tighter leading-[1.05] mb-8 drop-shadow-sm">
+              {homeCms.title}
+            </h1>
+          ) : (
+            <h1 className="text-6xl md:text-[80px] lg:text-[96px] font-black text-[#0e1e3f] tracking-tighter leading-[1] mb-8 drop-shadow-sm">
+              Book your next <br/>
+              <span className="inline-block px-4 bg-[#FFD100] border-3 border-black shadow-[6px_6px_0_0_#111827] transform -rotate-2 mt-2">Offsite</span>
+              <span className="mx-4 text-transparent bg-clip-text bg-gradient-to-r from-[#EE2A7B] to-[#FF5E00]">&</span>
+              <span className="inline-block px-4 bg-[#15D39D] border-3 border-black shadow-[6px_6px_0_0_#111827] transform rotate-2 mt-2">Gifting</span>
+            </h1>
+          )}
           
           <p className="text-2xl md:text-3xl text-gray-700 font-bold max-w-3xl mx-auto mb-16 leading-relaxed">
-            Discover verified corporate venues, premium gifts, and team-building experiences—all with one unified invoice.
+            {heroFromCms && homeCms?.body
+              ? homeCms.body
+              : 'Discover verified corporate venues, premium gifts, and team-building experiences—all with one unified invoice.'}
           </p>
 
           {/* Unified Search/Booking Bar */}

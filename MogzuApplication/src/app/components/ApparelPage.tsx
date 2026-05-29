@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
+import { DevMockDataBanner } from '@/app/components/global/DevMockDataBanner';
 import { Search, ChevronDown, Bell, HelpCircle, ChevronLeft, MapPin, Star, Filter, X, ShoppingCart, AlertCircle } from 'lucide-react';
 import svgPaths from '@/imports/svg-a80j978jey';
 import imgImage24877 from 'figma:asset/d016f8256f9617c2da6226bb1fd8682cacd46dae.png';
@@ -397,6 +398,18 @@ export default function ApparelPage() {
         {/* Content Area */}
         <MogzuCorporateScrollSurface>
           <div className="max-w-[1600px] mx-auto px-6 py-6">
+            <DevMockDataBanner />
+            <p className="mb-4 text-sm text-slate-600">
+              Demo apparel catalogue — browse live gifting at{' '}
+              <button
+                type="button"
+                className="font-semibold text-blue-600 hover:underline"
+                onClick={() => navigate('/gifting-shop')}
+              >
+                Gifting Shop
+              </button>
+              .
+            </p>
             {/* Header */}
             <div className="mb-6">
               <button onClick={() => navigate('/dashboard')} className="flex items-center gap-2 text-[#0e1e3f] mb-4 hover:text-[#2563eb] transition-colors">

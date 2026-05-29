@@ -18,6 +18,7 @@ import { SharedHeader } from "@/app/components/layouts/SharedHeader";
 import { SharedSidebar } from "@/app/components/layouts/SharedSidebar";
 import { MogzuCorporateScrollSurface } from "@/app/components/layouts/MogzuCorporateScrollSurface";
 import { WishlistHeart } from "@/app/components/global/WishlistHeart";
+import { DevMockDataBanner } from "@/app/components/global/DevMockDataBanner";
 import svgPaths from "@/imports/svg-5pj2l0pukf";
 import svgPathsDashboard from "@/imports/svg-camfkj9vq4";
 import imgImage24995 from "figma:asset/3fd0634bc82e44a536b4f08060cd6f224c13e9e8.png";
@@ -777,6 +778,8 @@ export default function SpaceXPage() {
     [partnerSpaceCards, supabaseSpaces]
   );
 
+  const usingDemoSpaces = supabaseSpaces.length === 0 && !spacesLoading && !spacesError;
+
   const categories: SpaceXCategoryTab[] = [
     {
       id: "conference",
@@ -1364,6 +1367,12 @@ export default function SpaceXPage() {
               </div>
             </div>
           </div>
+
+          {usingDemoSpaces ? (
+            <div className="mx-auto w-full max-w-[1280px] px-5 md:px-6 py-2">
+              <DevMockDataBanner />
+            </div>
+          ) : null}
 
           {/* D Space header with tabs */}
           <div className="border-b border-slate-300/[0.1] bg-transparent">

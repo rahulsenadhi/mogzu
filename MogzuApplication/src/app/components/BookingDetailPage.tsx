@@ -9,6 +9,7 @@ import imgImage25005 from 'figma:asset/f6108faddc403caf1eea34c754f31b43ab0fb55b.
 import { isInvoiceEligibleStatus } from '@/app/lib/bookingStatus';
 import { BookingMessagesPanel } from './global/BookingMessagesPanel';
 import { useAuth } from '@/lib/auth';
+import { formatChainProgress, getBookingApprovalMeta } from '@/lib/bookingApprovalMeta';
 import { db } from '@/lib/db';
 import { canAccessBookingByRole } from '@/lib/bookingScope';
 import { subscribeToTable } from '@/lib/realtime';
@@ -410,11 +411,13 @@ export default function BookingDetailPage() {
         }))
       : derivedBooking.addOns;
 
+    const purposeNote = getBookingApprovalMeta(realBooking);
+
     return {
       ...derivedBooking,
       id: realBooking.id,
       bookingId: realBooking.id,
-      plannedFor: realBooking.purpose_note || derivedBooking.plannedFor,
+      plannedFor: purposeNote.userNote || derivedBooking.plannedFor,
       attendees: realBooking.group_size ?? derivedBooking.attendees,
       vendorContact,
       venue: {
@@ -449,6 +452,15 @@ export default function BookingDetailPage() {
       },
     };
   }, [realBooking, derivedBooking]);
+
+  const approvalMeta = useMemo(
+    () => (realBooking ? getBookingApprovalMeta(realBooking) : { userNote: '', meta: null }),
+    [realBooking],
+  )
+
+  const approvalChainSummary = approvalMeta.meta
+    ? formatChainProgress(approvalMeta.meta)
+    : null
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -649,6 +661,24 @@ export default function BookingDetailPage() {
                 </div>
               </div>
             </div>
+
+            {realBooking?.status === 'pending_approval' && approvalChainSummary && (
+              <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+                  Manager approval in progress
+                </p>
+                <p className="mt-1 text-sm font-medium text-amber-900">{approvalChainSummary}</p>
+                {(role === 'l2_manager' || role === 'l3_admin' || role === 'mogzu_admin') && (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/corporate/approvals/${realBooking.id}`)}
+                    className="mt-3 text-sm font-semibold text-[#2563eb] hover:underline"
+                  >
+                    Open in approvals queue
+                  </button>
+                )}
+              </div>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Left Column (Main Details) */}

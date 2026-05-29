@@ -5,6 +5,7 @@ import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
 import imgImage25005 from 'figma:asset/f6108faddc403caf1eea34c754f31b43ab0fb55b.png';
+import { MogzuLegacyDemoBanner } from '@/app/components/ui/MogzuLegacyDemoBanner';
 import { buildClassicBookingBaseState, computeGrandTotal } from '@/app/lib/classicBookingFlow';
 
 export default function BookingReview() {
@@ -171,6 +172,7 @@ export default function BookingReview() {
         {/* Content Area */}
         <MogzuCorporateScrollSurface>
           <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
+            <MogzuLegacyDemoBanner className="mb-4" title="Classic booking flow" />
             {/* Back Button and Title */}
             <div className="mb-6">
               <button 

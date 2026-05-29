@@ -14,6 +14,12 @@ import { SharedHeader } from './layouts/SharedHeader'
 import { SharedSidebar } from './layouts/SharedSidebar'
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface'
 import { useAuth } from '@/lib/auth'
+import {
+  approveBookingStep,
+  canUserApproveBooking,
+  formatChainProgress,
+  getBookingApprovalMeta,
+} from '@/lib/bookingApprovalMeta'
 import { db } from '@/lib/db'
 import { realtimeService } from '@/lib/realtime'
 import type { Booking, Listing, UserProfile } from '@/lib/database.types'
@@ -53,7 +59,8 @@ export default function CorporateApprovalsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkBusy, setBulkBusy] = useState(false)
 
-  const canApprove = role === 'l2_manager' || role === 'l3_admin'
+  const canApprove =
+    role === 'l2_manager' || role === 'l3_admin' || role === 'mogzu_admin'
 
   const loadBookings = useCallback(async () => {
     if (!corporateId) return
@@ -78,17 +85,21 @@ export default function CorporateApprovalsPage() {
   }, [corporateId, loadBookings])
 
   const byTab = useMemo(() => {
+    const pendingAll = bookings.filter((b) => b.status === 'pending_approval')
     return {
-      pending: bookings.filter((b) => b.status === 'pending_approval'),
+      pending: pendingAll,
+      pendingForMe: role
+        ? pendingAll.filter((b) => canUserApproveBooking(role, b))
+        : pendingAll,
       approved: bookings.filter((b) =>
         ['pending_vendor', 'confirmed', 'completed'].includes(b.status),
       ),
       rejected: bookings.filter((b) => b.status === 'cancelled'),
     }
-  }, [bookings])
+  }, [bookings, role])
 
   const filteredApprovals = useMemo(() => {
-    const list = byTab[activeTab]
+    const list = activeTab === 'pending' ? byTab.pendingForMe : byTab[activeTab]
     const q = searchQuery.trim().toLowerCase()
     if (!q) return list
     return list.filter(
@@ -116,18 +127,47 @@ export default function CorporateApprovalsPage() {
   }, [activeTab])
 
   const bulkApprove = async () => {
-    if (!profile || selectedIds.size === 0) return
+    if (!profile || !corporateId || !role || selectedIds.size === 0) return
     setBulkBusy(true)
     setActionNotice('')
     const ids = Array.from(selectedIds)
-    const results = await Promise.all(ids.map((id) => db.bookings.approve(id, profile.id)))
-    const failed = results.filter((r) => r.error).length
+    let finalCount = 0
+    let advancedCount = 0
+    let failed = 0
+    let skipped = 0
+
+    for (const id of ids) {
+      const booking = bookings.find((b) => b.id === id)
+      if (!booking) {
+        failed += 1
+        continue
+      }
+      if (!canUserApproveBooking(role, booking)) {
+        skipped += 1
+        continue
+      }
+      const result = await approveBookingStep({
+        bookingId: booking.id,
+        booking,
+        corporateId,
+        requesterUserId: booking.user_id,
+        totalAmount: booking.total_amount ?? 0,
+        listingTitle: booking.listings?.title ?? 'Booking',
+        approverId: profile.id,
+        role,
+      })
+      if (!result.ok) failed += 1
+      else if (result.kind === 'advanced') advancedCount += 1
+      else finalCount += 1
+    }
+
     setBulkBusy(false)
     setSelectedIds(new Set())
+    const acted = finalCount + advancedCount
     setActionNotice(
-      failed === 0
-        ? `Approved ${ids.length} request${ids.length !== 1 ? 's' : ''}.`
-        : `Approved ${ids.length - failed} / ${ids.length}. ${failed} failed.`,
+      failed === 0 && skipped === 0
+        ? `Processed ${acted} request${acted !== 1 ? 's' : ''} (${finalCount} finalized${advancedCount ? `, ${advancedCount} advanced in chain` : ''}).`
+        : `Processed ${acted} / ${ids.length}. ${failed} failed${skipped ? `, ${skipped} skipped (not your step)` : ''}.`,
     )
     loadBookings()
   }
@@ -184,7 +224,7 @@ export default function CorporateApprovalsPage() {
                 icon={<Clock className="size-6 text-amber-600" />}
                 bg="bg-amber-100"
                 label="Pending"
-                count={byTab.pending.length}
+                count={byTab.pendingForMe.length}
                 onClick={() => setActiveTab('pending')}
               />
               <StatCard
@@ -244,7 +284,7 @@ export default function CorporateApprovalsPage() {
                         onClick={() => setActiveTab(tab)}
                       >
                         {tab === 'pending'
-                          ? 'Pending Requests'
+                          ? 'Pending for you'
                           : tab === 'approved'
                             ? 'Approved'
                             : 'Rejected'}
@@ -361,11 +401,27 @@ export default function CorporateApprovalsPage() {
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-700">
                             {b.listings?.title ?? '—'}
-                            {b.purpose_note && (
-                              <p className="mt-0.5 truncate text-xs text-gray-500" title={b.purpose_note}>
-                                {b.purpose_note}
-                              </p>
-                            )}
+                            {(() => {
+                              const note = getBookingApprovalMeta(b)
+                              if (note.meta) {
+                                return (
+                                  <p
+                                    className="mt-0.5 truncate text-xs font-medium text-amber-800"
+                                    title={formatChainProgress(note.meta)}
+                                  >
+                                    {formatChainProgress(note.meta)}
+                                  </p>
+                                )
+                              }
+                              if (note.userNote) {
+                                return (
+                                  <p className="mt-0.5 truncate text-xs text-gray-500" title={note.userNote}>
+                                    {note.userNote}
+                                  </p>
+                                )
+                              }
+                              return null
+                            })()}
                           </td>
                           <td className="px-6 py-4 text-sm font-medium text-gray-900">
                             ₹ {(b.total_amount ?? 0).toLocaleString('en-IN')}

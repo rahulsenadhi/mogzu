@@ -384,4 +384,139 @@ app.post("/make-server-56765691/razorpay-webhook", async (c) => {
   return c.json({ ok: true, skipped: `unknown kind: ${kind ?? "(none)"}` });
 });
 
+// ─── Drain queued notification emails (Resend) ───────────────────────────────
+// POST with Authorization: Bearer $CRON_SECRET (when set). N8N/cron calls this.
+
+function htmlEscape(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+app.post("/make-server-56765691/drain-notification-emails", async (c) => {
+  const cronSecret = Deno.env.get("CRON_SECRET");
+  if (cronSecret) {
+    const auth = c.req.header("Authorization");
+    if (auth !== `Bearer ${cronSecret}`) {
+      return c.json({ ok: false, error: "unauthorized" }, 401);
+    }
+  }
+
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const resendKey = Deno.env.get("RESEND_API_KEY");
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const from = Deno.env.get("RESEND_FROM_EMAIL") ?? "noreply@mogzu.com";
+  const siteOrigin =
+    Deno.env.get("MOGZU_SITE_ORIGIN") ?? Deno.env.get("SITE_ORIGIN") ?? "https://mogzu.in";
+
+  if (!serviceRoleKey || !supabaseUrl) {
+    return c.json({ ok: false, error: "Supabase service role not configured" }, 500);
+  }
+  if (!resendKey) {
+    return c.json({ ok: false, error: "RESEND_API_KEY not configured" }, 503);
+  }
+
+  const listRes = await fetch(
+    `${supabaseUrl}/rest/v1/notifications?email_status=eq.queued&select=id,user_id,title,body,link_url&order=created_at.asc&limit=50`,
+    {
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+      },
+    },
+  );
+  if (!listRes.ok) {
+    const text = await listRes.text();
+    return c.json({ ok: false, error: `list failed: ${text}` }, 500);
+  }
+
+  const rows = (await listRes.json()) as Array<{
+    id: string;
+    user_id: string;
+    title: string;
+    body: string | null;
+    link_url: string | null;
+  }>;
+
+  const emailByUser = new Map<string, string | null>();
+  let sent = 0;
+  let failed = 0;
+
+  const patchStatus = async (id: string, status: "sent" | "failed") => {
+    await fetch(`${supabaseUrl}/rest/v1/notifications?id=eq.${id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({
+        email_status: status,
+        email_sent_at: status === "sent" ? new Date().toISOString() : null,
+      }),
+    });
+  };
+
+  for (const row of rows) {
+    let email = emailByUser.get(row.user_id);
+    if (email === undefined) {
+      const userRes = await fetch(`${supabaseUrl}/auth/v1/admin/users/${row.user_id}`, {
+        headers: {
+          apikey: serviceRoleKey,
+          Authorization: `Bearer ${serviceRoleKey}`,
+        },
+      });
+      if (userRes.ok) {
+        const userJson = (await userRes.json()) as { email?: string };
+        email = userJson.email ?? null;
+      } else {
+        email = null;
+      }
+      emailByUser.set(row.user_id, email);
+    }
+
+    if (!email) {
+      await patchStatus(row.id, "failed");
+      failed += 1;
+      continue;
+    }
+
+    const href = row.link_url
+      ? row.link_url.startsWith("http")
+        ? row.link_url
+        : `${siteOrigin}${row.link_url}`
+      : siteOrigin;
+    const html = `<h2>${htmlEscape(row.title)}</h2>
+<p>${htmlEscape(row.body ?? "")}</p>
+<p><a href="${htmlEscape(href)}">Open in Mogzu</a></p>`;
+
+    const sendRes = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${resendKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        to: [email],
+        subject: row.title,
+        html,
+      }),
+    });
+
+    if (sendRes.ok) {
+      await patchStatus(row.id, "sent");
+      sent += 1;
+    } else {
+      await patchStatus(row.id, "failed");
+      failed += 1;
+    }
+  }
+
+  return c.json({ ok: true, processed: rows.length, sent, failed });
+});
+
 Deno.serve(app.fetch);

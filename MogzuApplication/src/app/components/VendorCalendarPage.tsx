@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router'
 import {
   ChevronLeft,
   ChevronRight,
@@ -7,8 +8,10 @@ import {
   Lock,
   CalendarDays,
   AlertTriangle,
+  Loader2,
 } from 'lucide-react'
 import { VendorAppShell } from './layouts/VendorAppShell'
+import { MogzuLegacyDemoBanner } from './ui/MogzuLegacyDemoBanner'
 import { useAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { supabase } from '@/lib/supabase'
@@ -298,12 +301,15 @@ function UnblockModal({
 
 export default function VendorCalendarPage() {
   const { vendorId } = useAuth()
+  const navigate = useNavigate()
 
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date()))
   const [slots, setSlots] = useState<CalendarSlot[]>([])
   const [listings, setListings] = useState<Listing[]>([])
+  const [listingsReady, setListingsReady] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
+  const [pageNotice, setPageNotice] = useState('')
 
   // Block modal
   const [blockTarget, setBlockTarget] = useState<BlockTarget | null>(null)
@@ -342,8 +348,10 @@ export default function VendorCalendarPage() {
   // Load listings once
   useEffect(() => {
     if (!vendorId) return
+    setListingsReady(false)
     db.listings.listByVendor(vendorId).then(({ data }) => {
       setListings(data ?? [])
+      setListingsReady(true)
     })
   }, [vendorId])
 
@@ -410,9 +418,11 @@ export default function VendorCalendarPage() {
         notified += 1
       }
       if (notified > 0) {
-        setBlockError(
-          `Block saved — ${notified} confirmed booking${notified !== 1 ? 's were' : ' was'} affected and the booker${notified !== 1 ? 's were' : ' was'} notified.`,
+        setPageNotice(
+          `Time blocked. ${notified} confirmed booking${notified !== 1 ? 's were' : ' was'} affected — booker${notified !== 1 ? 's' : ''} notified.`,
         )
+      } else {
+        setPageNotice('Time blocked successfully.')
       }
       setBlockTarget(null)
       loadSlots()
@@ -430,7 +440,15 @@ export default function VendorCalendarPage() {
     loadSlots()
   }
 
-  // Cell click handler — kept for blocked cell click (unblock modal)
+  const openBookedSlot = (slot: CalendarSlot) => {
+    if (slot.booking_id) {
+      navigate(`/vendor/booking-requests/${slot.booking_id}`)
+      return
+    }
+    navigate('/vendor/booking-requests')
+  }
+
+  // Cell click handler — blocked → unblock; booked → booking request; empty → block
   const handleCellClick = (day: Date, hour: number) => {
     if (suppressNextClick) {
       setSuppressNextClick(false)
@@ -442,9 +460,11 @@ export default function VendorCalendarPage() {
       setUnblockSlot(blocked)
       return
     }
-    // Single-click on empty cell = 1-hour block.
     const booked = cellSlots.find((s) => s.slot_type === 'booked')
-    if (booked) return
+    if (booked) {
+      openBookedSlot(booked)
+      return
+    }
     setBlockTarget({ day, hour, durationHours: 1 })
     setBlockError('')
   }
@@ -573,8 +593,9 @@ export default function VendorCalendarPage() {
                 </button>
                 <button
                   type="button"
+                  disabled={listingsReady && listings.length === 0}
                   onClick={() => { setBlockTarget({ day: new Date(), hour: new Date().getHours() }); setBlockError('') }}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-[#2563EB] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#1D4ED8]"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-[#2563EB] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#1D4ED8] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Plus className="size-4" />
                   Block time
@@ -582,8 +603,29 @@ export default function VendorCalendarPage() {
               </div>
             </div>
 
+            {listingsReady && listings.length === 0 && (
+              <MogzuLegacyDemoBanner
+                className="mb-4"
+                title="No listings yet"
+                detail="Publish at least one listing before blocking calendar time. Blocks are tied to a listing."
+              />
+            )}
+
+            {pageNotice && (
+              <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                {pageNotice}
+                <button
+                  type="button"
+                  onClick={() => setPageNotice('')}
+                  className="ml-2 underline"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+
             {/* Legend */}
-            <div className="mb-3 flex items-center gap-4 text-xs text-slate-500">
+            <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
               <span className="flex items-center gap-1.5">
                 <span className="inline-block size-3 rounded-sm bg-rose-200 border border-rose-300" />
                 Blocked
@@ -592,7 +634,9 @@ export default function VendorCalendarPage() {
                 <span className="inline-block size-3 rounded-sm bg-blue-200 border border-blue-300" />
                 Booked
               </span>
-              <span className="text-slate-400">Click any empty cell to block it · Click blocked cell to unblock</span>
+              <span className="text-slate-400">
+                Drag across empty cells to block multiple hours · Click booked to open request · Click blocked to unblock
+              </span>
             </div>
 
             {loadError && (
@@ -663,7 +707,22 @@ export default function VendorCalendarPage() {
                             >
                               {dominated && (
                                 <div
-                                  className={`absolute inset-0.5 rounded text-[9px] font-medium px-1 py-0.5 flex flex-col justify-start overflow-hidden ${slotStyle(dominated.slot_type)}`}
+                                  role={dominated.slot_type === 'booked' ? 'button' : undefined}
+                                  tabIndex={dominated.slot_type === 'booked' ? 0 : undefined}
+                                  onKeyDown={
+                                    dominated.slot_type === 'booked'
+                                      ? (e) => {
+                                          if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault()
+                                            e.stopPropagation()
+                                            openBookedSlot(dominated)
+                                          }
+                                        }
+                                      : undefined
+                                  }
+                                  className={`absolute inset-0.5 rounded text-[9px] font-medium px-1 py-0.5 flex flex-col justify-start overflow-hidden ${slotStyle(dominated.slot_type)} ${
+                                    dominated.slot_type === 'booked' ? 'cursor-pointer hover:brightness-95' : ''
+                                  }`}
                                 >
                                   <span className="truncate">
                                     {dominated.slot_type === 'blocked' ? '🔒 Blocked' : '📅 Booked'}
@@ -709,7 +768,26 @@ export default function VendorCalendarPage() {
                         {upcomingSlots.map((s) => (
                           <div
                             key={s.id}
-                            className={`rounded-lg p-2 text-xs ${slotStyle(s.slot_type)}`}
+                            role={s.slot_type === 'booked' ? 'button' : undefined}
+                            tabIndex={s.slot_type === 'booked' ? 0 : undefined}
+                            onClick={
+                              s.slot_type === 'booked'
+                                ? () => openBookedSlot(s)
+                                : undefined
+                            }
+                            onKeyDown={
+                              s.slot_type === 'booked'
+                                ? (e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault()
+                                      openBookedSlot(s)
+                                    }
+                                  }
+                                : undefined
+                            }
+                            className={`rounded-lg p-2 text-xs ${slotStyle(s.slot_type)} ${
+                              s.slot_type === 'booked' ? 'cursor-pointer hover:brightness-95' : ''
+                            }`}
                           >
                             <div className="font-medium flex items-center gap-1">
                               {s.slot_type === 'blocked' ? (

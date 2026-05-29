@@ -1,0 +1,21 @@
+---
+description: Admin and lead-ops UI must follow ui-ux-pro-max and corporate gifting shop layout tokens
+globs:
+  - MogzuApplication/src/app/components/Admin*.tsx
+  - MogzuApplication/src/app/components/leads/**
+  - MogzuApplication/src/app/components/SalesPipelinePage.tsx
+  - MogzuApplication/src/app/pages/admin/**
+---
+
+# Admin UI — ui-ux-pro-max + Gifting Shop parity
+
+When designing or refactoring admin, sales, or lead-ops screens:
+
+1. **Invoke** the `ui-ux-pro-max` skill for layout, a11y, touch targets (44px), and hierarchy.
+2. **Reuse tokens** — do not invent one-off spacing or max-widths:
+   - `MogzuApplication/src/app/components/admin/adminModuleStyles.ts` (`ADMIN_MODULE`)
+   - `MogzuApplication/src/app/components/ui/mogzuGiftingStyles.ts` (shop reference: `MOGZU_MODULE_CONTAINER` = max-w 1280px)
+   - `MogzuApplication/src/app/components/ui/mogzuGlassStyles.ts` (glass hero/panels)
+3. **Page chrome** — `LeadOpsPageHeader` + `ADMIN_MODULE.page` wrapper.
+4. **Tabs/filters** — `moduleNavChipClass` / `leadOpsChipClass`, not ad-hoc pill styles.
+5. **Lead surfaces** — `LEAD_OPS` from `leadOpsStyles.ts`; pipeline and inbox must stay visually aligned.

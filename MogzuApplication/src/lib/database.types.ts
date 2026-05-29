@@ -551,6 +551,8 @@ export interface Booking {
   payment_reference: string | null
   payment_status: PaymentStatus
   purpose_note: string | null
+  required_approval_levels?: ('L1' | 'L2' | 'L3')[]
+  approved_approval_levels?: ('L1' | 'L2' | 'L3')[]
   approved_by: string | null
   approved_at: string | null
   cancelled_at: string | null

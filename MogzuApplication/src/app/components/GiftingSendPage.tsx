@@ -16,7 +16,17 @@ import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurfa
 import { useAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { storageService } from '@/lib/storage'
+import {
+  buildBookingApprovalFields,
+  notifyFirstApprovers,
+} from '@/lib/bookingApprovalMeta'
+import {
+  evaluateCorporateApproval,
+  listRules as listWorkflowRules,
+  type ApprovalEvaluation,
+} from '@/lib/approvalWorkflow'
 import type {
+  ApprovalWorkflowRule,
   GiftingRule,
   Listing,
   ListingImage,
@@ -62,6 +72,7 @@ export default function GiftingSendPage() {
 
   // Data
   const [rules, setRules] = useState<GiftingRule[]>([])
+  const [workflowRules, setWorkflowRules] = useState<ApprovalWorkflowRule[]>([])
   const [products, setProducts] = useState<ProductWithImages[]>([])
   const [recipients, setRecipients] = useState<UserProfile[]>([])
   const [loading, setLoading] = useState(true)
@@ -89,14 +100,16 @@ export default function GiftingSendPage() {
     setLoading(true)
     setLoadError('')
 
-    const [rRes, pRes, uRes] = await Promise.all([
+    const [rRes, pRes, uRes, wRes] = await Promise.all([
       db.giftingRules.listByCorporate(corporateId),
       db.listings.listByModule(MODULE_ID, 'active'),
       db.userProfiles.listByCorporate(corporateId),
+      listWorkflowRules(corporateId),
     ])
 
     if (rRes.error) setLoadError(rRes.error.message)
     setRules(((rRes.data ?? []) as GiftingRule[]).filter((r) => r.is_active))
+    setWorkflowRules(wRes.data ?? [])
 
     if (pRes.error) setLoadError(pRes.error.message)
     setProducts((pRes.data ?? []) as ProductWithImages[])
@@ -161,24 +174,45 @@ export default function GiftingSendPage() {
     return list
   }, [recipients, selectedRule, recipientSearch])
 
-  // Approval decision
-  const approvalDecision = useMemo(() => {
-    if (!selectedProduct) return { requiresApproval: false, reason: '' }
+  const approvalDecision = useMemo((): ApprovalEvaluation => {
+    if (!selectedProduct) {
+      return { requiresApproval: false, reason: '', requiredLevels: [] }
+    }
     const price = selectedProduct.base_price ?? 0
+    const workflow = evaluateCorporateApproval([], workflowRules, MODULE_ID, price)
+
+    const reasons: string[] = []
+    let giftingRequires = false
+
     if (!selectedRule) {
-      return { requiresApproval: false, reason: 'No gifting rule chosen — direct to vendor.' }
+      reasons.push('No gifting occasion rule — workflow thresholds still apply.')
+    } else if (selectedRule.requires_approval) {
+      giftingRequires = true
+      reasons.push('Gifting rule requires manager approval.')
+    } else if (price > selectedRule.budget_per_recipient) {
+      giftingRequires = true
+      reasons.push(
+        `Gift price ₹${price.toLocaleString('en-IN')} exceeds per-recipient budget ₹${selectedRule.budget_per_recipient.toLocaleString('en-IN')}.`,
+      )
     }
-    if (selectedRule.requires_approval) {
-      return { requiresApproval: true, reason: 'Rule requires manager approval.' }
-    }
-    if (price > selectedRule.budget_per_recipient) {
+
+    if (workflow.requiresApproval) reasons.push(workflow.reason)
+
+    const requiresApproval = giftingRequires || workflow.requiresApproval
+    if (!requiresApproval) {
       return {
-        requiresApproval: true,
-        reason: `Gift price ₹${price.toLocaleString('en-IN')} exceeds per-recipient budget ₹${selectedRule.budget_per_recipient.toLocaleString('en-IN')}.`,
+        requiresApproval: false,
+        reason: 'Within gifting budget and workflow limits — auto-approved.',
+        requiredLevels: [],
       }
     }
-    return { requiresApproval: false, reason: 'Within budget — auto-approved.' }
-  }, [selectedProduct, selectedRule])
+
+    return {
+      requiresApproval: true,
+      reason: reasons.join(' '),
+      requiredLevels: workflow.requiredLevels,
+    }
+  }, [selectedProduct, selectedRule, workflowRules])
 
   const next = () => {
     const order: StepKey[] = ['rule', 'product', 'recipient', 'message']
@@ -245,7 +279,7 @@ export default function GiftingSendPage() {
       payment_method: null,
       payment_reference: null,
       payment_status: 'pending',
-      purpose_note: composedNote,
+      ...buildBookingApprovalFields(composedNote, approvalDecision.requiredLevels),
       approved_by: null,
       approved_at: null,
       cancelled_at: null,
@@ -264,15 +298,10 @@ export default function GiftingSendPage() {
     }
 
     if (status === 'pending_approval' && corporateId) {
-      const { data: managers } = await db.userProfiles.listByRole(corporateId, 'l2_manager')
-      ;(managers ?? []).forEach((m) => {
-        db.notifications.notify({
-          userId: m.id,
-          type: 'approval_required',
-          title: 'New gift awaiting your approval',
-          body: `${selectedProduct.title} — ₹${total.toLocaleString('en-IN')} for ${recipientLabel}.`,
-          linkUrl: `/corporate/approvals/${data.id}`,
-        })
+      await notifyFirstApprovers(corporateId, approvalDecision.requiredLevels, {
+        bookingId: data.id,
+        title: 'New gift awaiting your approval',
+        body: `${selectedProduct.title} — ₹${total.toLocaleString('en-IN')} for ${recipientLabel}.`,
       })
     }
 
@@ -686,7 +715,7 @@ function StepMessage({
   recipient: UserProfile
   product: ProductWithImages
   rule: GiftingRule | null
-  approvalDecision: { requiresApproval: boolean; reason: string }
+  approvalDecision: ApprovalEvaluation
   etaLabel: string
 }) {
   return (
@@ -736,6 +765,11 @@ function StepMessage({
             : 'Auto-routed to vendor'}
         </p>
         <p className="mt-1 text-xs">{approvalDecision.reason}</p>
+        {approvalDecision.requiredLevels.length > 0 ? (
+          <p className="mt-2 text-xs font-medium">
+            Approval chain: {approvalDecision.requiredLevels.join(' → ')}
+          </p>
+        ) : null}
       </div>
     </div>
   )

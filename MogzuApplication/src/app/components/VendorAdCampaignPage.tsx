@@ -6,6 +6,7 @@ import { Card, CardContent, CardFooter } from '@/app/components/ui/card';
 import { Input } from '@/app/components/ui/input';
 import { VendorAppShell } from './layouts/VendorAppShell';
 import { VendorTopRightMenu } from './layouts/VendorTopRightMenu';
+import { MogzuLegacyDemoBanner } from '@/app/components/ui/MogzuLegacyDemoBanner';
 
 const plans = [
   {
@@ -89,10 +90,22 @@ export default function VendorAdCampaignPage() {
                 {uiNotice}
               </p>
             ) : null}
+            <MogzuLegacyDemoBanner className="mb-4" />
+            <p className="mb-6 text-sm text-slate-600">
+              Ad campaigns here are stored locally for demos. For corporate-visible promotions, use{' '}
+              <button
+                type="button"
+                className="font-semibold text-blue-600 hover:underline"
+                onClick={() => navigate('/vendor/promotions-live')}
+              >
+                live promotions
+              </button>
+              .
+            </p>
             <Button
               type="button"
               variant="ghost"
-              onClick={() => navigate('/vendor/promotions')}
+              onClick={() => navigate('/vendor/promotions-live')}
               className="mb-6 h-auto px-0 text-muted-foreground hover:bg-transparent hover:text-blue-600"
             >
               <ArrowLeft className="h-4 w-4" />

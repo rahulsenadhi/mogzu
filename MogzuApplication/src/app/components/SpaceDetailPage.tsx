@@ -1,12 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation, useParams, useSearchParams } from 'react-router';
-import { Calendar, ChevronDown, ChevronRight, Heart, MapPin, Share2, Star, Users, DoorOpen, Wifi, Armchair, Landmark, Projector, PresentationIcon, Coffee, GlassWater, Plug, X, ChevronLeft, Info, FileText, CheckCircle2, XCircle } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronRight, MapPin, Share2, Star, Users, DoorOpen, Wifi, Armchair, Landmark, Projector, PresentationIcon, Coffee, GlassWater, Plug, X, ChevronLeft, Info, FileText, CheckCircle2, XCircle } from 'lucide-react';
 import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
 import { PricingBlock, PricingMode } from './ui/PricingBlock';
 import { useAuth } from '@/lib/auth';
 import { ListingReviewsPanel } from './global/ListingReviewsPanel';
+import { WishlistHeart } from './global/WishlistHeart';
+import { DevMockDataBanner } from './global/DevMockDataBanner';
+import { isListingUuid, resolveSpacexListing } from '@/app/lib/activityListingResolver';
+import { storageService } from '@/lib/storage';
+import type { Listing, ListingImage } from '@/lib/database.types';
 
 interface ResponseStatusBannerProps {
   status: 'awaiting' | 'best_offer' | 'accepted' | 'declined';
@@ -143,6 +148,45 @@ function inferSpaceCategoryFromRouteId(id: string | undefined): 'conference' | '
   return undefined;
 }
 
+function listingGalleryUrls(l: Listing & { listing_images?: ListingImage[] }): string[] {
+  return (l.listing_images ?? [])
+    .sort((a, b) => a.display_order - b.display_order)
+    .map((img) => storageService.spaceImages.getUrl(img.storage_path))
+    .filter((url) => Boolean(url));
+}
+
+function listingToSpaceSnapshot(l: Listing & { listing_images?: ListingImage[] }): SpaceListingNavSnapshot {
+  const meta = (l.metadata ?? {}) as Record<string, unknown>;
+  const imgs = listingGalleryUrls(l);
+  const image = imgs[0] ?? '';
+  const capacity =
+    l.min_capacity != null && l.max_capacity != null
+      ? `${l.min_capacity}-${l.max_capacity}`
+      : l.max_capacity != null
+        ? `Up to ${l.max_capacity}`
+        : '—';
+  const priceSuffix =
+    l.price_unit === 'per_day' ? '/day' : l.price_unit === 'per_hour' ? '/hour' : '';
+  const price =
+    l.base_price != null
+      ? `₹${l.base_price.toLocaleString('en-IN')}${priceSuffix}`
+      : 'On request';
+  const rating = typeof meta.rating === 'number' ? meta.rating.toFixed(1) : 'New';
+  const rawTags = meta.tags;
+  const tags = Array.isArray(rawTags) ? rawTags.filter((t): t is string => typeof t === 'string') : undefined;
+  return {
+    id: l.id,
+    name: l.title,
+    type: typeof meta.spaceType === 'string' ? meta.spaceType : 'Workspace',
+    location: l.location_city ?? l.location_address ?? '',
+    capacity,
+    price,
+    rating,
+    image,
+    tags,
+  };
+}
+
 export default function SpaceDetailPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -163,7 +207,12 @@ export default function SpaceDetailPage() {
     categoryFromQuery ||
     inferSpaceCategoryFromRouteId(routeSpaceId) ||
     'conference';
-  const spaceListing = navState?.space;
+  const [liveListing, setLiveListing] = useState<(Listing & { listing_images?: ListingImage[] }) | null>(null);
+  const [usingDemoListing, setUsingDemoListing] = useState(false);
+  const spaceListing = useMemo(() => {
+    if (liveListing) return listingToSpaceSnapshot(liveListing);
+    return navState?.space ?? null;
+  }, [liveListing, navState?.space]);
   const [selectedTab, setSelectedTab] = useState('overview');
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -175,7 +224,6 @@ export default function SpaceDetailPage() {
   const [publishFeedback, setPublishFeedback] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const [isLiked, setIsLiked] = useState(false);
   const [shareFeedback, setShareFeedback] = useState('');
   const [bookingStartDate, setBookingStartDate] = useState('');
   const [bookingDateError, setBookingDateError] = useState('');
@@ -187,33 +235,42 @@ export default function SpaceDetailPage() {
   const [requestPriceModalOpen, setRequestPriceModalOpen] = useState(false);
   const [requestPriceNotes, setRequestPriceNotes] = useState('');
   const [pricingSidebarNotice, setPricingSidebarNotice] = useState('');
-  const [gridUiNotice, setGridUiNotice] = useState<string | null>(null);
-  const loadListingTimerRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    setPricingSidebarNotice('');
-  }, [vendorPricingMode]);
-
-  const loadListing = () => {
+  const loadListing = useCallback(async () => {
     setIsLoading(true);
     setLoadError('');
-    if (loadListingTimerRef.current) window.clearTimeout(loadListingTimerRef.current);
-    loadListingTimerRef.current = window.setTimeout(() => {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('error') === '1') {
-        setLoadError('Unable to load listing details right now. Please retry.');
-      }
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('error') === '1') {
+      setLoadError('Unable to load listing details right now. Please retry.');
       setIsLoading(false);
-    }, 700);
-  };
+      return;
+    }
+    if (!routeSpaceId) {
+      setLiveListing(null);
+      setUsingDemoListing(!navState?.space);
+      setIsLoading(false);
+      return;
+    }
+    try {
+      const listing = await resolveSpacexListing(routeSpaceId);
+      if (listing) {
+        setLiveListing(listing);
+        setUsingDemoListing(false);
+      } else if (navState?.space) {
+        setLiveListing(null);
+        setUsingDemoListing(true);
+      } else {
+        setLiveListing(null);
+        setUsingDemoListing(true);
+      }
+    } catch {
+      setLoadError('Unable to load listing details right now. Please retry.');
+    }
+    setIsLoading(false);
+  }, [routeSpaceId, navState?.space]);
 
   useEffect(() => {
     loadListing();
-    return () => {
-      if (loadListingTimerRef.current) window.clearTimeout(loadListingTimerRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname, location.search]);
+  }, [loadListing]);
 
   useEffect(() => {
     if (!bookingStartDate) {
@@ -232,6 +289,10 @@ export default function SpaceDetailPage() {
     const day = parsed.getDate();
     setIsBookingDateUnavailable(day % 7 === 0);
   }, [bookingStartDate]);
+
+  useEffect(() => {
+    setPricingSidebarNotice('');
+  }, [vendorPricingMode]);
 
   useEffect(() => {
     const raw = localStorage.getItem('vendorSpaceListingConfig');
@@ -499,7 +560,15 @@ export default function SpaceDetailPage() {
 
   const content = getCategoryContent();
   const parseInr = (value: string) => Number(value.replace(/[^\d]/g, '')) || 0;
-  const hourlyRate = Math.max(1, Math.round(parseInr(content.basePrice)));
+  const hourlyRate = useMemo(() => {
+    if (liveListing?.base_price != null) {
+      if (liveListing.price_unit === 'per_day') {
+        return Math.max(1, Math.round(liveListing.base_price / 8));
+      }
+      return Math.max(1, Math.round(liveListing.base_price));
+    }
+    return Math.max(1, Math.round(parseInr(content.basePrice)));
+  }, [liveListing, content.basePrice]);
   const dayRate = Math.round(hourlyRate * 8);
   const bookingAddons = [
     { id: 'av', label: 'AV Setup', amount: 2500 },
@@ -527,7 +596,13 @@ export default function SpaceDetailPage() {
   const displayCapacity = spaceListing?.capacity ?? content.capacity;
   const displayType = spaceListing?.type ?? content.type;
   const displayRating = spaceListing?.rating ?? '4.8';
+  const displayDescription = liveListing?.description ?? content.description;
   const listingPriceLine = spaceListing?.price;
+  const bookingListingId =
+    liveListing?.id ??
+    (routeSpaceId && isListingUuid(routeSpaceId) ? routeSpaceId : navState?.space?.id);
+  const canBookLive = Boolean(bookingListingId && isListingUuid(bookingListingId));
+  const wishlistListingId = bookingListingId ?? routeSpaceId ?? 'space-1';
 
   /** Maps mock space tabs to the same buyer-detail shape used by Mogzu Direct / partner listings (Wave 4 alignment). */
   const listingBuyerDetailShape: ListingBuyerDetailBlock = useMemo(
@@ -549,9 +624,15 @@ export default function SpaceDetailPage() {
     "https://images.unsplash.com/photo-1560204717-850e441065fd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjb3dvcmtpbmclMjBsb3VuZ2UlMjBhcmVhfGVufDF8fHx8MTc3MDU1MTI1MXww&ixlib=rb-4.1.0&q=80&w=1080",
     "https://images.unsplash.com/photo-1497366216548-37526070297c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
   ];
-  const galleryImages = spaceListing?.image
-    ? [spaceListing.image, ...fallbackGalleryImages.slice(1)]
-    : fallbackGalleryImages;
+  const liveGalleryUrls = liveListing ? listingGalleryUrls(liveListing) : [];
+  const galleryImages =
+    liveGalleryUrls.length > 0
+      ? liveGalleryUrls.length >= 5
+        ? liveGalleryUrls.slice(0, 5)
+        : [...liveGalleryUrls, ...fallbackGalleryImages].slice(0, 5)
+      : spaceListing?.image
+        ? [spaceListing.image, ...fallbackGalleryImages.slice(1)]
+        : fallbackGalleryImages;
 
   const openLightbox = (index: number) => {
     setCurrentImageIndex(index);
@@ -671,11 +752,7 @@ export default function SpaceDetailPage() {
               <span className="text-[#878e9e] break-words min-w-0">{displayName}</span>
             </div>
 
-            {gridUiNotice ? (
-              <p className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-                {gridUiNotice}
-              </p>
-            ) : null}
+            {usingDemoListing && !isLoading && !loadError && <DevMockDataBanner />}
 
             {/* Title and Actions Row */}
             <div className="flex items-center justify-between mb-4">
@@ -691,19 +768,7 @@ export default function SpaceDetailPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsLiked((prev) => !prev);
-                    setGridUiNotice(
-                      `Wishlist for "${displayName}" will be available in a future release.`,
-                    );
-                  }}
-                  aria-label={isLiked ? 'Remove from favorites' : 'Add to favorites'}
-                  className="p-2 border border-[#e5e7eb] rounded-lg hover:bg-gray-50"
-                >
-                  <Heart className={`w-5 h-5 ${isLiked ? 'text-[#ef4444] fill-current' : 'text-[#878e9e]'}`} />
-                </button>
+                <WishlistHeart listingId={wishlistListingId} variant="inline" />
                 <button
                   type="button"
                   onClick={handleShare}
@@ -788,7 +853,7 @@ export default function SpaceDetailPage() {
                         {/* Description */}
                         <h2 className="text-lg font-semibold text-[#0e1e3f] mb-2.5">{displayName}</h2>
                         <p className="text-sm text-[#475569] leading-relaxed mb-3">
-                          {content.description}
+                          {displayDescription}
                         </p>
 
                         {/* Location and Details */}
@@ -1386,6 +1451,10 @@ export default function SpaceDetailPage() {
                                 }
                                 if (isBookingDateUnavailable) {
                                   setBookingDateError('Please select a different date. This date is unavailable.');
+                                  return;
+                                }
+                                if (canBookLive && bookingListingId) {
+                                  navigate(`/book/space/${encodeURIComponent(bookingListingId)}`);
                                   return;
                                 }
                             const bookingId = routeSpaceId ? encodeURIComponent(routeSpaceId) : 'space-1';

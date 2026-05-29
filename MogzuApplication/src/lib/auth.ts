@@ -5,11 +5,12 @@ import {
   useState,
   createElement,
   useMemo,
+  useCallback,
   type ReactNode,
 } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from './supabase'
-import { getAuthCallbackUrl, getPostLoginPath } from './authRedirect'
+import { getAuthCallbackUrl, getCorporateLoginRedirectPath } from './authRedirect'
 import { setLocale as setI18nLocale } from './i18n'
 import type { CorporateAccount, UserProfile, UserRole } from './database.types'
 
@@ -37,6 +38,7 @@ interface AuthActions {
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
   setActiveRole: (role: UserRole) => Promise<{ error: string | null }>
+  clearRoleOverride: () => void
 }
 
 const ACTIVE_ROLE_KEY = 'mogzu_active_role'
@@ -146,6 +148,11 @@ function writeStoredRole(role: UserRole | null) {
   }
 }
 
+/** Clear persisted role override (e.g. when entering corporate login). */
+export function clearActiveRoleOverride() {
+  writeStoredRole(null)
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(() => readDemoProfile())
@@ -249,6 +256,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
+      // Real sign-in replaces any dev demo persona or stale role override.
+      setDemoProfile(null)
+      setIsDemoMode(false)
+      setActiveRoleOverride(null)
+      writeStoredRole(null)
+
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) {
         return { error: formatAuthError(error.message), redirectTo: null }
@@ -271,7 +284,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const role = profileRow?.role ?? null
-      return { error: null, redirectTo: getPostLoginPath(role, profileRow) }
+      return {
+        error: null,
+        redirectTo: getCorporateLoginRedirectPath(profileRow, role),
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Sign in failed.'
       return { error: formatAuthError(msg) ?? 'Sign in failed.', redirectTo: null }
@@ -368,6 +384,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: null }
   }
 
+  const clearRoleOverride = useCallback(() => {
+    setActiveRoleOverride(null)
+    writeStoredRole(null)
+  }, [])
+
   const value = useMemo<AuthContextValue>(
     () => ({
       session,
@@ -385,6 +406,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut,
       refreshProfile,
       setActiveRole,
+      clearRoleOverride,
     }),
     [session, profile, corporateAccount, isLoading, activeRole, availableRoles],
   )

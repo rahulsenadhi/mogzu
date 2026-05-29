@@ -1,25 +1,35 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router';
-import { ChevronRight, MapPin, Users, Star, Clock, Calendar, Shield, Heart, Share2, Check, Info, FileText, CheckCircle2, XCircle } from 'lucide-react';
+import { ChevronRight, MapPin, Users, Star, Clock, Calendar, Shield, Share2, Check, Info, FileText, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
 import { ImageWithFallback } from './figma/ImageWithFallback';
+import { DevMockDataBanner } from './global/DevMockDataBanner';
+import { WishlistHeart } from './global/WishlistHeart';
 import { QA_IMAGES } from '../lib/qaImagery';
 import PriceBlock from './ui/PriceBlock';
 import type { ListingBuyerDetailBlock } from '@/app/lib/mogzuDomain';
 import { formatBuyerPaymentSummary } from '@/app/lib/mogzuDomain';
-import { getWishlistIds, toggleWishlistId } from '@/app/lib/listingSessionState';
-import { useBookingDraft } from '@/app/lib/bookingDraft';
+import { useBookingDraft, type BookingDraft } from '@/app/lib/bookingDraft';
+import { submitBookingDraftToSupabase } from '@/app/lib/submitBookingDraftToSupabase';
+import { useAuth } from '@/lib/auth';
 import { ListingReviewsPanel } from './global/ListingReviewsPanel';
+import {
+  isListingUuid,
+  resolveEventsListingDetail,
+  uuidToNumber,
+  type EventsListingDetail,
+} from '@/app/lib/activityListingResolver';
+import { storageService } from '@/lib/storage';
 
 interface ResponseStatusBannerProps {
   status: 'awaiting' | 'best_offer' | 'accepted' | 'declined';
   comment?: string;
-  eventId?: number;
+  eventListingId?: string;
 }
 
-function ResponseStatusBanner({ status, comment, eventId }: ResponseStatusBannerProps) {
+function ResponseStatusBanner({ status, comment, eventListingId }: ResponseStatusBannerProps) {
   const navigate = useNavigate();
 
   const getBannerConfig = () => {
@@ -88,10 +98,12 @@ function ResponseStatusBanner({ status, comment, eventId }: ResponseStatusBanner
           type="button"
           onClick={() => {
             if (status === 'best_offer') {
-              const targetId = eventId ?? 0;
-              navigate(`/book/event/${targetId}`, {
-                state: { acceptedOffer: true },
-              });
+              const targetId = eventListingId ?? '';
+              if (targetId) {
+                navigate(`/book/event/${encodeURIComponent(targetId)}`, {
+                  state: { acceptedOffer: true },
+                });
+              }
               return;
             }
             if (status === 'declined') {
@@ -151,11 +163,83 @@ const eventActivities: Array<{
   // Adding just one item for demonstration, we can fallback to this if not found.
 ];
 
+type EventActivityView = {
+  id: number;
+  listingUuid: string | null;
+  title: string;
+  description: string;
+  location: string;
+  capacity: string;
+  rating: number;
+  price: string;
+  host: string;
+  hostNote: string;
+  image: string;
+  galleryImages?: string[];
+  buyer_detail?: ListingBuyerDetailBlock;
+};
+
+function listingToEventActivityView(l: EventsListingDetail): EventActivityView {
+  const meta = (l.metadata ?? {}) as Record<string, unknown>;
+  const imgs = (l.listing_images ?? [])
+    .sort((a, b) => a.display_order - b.display_order)
+    .map((img) => storageService.listingImages.getUrl(img.storage_path))
+    .filter(Boolean);
+  const image = imgs[0] ?? QA_IMAGES.eventCard[0] ?? '';
+  const capacity =
+    l.min_capacity != null && l.max_capacity != null
+      ? `Max: ${l.max_capacity}   Min: ${l.min_capacity}`
+      : l.max_capacity != null
+        ? `Up to ${l.max_capacity}`
+        : 'Flexible capacity';
+  const price =
+    l.base_price != null ? `₹${l.base_price.toLocaleString('en-IN')}` : 'On request';
+  const rawAmenities = meta.amenities;
+  const amenities = Array.isArray(rawAmenities)
+    ? rawAmenities.filter((a): a is string => typeof a === 'string')
+    : defaultEventListingBuyerDetail.amenities;
+  return {
+    id: uuidToNumber(l.id),
+    listingUuid: l.id,
+    title: l.title,
+    description: l.description ?? 'Corporate team activity with flexible booking options.',
+    location: l.location_city ?? l.location_address ?? 'Mumbai',
+    capacity,
+    rating: typeof meta.rating === 'number' ? meta.rating : 4.5,
+    price,
+    host:
+      l.vendors?.business_name ??
+      (typeof meta.vendor_name === 'string' ? meta.vendor_name : 'Vendor host'),
+    hostNote: typeof meta.hostNote === 'string' ? meta.hostNote : 'Popular with corporate teams',
+    image,
+    galleryImages: imgs.length > 1 ? imgs.slice(1) : undefined,
+    buyer_detail: {
+      ...defaultEventListingBuyerDetail,
+      amenities,
+      policies: Array.isArray(meta.policies)
+        ? meta.policies.filter((p): p is string => typeof p === 'string')
+        : defaultEventListingBuyerDetail.policies,
+    },
+  };
+}
+
+function mockToEventActivityView(
+  mock: (typeof eventActivities)[number],
+): EventActivityView {
+  return { ...mock, listingUuid: null };
+}
+
 export default function EventDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const [liked, setLiked] = useState(false);
+  const navState = location.state as {
+    source_listing_id?: string;
+    pricing_type?: 'transparent' | 'offer_price' | 'request_for_price';
+  } | null;
+  const routeId = navState?.source_listing_id ?? id ?? '';
+  const [activity, setActivity] = useState<EventActivityView | null>(null);
+  const [usingDemo, setUsingDemo] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedTab, setSelectedTab] = useState('overview');
   const [isLoading, setIsLoading] = useState(true);
@@ -177,30 +261,46 @@ export default function EventDetailPage() {
   const [reportNotes, setReportNotes] = useState('');
   const [dateHintPulse, setDateHintPulse] = useState(false)
   const [dateHintText, setDateHintText] = useState('')
-  const [heartAnim, setHeartAnim] = useState<'in' | 'out' | null>(null)
-  const loadListingTimerRef = useRef<number | null>(null);
+  const [showReviewBars, setShowReviewBars] = useState(false)
   const { bookingDraft, setDraftPartial, clearDraft } = useBookingDraft();
+  const { profile, corporateId } = useAuth();
 
-  const loadListing = () => {
+  const loadListing = useCallback(async () => {
     setIsLoading(true);
     setLoadError('');
-    if (loadListingTimerRef.current) window.clearTimeout(loadListingTimerRef.current);
-    loadListingTimerRef.current = window.setTimeout(() => {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('error') === '1') {
-        setLoadError('Unable to load event listing details. Please retry.');
-      }
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('error') === '1') {
+      setLoadError('Unable to load event listing details. Please retry.');
       setIsLoading(false);
-    }, 700);
-  };
+      return;
+    }
+    if (!routeId) {
+      setActivity(mockToEventActivityView(eventActivities[0]));
+      setUsingDemo(true);
+      setIsLoading(false);
+      return;
+    }
+    try {
+      const listing = await resolveEventsListingDetail(routeId);
+      if (listing) {
+        setActivity(listingToEventActivityView(listing));
+        setUsingDemo(false);
+      } else {
+        const numId = Number(routeId);
+        const mock =
+          eventActivities.find((a) => a.id === numId) ?? eventActivities[0];
+        setActivity(mockToEventActivityView(mock));
+        setUsingDemo(true);
+      }
+    } catch {
+      setLoadError('Unable to load event listing details. Please retry.');
+    }
+    setIsLoading(false);
+  }, [routeId]);
 
   useEffect(() => {
     loadListing();
-    return () => {
-      if (loadListingTimerRef.current) window.clearTimeout(loadListingTimerRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.search]);
+  }, [loadListing]);
 
   useEffect(() => {
     if (!bookingStartDate) {
@@ -266,21 +366,27 @@ export default function EventDetailPage() {
     }
   };
 
-  const activity = eventActivities.find((a) => a.id === parseInt(id || '1')) || eventActivities[0];
-  const listingId = String(activity.id);
+  const listingId = activity?.listingUuid ?? (activity ? String(activity.id) : '');
   const pricingType =
-    (location.state as { pricing_type?: 'transparent' | 'offer_price' | 'request_for_price' } | null)?.pricing_type ??
-    (activity.id % 3 === 0 ? 'request_for_price' : activity.id % 2 === 0 ? 'transparent' : 'offer_price');
-  const eventBuyerDetail = activity.buyer_detail ?? defaultEventListingBuyerDetail;
-  const galleryImages = activity.galleryImages ?? [];
-  const allGallery = [activity.image, ...galleryImages];
+    navState?.pricing_type ??
+    (activity
+      ? activity.id % 3 === 0
+        ? 'request_for_price'
+        : activity.id % 2 === 0
+          ? 'transparent'
+          : 'offer_price'
+      : 'transparent');
+  const allGallery = activity
+    ? [activity.image, ...(activity.galleryImages ?? [])]
+    : [];
 
   useEffect(() => {
+    if (!activity) return;
     setMainImage(activity.image);
-    setLiked(getWishlistIds().includes(listingId));
-  }, [activity.image, listingId]);
+  }, [activity]);
 
   useEffect(() => {
+    if (!activity || !listingId) return;
     setDraftPartial({
       listing: {
         id: listingId,
@@ -301,12 +407,12 @@ export default function EventDetailPage() {
         setBookingSlot(`${bookingDraft.selected_slot.start_time}-${bookingDraft.selected_slot.end_time}`);
       }
     }
-  }, [listingId, activity.title, activity.image, activity.location, activity.host, activity.rating, pricingType, setDraftPartial]);
+  }, [activity, listingId, pricingType, setDraftPartial, bookingDraft.listing, bookingDraft.selected_date, bookingDraft.selected_slot]);
 
   useEffect(() => {
     if (!shareFeedback) return;
-    const id = window.setTimeout(() => setShareFeedback(''), 2000);
-    return () => window.clearTimeout(id);
+    const timerId = window.setTimeout(() => setShareFeedback(''), 2000);
+    return () => window.clearTimeout(timerId);
   }, [shareFeedback]);
 
   useEffect(() => {
@@ -320,6 +426,42 @@ export default function EventDetailPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, [lightboxOpen, allGallery.length]);
 
+  useEffect(() => {
+    const t = window.setTimeout(() => setShowReviewBars(true), 120);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#FFFDF9] flex items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-[#2563eb]" aria-label="Loading event" />
+      </div>
+    );
+  }
+
+  if (loadError || !activity) {
+    return (
+      <div className="min-h-screen bg-[#FFFDF9] p-8">
+        <div className="max-w-4xl mx-auto bg-white border border-[#ececec] rounded-xl p-8 text-center">
+          <h1 className="text-[22px] font-bold text-[#0e1e3f]">
+            {loadError || 'Event not found'}
+          </h1>
+          <button
+            type="button"
+            onClick={() => navigate('/event-activity')}
+            className="mt-4 h-11 px-6 rounded-full bg-[#2563eb] text-white text-[13px] font-semibold"
+          >
+            Back to Event Activity
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const canBookLive = isListingUuid(listingId);
+  const eventBuyerDetail = activity.buyer_detail ?? defaultEventListingBuyerDetail;
+  const galleryImages = activity.galleryImages ?? [];
+
   const reviewRows = [
     { stars: 5, pct: 68 },
     { stars: 4, pct: 24 },
@@ -327,12 +469,6 @@ export default function EventDetailPage() {
     { stars: 2, pct: 2 },
     { stars: 1, pct: 0 },
   ];
-  const [showReviewBars, setShowReviewBars] = useState(false);
-  useEffect(() => {
-    const t = window.setTimeout(() => setShowReviewBars(true), 120);
-    return () => window.clearTimeout(t);
-  }, []);
-
   const tabs = [
     { id: 'overview', label: 'Overview' },
     { id: 'amenities', label: 'Amenities' },
@@ -428,6 +564,8 @@ export default function EventDetailPage() {
               <span className="text-[#878e9e] break-words min-w-0">{activity.title}</span>
             </div>
 
+            {usingDemo ? <DevMockDataBanner /> : null}
+
             {gridUiNotice ? (
               <p className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
                 {gridUiNotice}
@@ -496,21 +634,7 @@ export default function EventDetailPage() {
                         <p className="corp-body text-[#878e9e] leading-[1.7]">{activity.description}</p>
                       </div>
                       <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setLiked((prev) => !prev);
-                            toggleWishlistId(listingId);
-                            setHeartAnim(liked ? 'out' : 'in')
-                            window.setTimeout(() => setHeartAnim(null), 180)
-                          }}
-                          aria-label={liked ? 'Remove from favorites' : 'Add to favorites'}
-                          className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
-                            liked ? 'bg-[#fee2e2] text-[#ef4444]' : 'bg-gray-100 text-[#878e9e] hover:bg-gray-200'
-                          } ${heartAnim === 'in' ? 'corp-heart-pop-in' : ''} ${heartAnim === 'out' ? 'corp-heart-pop-out' : ''}`}
-                        >
-                          <Heart className={`w-5 h-5 ${liked ? 'fill-current' : ''}`} />
-                        </button>
+                        <WishlistHeart listingId={listingId} variant="inline" />
                         <button
                           type="button"
                           onClick={handleShare}
@@ -823,12 +947,12 @@ export default function EventDetailPage() {
                           vendor_name: activity.host,
                           rating: activity.rating,
                         }}
-                        onProceedToBooking={(payload) => {
+                        onProceedToBooking={async (payload) => {
                           if (payload.pricing_type !== 'request_for_price' && !validateBookingStartDate()) return;
                           const now = new Date()
                           const refPrefix = payload.pricing_type === 'request_for_price' ? 'RFQ' : 'MGZ'
                           const generatedRef = `#${refPrefix}-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${Math.floor(1000 + Math.random() * 9000)}`
-                          setDraftPartial({
+                          const draftPatch = {
                             pricing_type: payload.pricing_type,
                             selected_date: payload.selected_date ?? null,
                             selected_slot: payload.selected_slot
@@ -850,12 +974,59 @@ export default function EventDetailPage() {
                               platform_fee: payload.platform_fee ?? null,
                               grand_total: payload.grand_total ?? null,
                             },
-                            status: payload.pricing_type === 'request_for_price' ? 'submitted' : 'draft',
+                            status: payload.pricing_type === 'request_for_price' ? 'submitted' as const : 'draft' as const,
                             booking_reference: payload.pricing_type === 'request_for_price' ? generatedRef : null,
                             submitted_at: payload.pricing_type === 'request_for_price' ? now.toISOString() : null,
-                          })
+                          }
+                          setDraftPartial(draftPatch)
                           if (payload.pricing_type === 'request_for_price') {
+                            if (canBookLive && corporateId && profile?.id && activity) {
+                              const merged: BookingDraft = {
+                                ...bookingDraft,
+                                ...draftPatch,
+                                listing: bookingDraft.listing ?? {
+                                  id: listingId,
+                                  title: activity.title,
+                                  image: activity.image,
+                                  city: activity.location,
+                                },
+                              }
+                              const result = await submitBookingDraftToSupabase(merged, {
+                                corporateId,
+                                userId: profile.id,
+                                contactNote: payload.request?.requirements ?? null,
+                              })
+                              if (result.bookingId) {
+                                if (result.requiresApproval) {
+                                  navigate(
+                                    `/booking-approval-request?bookingId=${encodeURIComponent(result.bookingId)}`,
+                                    {
+                                      state: {
+                                        category: 'activity',
+                                        venueName: merged.listing?.title,
+                                        totalAmount: merged.calculated.grand_total,
+                                        bookingId: result.bookingId,
+                                      },
+                                    },
+                                  )
+                                  return
+                                }
+                                navigate(
+                                  `/booking-confirmation?bookingId=${encodeURIComponent(result.bookingId)}`,
+                                )
+                                return
+                              }
+                            }
                             navigate('/booking-confirmation')
+                            return
+                          }
+                          if (canBookLive) {
+                            navigate(`/book/event/${encodeURIComponent(listingId)}`, {
+                              state: {
+                                selectedDate: payload.selected_date,
+                                groupSize: payload.group_size,
+                              },
+                            })
                             return
                           }
                           navigate('/booking/new', { state: { booking: payload } });
@@ -890,7 +1061,7 @@ export default function EventDetailPage() {
                       <div className="space-y-3">
                         <ResponseStatusBanner
                           status="awaiting"
-                          eventId={activity.id}
+                          eventListingId={listingId}
                         />
                       </div>
                     </div>

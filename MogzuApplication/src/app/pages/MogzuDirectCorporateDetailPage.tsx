@@ -19,6 +19,7 @@ import { useAuth } from '@/lib/auth';
 import type { CatalogueItem } from '@/utils/catalogueTypes';
 import { storageService } from '@/lib/storage';
 import PublicLeadForm from '@/app/components/PublicLeadForm';
+import { DevMockDataBanner } from '@/app/components/global/DevMockDataBanner';
 import { useCurrency } from '@/lib/i18n/useCurrency';
 import {
   MOGZU_GLASS_CARD,
@@ -180,6 +181,7 @@ export default function MogzuDirectCorporateDetailPage() {
 
   const moduleOk = isModule(moduleParam);
   const galleryImages = listing?.images ?? [];
+  const usingDemoCatalog = liveLookupDone && Boolean(listing) && !liveCatalogueItem;
 
   useEffect(() => {
     setHeroImage(galleryImages[0] ?? '');
@@ -254,6 +256,7 @@ export default function MogzuDirectCorporateDetailPage() {
         />
         <MogzuCorporateScrollSurface>
           <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6 md:py-8">
+            {usingDemoCatalog ? <DevMockDataBanner /> : null}
             {!moduleOk || !idParam ? (
               <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
                 Invalid listing URL.

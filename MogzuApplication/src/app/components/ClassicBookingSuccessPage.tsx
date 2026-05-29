@@ -1,12 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router'
 import { CheckCircle2, Calendar, MapPin, Users, Receipt } from 'lucide-react'
 import { SharedHeader } from './layouts/SharedHeader'
 import { SharedSidebar } from './layouts/SharedSidebar'
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface'
+import { DevMockDataBanner } from '@/app/components/global/DevMockDataBanner'
+import { db } from '@/lib/db'
+import type { Database } from '@/lib/database.types'
 
 interface ClassicBookingSuccessState {
   category?: string
+  bookingId?: string
   bookingFlow?: {
     spaceName?: string
     location?: string
@@ -23,6 +27,10 @@ interface ClassicBookingSuccessState {
   vendorOrderId?: string
 }
 
+type LiveBooking = Database['public']['Tables']['bookings']['Row'] & {
+  listings?: { title?: string | null; location?: string | null } | null
+}
+
 function generateRef() {
   return `MG-${Date.now().toString(36).toUpperCase().slice(-6)}`
 }
@@ -35,17 +43,41 @@ export default function ClassicBookingSuccessPage() {
   const location = useLocation()
   const state = location.state as ClassicBookingSuccessState | undefined
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [ref] = useState(() => generateRef())
+  const [fallbackRef] = useState(() => generateRef())
+  const [liveBooking, setLiveBooking] = useState<LiveBooking | null>(null)
+  const [loadError, setLoadError] = useState('')
+
+  const bookingId = state?.bookingId ?? ''
+
+  const loadBooking = useCallback(async () => {
+    if (!bookingId) {
+      setLiveBooking(null)
+      return
+    }
+    const { data, error } = await db.bookings.getById(bookingId)
+    if (error || !data) {
+      setLoadError(error?.message ?? 'Could not load booking details.')
+      setLiveBooking(null)
+      return
+    }
+    setLiveBooking(data as LiveBooking)
+  }, [bookingId])
 
   useEffect(() => {
-    if (!state?.category && !state?.bookingFlow) {
+    void loadBooking()
+  }, [loadBooking])
+
+  useEffect(() => {
+    if (!state?.category && !state?.bookingFlow && !bookingId) {
       navigate('/event-activity', { replace: true })
     }
-  }, [state, navigate])
+  }, [state, bookingId, navigate])
 
-  if (!state) return null
+  if (!state && !bookingId) return null
 
-  const { category = 'conference', bookingFlow, amountPaid, remainingAmount, paymentTiming } = state
+  const { category = 'conference', bookingFlow, amountPaid, remainingAmount, paymentTiming } =
+    state ?? {}
+
   const categoryLabel: Record<string, string> = {
     conference: 'Conference Room',
     coworking: 'Co-working Space',
@@ -56,14 +88,24 @@ export default function ClassicBookingSuccessPage() {
     default: 'Space Booking',
   }
 
-  const venueName = bookingFlow?.spaceName ?? categoryLabel[category] ?? categoryLabel.default
-  const venueLocation = bookingFlow?.location ?? 'Mumbai'
-  const date = bookingFlow?.bookingStartDate ?? 'Scheduled Date'
+  const ref = liveBooking?.id?.slice(0, 8).toUpperCase() ?? fallbackRef
+  const venueName =
+    liveBooking?.listings?.title ?? bookingFlow?.spaceName ?? categoryLabel[category] ?? categoryLabel.default
+  const venueLocation =
+    liveBooking?.listings?.location ?? bookingFlow?.location ?? 'Mumbai'
+  const date = bookingFlow?.bookingStartDate
+    ? bookingFlow.bookingStartDate
+    : liveBooking?.start_time
+      ? new Date(liveBooking.start_time).toLocaleDateString('en-IN', { dateStyle: 'medium' })
+      : 'Scheduled Date'
   const timeSlot =
     bookingFlow?.bookingFromTime && bookingFlow?.bookingToTime
       ? `${bookingFlow.bookingFromTime} – ${bookingFlow.bookingToTime}`
-      : null
-  const attendees = bookingFlow?.attendees
+      : liveBooking?.start_time && liveBooking?.end_time
+        ? `${new Date(liveBooking.start_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} – ${new Date(liveBooking.end_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`
+        : null
+  const attendees = bookingFlow?.attendees ?? liveBooking?.group_size
+  const paidAmount = amountPaid ?? (liveBooking?.payment_status === 'paid' ? liveBooking.total_amount : null)
 
   return (
     <div className="flex h-screen bg-[#FFFDF9] overflow-hidden">
@@ -78,9 +120,18 @@ export default function ClassicBookingSuccessPage() {
         />
         <MogzuCorporateScrollSurface>
           <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-8">
-            <div className="max-w-2xl mx-auto rounded-2xl border border-slate-200 bg-white p-6 md:p-8 shadow-sm">
+            {!bookingId && (
+              <div className="max-w-2xl mx-auto mb-4">
+                <DevMockDataBanner message="Demo confirmation — classic checkout without a live listing UUID." />
+              </div>
+            )}
+            {loadError && bookingId ? (
+              <p className="max-w-2xl mx-auto mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                {loadError}
+              </p>
+            ) : null}
 
-              {/* Header */}
+            <div className="max-w-2xl mx-auto rounded-2xl border border-slate-200 bg-white p-6 md:p-8 shadow-sm">
               <div className="flex items-start gap-4 mb-6">
                 <div className="size-14 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
                   <CheckCircle2 className="size-8 text-emerald-600" />
@@ -96,7 +147,6 @@ export default function ClassicBookingSuccessPage() {
                 </div>
               </div>
 
-              {/* Booking Summary */}
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 mb-6 space-y-3">
                 <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-3">
                   Booking Summary
@@ -125,12 +175,12 @@ export default function ClassicBookingSuccessPage() {
                   </div>
                 )}
 
-                {amountPaid != null && (
+                {paidAmount != null && (
                   <div className="flex items-center gap-3">
                     <Receipt className="size-4 text-slate-400 flex-shrink-0" />
                     <div>
                       <p className="text-sm font-medium text-slate-900">
-                        {inr(amountPaid)} paid
+                        {inr(paidAmount)} paid
                         {paymentTiming === 'partial' ? ' (partial)' : ''}
                       </p>
                       {remainingAmount != null && remainingAmount > 0 && (
@@ -143,7 +193,6 @@ export default function ClassicBookingSuccessPage() {
                 )}
               </div>
 
-              {/* Status timeline */}
               <div className="rounded-xl border border-slate-200 bg-white p-5 mb-6">
                 <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-4">
                   What happens next
@@ -175,11 +224,10 @@ export default function ClassicBookingSuccessPage() {
                 </ol>
               </div>
 
-              {/* Actions */}
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   type="button"
-                  onClick={() => navigate('/bookings')}
+                  onClick={() => navigate(bookingId ? `/bookings/${bookingId}` : '/bookings')}
                   className="flex-1 py-3 bg-[#2563eb] text-white rounded-xl text-sm font-semibold hover:bg-[#1d4ed8] transition-colors"
                 >
                   View My Bookings
@@ -192,7 +240,6 @@ export default function ClassicBookingSuccessPage() {
                   Browse More Spaces
                 </button>
               </div>
-
             </div>
           </div>
         </MogzuCorporateScrollSurface>

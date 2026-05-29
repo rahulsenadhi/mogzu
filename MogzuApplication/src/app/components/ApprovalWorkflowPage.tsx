@@ -1,12 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
+import { MogzuLegacyDemoBanner } from './ui/MogzuLegacyDemoBanner';
 import { ChevronLeft, Plus, Trash2, ArrowRight, ShieldAlert, CheckCircle2, Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { listRules, saveRules } from '@/lib/approvalWorkflow';
-import type { WorkflowLevel } from '@/lib/approvalWorkflow';
+import {
+  formatWorkflowLevels,
+  listRules,
+  resolveLevelsForAmount,
+  saveRules,
+  WORKFLOW_PREVIEW_AMOUNTS,
+  type WorkflowLevel,
+} from '@/lib/approvalWorkflow';
+import type { ApprovalWorkflowRule } from '@/lib/database.types';
 
 interface Rule {
   id: string;
@@ -30,8 +38,29 @@ export default function ApprovalWorkflowPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [rules, setRules] = useState<Rule[]>(DEFAULT_RULES);
+  const [usingTemplateDefaults, setUsingTemplateDefaults] = useState(true);
+  const [tableMissing, setTableMissing] = useState(false);
 
   const canEdit = role === 'l3_admin' || role === 'mogzu_admin';
+
+  const sortedRules = useMemo(
+    () => [...rules].sort((a, b) => a.threshold - b.threshold),
+    [rules],
+  );
+
+  const previewRules = useMemo((): ApprovalWorkflowRule[] => {
+    return sortedRules.map((r, i) => ({
+      id: r.id,
+      corporate_id: corporateId ?? '',
+      threshold: r.threshold,
+      required_levels: r.levels,
+      exception_note: r.exception ?? null,
+      display_order: i,
+      is_active: true,
+      created_at: '',
+      updated_at: '',
+    }));
+  }, [sortedRules, corporateId]);
 
   useEffect(() => {
     if (!corporateId) {
@@ -44,11 +73,15 @@ export default function ApprovalWorkflowPage() {
       if (cancelled) return;
       if (error) {
         setSaveError(error);
+        setTableMissing(/approval_workflow_rules|relation|does not exist/i.test(error));
+        setUsingTemplateDefaults(true);
+        setRules(DEFAULT_RULES);
         setIsLoading(false);
         return;
       }
       if (data.length === 0) {
         setRules(DEFAULT_RULES);
+        setUsingTemplateDefaults(true);
       } else {
         setRules(
           data.map((r) => ({
@@ -58,7 +91,9 @@ export default function ApprovalWorkflowPage() {
             exception: r.exception_note ?? undefined,
           })),
         );
+        setUsingTemplateDefaults(false);
       }
+      setTableMissing(false);
       setIsLoading(false);
     });
     return () => {
@@ -117,19 +152,34 @@ export default function ApprovalWorkflowPage() {
       }
     }
     setIsSubmitting(true);
-    const drafts = rules.map((r, i) => ({
+    const ordered = [...rules].sort((a, b) => a.threshold - b.threshold);
+    const drafts = ordered.map((r, i) => ({
       threshold: r.threshold,
       required_levels: r.levels,
       exception_note: r.exception ?? null,
       display_order: i,
     }));
     const { error } = await saveRules(corporateId, drafts);
-    setIsSubmitting(false);
     if (error) {
+      setIsSubmitting(false);
       setSaveError(error);
+      setTableMissing(/approval_workflow_rules|relation|does not exist/i.test(error));
       return;
     }
-    setSaveMessage('Workflow saved.');
+    const reload = await listRules(corporateId);
+    if (reload.data.length > 0) {
+      setRules(
+        reload.data.map((r) => ({
+          id: r.id,
+          threshold: r.threshold,
+          levels: r.required_levels as WorkflowLevel[],
+          exception: r.exception_note ?? undefined,
+        })),
+      );
+      setUsingTemplateDefaults(false);
+    }
+    setIsSubmitting(false);
+    setSaveMessage('Workflow saved. Bookings now use these thresholds on submit.');
   };
 
   return (
@@ -164,6 +214,30 @@ export default function ApprovalWorkflowPage() {
               </button>
             </div>
 
+            {!corporateId && (
+              <MogzuLegacyDemoBanner
+                className="mb-4"
+                title="Corporate account required"
+                detail="Sign in with an L3 corporate admin profile to load and save workflow rules."
+              />
+            )}
+
+            {tableMissing && (
+              <MogzuLegacyDemoBanner
+                className="mb-4"
+                title="Database migration required"
+                detail="Apply supabase/migrations/20260521000002_approval_workflow_rules.sql in Supabase, then reload this page."
+              />
+            )}
+
+            {usingTemplateDefaults && !tableMissing && corporateId && !isLoading && (
+              <MogzuLegacyDemoBanner
+                className="mb-4"
+                title="Using starter template"
+                detail="No saved rules yet — the defaults below are shown until you click Save workflow. Bookings will follow saved rules after the first save."
+              />
+            )}
+
             {!canEdit && (
               <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 Read-only view — only L3 admins can edit approval rules.
@@ -180,6 +254,31 @@ export default function ApprovalWorkflowPage() {
                 {saveError}
               </div>
             )}
+
+            <div className="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="text-sm font-semibold text-slate-900">Live preview</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                How booking totals map to approval chains (budget rules on each booking page still apply).
+              </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                {WORKFLOW_PREVIEW_AMOUNTS.map((amount) => {
+                  const levels = resolveLevelsForAmount(previewRules, amount);
+                  return (
+                    <div
+                      key={amount}
+                      className="rounded-lg border border-slate-100 bg-slate-50 px-4 py-3 text-sm"
+                    >
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                        ₹{amount.toLocaleString('en-IN')}
+                      </p>
+                      <p className="mt-1 font-semibold text-slate-900">
+                        {levels.length ? formatWorkflowLevels(levels) : 'No workflow approval'}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
 
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
               <div className="p-5 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
@@ -203,7 +302,7 @@ export default function ApprovalWorkflowPage() {
                 </div>
               ) : (
                 <div className="p-6 flex flex-col gap-6">
-                  {rules.map((rule, index) => (
+                  {sortedRules.map((rule, index) => (
                     <div key={rule.id} className="flex flex-col gap-4 p-5 rounded-lg border border-gray-200 bg-white shadow-sm relative group">
                       <button
                         onClick={() => removeRule(rule.id)}

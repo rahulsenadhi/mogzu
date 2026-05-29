@@ -1,7 +1,7 @@
 import { Search } from 'lucide-react'
-import { MOGZU_GLASS_INPUT } from '@/app/components/ui/mogzuGlassStyles'
+import { ADMIN_MODULE } from '@/app/components/admin/adminModuleStyles'
+import { leadOpsChipClass } from '@/app/components/leads/leadOpsStyles'
 import { LEAD_QUICK_FILTERS, type LeadQuickFilter } from '@/lib/leadTriageUtils'
-
 type LeadTriageToolbarProps = {
   search: string
   onSearchChange: (value: string) => void
@@ -12,7 +12,6 @@ type LeadTriageToolbarProps = {
   searchPlaceholder?: string
   sticky?: boolean
 }
-
 export function LeadTriageToolbar({
   search,
   onSearchChange,
@@ -25,26 +24,28 @@ export function LeadTriageToolbar({
 }: LeadTriageToolbarProps) {
   return (
     <div
-      className={`${sticky ? 'sticky top-0 z-10' : ''} -mx-1 space-y-3 border-b border-white/60 bg-white/80 px-1 py-3 backdrop-blur-xl`}
+      className={`${ADMIN_MODULE.card} space-y-4 p-4 sm:p-5 ${sticky ? 'sticky top-0 z-10' : ''}`}
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs font-medium text-slate-500">
-          Showing <span className="font-semibold text-slate-800">{visibleCount}</span> of{' '}
-          <span className="font-semibold text-slate-800">{totalCount}</span> leads
-        </p>
-        <div className={`w-full max-w-sm ${MOGZU_GLASS_INPUT}`}>
-          <Search className="size-4 shrink-0 text-slate-400" />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative min-w-0 flex-1">
+          <Search
+            className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400"
+            aria-hidden
+          />
           <input
             type="search"
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder={searchPlaceholder}
             aria-label="Search leads"
-            className="w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+            className={`${ADMIN_MODULE.input} pl-10`}
           />
         </div>
+        <p className="shrink-0 text-sm text-slate-500">
+          <span className="font-semibold text-slate-900">{visibleCount}</span> of{' '}
+          <span className="font-semibold text-slate-900">{totalCount}</span> leads
+        </p>
       </div>
-
       <div className="flex flex-wrap gap-2" role="group" aria-label="Quick lead filters">
         {LEAD_QUICK_FILTERS.map((preset) => (
           <button
@@ -52,11 +53,7 @@ export function LeadTriageToolbar({
             type="button"
             onClick={() => onQuickFilterChange(preset.id)}
             aria-pressed={quickFilter === preset.id}
-            className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#93c5fd]/60 ${
-              quickFilter === preset.id
-                ? 'bg-[#2563EB] text-white shadow-sm'
-                : 'border border-slate-200 bg-white/90 text-slate-600 hover:border-slate-300 hover:bg-white'
-            }`}
+            className={leadOpsChipClass(quickFilter === preset.id)}
           >
             {preset.label}
           </button>

@@ -137,10 +137,7 @@ export default function VendorPromotionsRealPage() {
     const ref = window.prompt('Razorpay payment id (stopgap):')
     if (!ref) return
     await db.promotions.setStatus(p.id, 'pending_approval')
-    await (db as any).supabase
-      ?.from('promotions')
-      .update({ paid_boost_payment_reference: ref })
-      .eq('id', p.id)
+    await db.promotions.setPaymentReference(p.id, ref)
     setNotice('Payment recorded. Sent to admin approval.')
     load()
   }

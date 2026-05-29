@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router';
 import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
@@ -11,6 +11,17 @@ import { deriveBookingTypeFromStatus } from '@/app/lib/bookingStatus';
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { submitBrandingSelection, toPlacementType } from '@/lib/giftingBranding';
+import {
+  buildBookingApprovalFields,
+  notifyFirstApprovers,
+} from '@/lib/bookingApprovalMeta';
+import {
+  evaluateCorporateApproval,
+  formatWorkflowLevels,
+  listRules as listWorkflowRules,
+} from '@/lib/approvalWorkflow';
+import type { ApprovalWorkflowRule } from '@/lib/database.types';
+import { DevMockDataBanner } from '@/app/components/global/DevMockDataBanner';
 
 interface Recipient {
   name: string;
@@ -90,6 +101,7 @@ export default function BookingFlow() {
   const bookingState = location.state as GiftingBookingLocationState | null;
   const productData = bookingState?.product ?? null;
   const customizationFromPdp = bookingState?.customization;
+  const usingDemoBooking = !productData?.listingId || !productData?.vendorId;
 
   const [currentStep, setCurrentStep] = useState(1);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -99,6 +111,14 @@ export default function BookingFlow() {
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
   const [recipientToolMessage, setRecipientToolMessage] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [workflowRules, setWorkflowRules] = useState<ApprovalWorkflowRule[]>([]);
+
+  useEffect(() => {
+    if (!corporateId) return;
+    void listWorkflowRules(corporateId).then((res) => {
+      setWorkflowRules(res.data ?? []);
+    });
+  }, [corporateId]);
 
   // Company size configuration
   const [companySize, setCompanySize] = useState<'small' | 'medium' | 'large'>('medium');
@@ -217,6 +237,11 @@ export default function BookingFlow() {
   };
 
   const pricing = calculateTotal();
+
+  const approvalDecision = useMemo(
+    () => evaluateCorporateApproval([], workflowRules, 'gifting', pricing.total),
+    [workflowRules, pricing.total],
+  );
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -416,13 +441,16 @@ export default function BookingFlow() {
             corporateId &&
             user?.id
           ) {
+            const bookingStatus = approvalDecision.requiresApproval
+              ? 'pending_approval'
+              : 'pending_vendor';
             const { data: bookingRow, error } = await db.bookings.create({
               corporate_id: corporateId,
               user_id: user.id,
               vendor_id: productData.vendorId,
               listing_id: productData.listingId,
               module: 'gifting',
-              status: 'pending_approval',
+              status: bookingStatus,
               group_size: productQty,
               base_amount: pricing.subtotal,
               add_ons_amount: pricing.brandingCost,
@@ -430,7 +458,10 @@ export default function BookingFlow() {
               total_amount: pricing.total,
               payment_method: paymentMethod === 'card' || paymentMethod === 'upi' ? paymentMethod : 'wallet',
               payment_status: paymentOption === 'pay-now' ? 'paid' : 'pending',
-              purpose_note: plannedFor || null,
+              ...buildBookingApprovalFields(
+                plannedFor || null,
+                approvalDecision.requiredLevels,
+              ),
               commission_rate: null,
               payment_reference: null,
               approved_by: null,
@@ -438,7 +469,10 @@ export default function BookingFlow() {
               cancelled_at: null,
               cancellation_reason: null,
               cancellation_fee: null,
-              vendor_response_deadline: null,
+              vendor_response_deadline:
+                bookingStatus === 'pending_vendor'
+                  ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+                  : null,
               completed_at: null,
               start_time: null,
               end_time: null,
@@ -448,6 +482,13 @@ export default function BookingFlow() {
               console.warn('booking persist failed, falling back to localStorage:', dbError);
             } else if (bookingRow) {
               dbBookingId = (bookingRow as { id: string }).id;
+              if (bookingStatus === 'pending_approval') {
+                await notifyFirstApprovers(corporateId, approvalDecision.requiredLevels, {
+                  bookingId: dbBookingId,
+                  title: 'New gifting order awaiting your approval',
+                  body: `${product.name} — ₹${Math.round(pricing.total).toLocaleString('en-IN')}.`,
+                });
+              }
               // Link the branding selection if a logo was uploaded.
               if (customizationFromPdp?.logoUploadId && uploadedLogo) {
                 const { error: brandErr } = await submitBrandingSelection(
@@ -479,7 +520,19 @@ export default function BookingFlow() {
             source: 'gifting',
           });
 
-          navigate('/bookings');
+          if (dbBookingId && approvalDecision.requiresApproval) {
+            navigate(`/booking-approval-request?bookingId=${dbBookingId}`, {
+              state: {
+                category: 'gifting',
+                venueName: product.name,
+                totalAmount: Math.round(pricing.total),
+                bookingId: dbBookingId,
+              },
+            });
+            return;
+          }
+
+          navigate(dbBookingId ? `/bookings/${dbBookingId}` : '/bookings');
           return;
         }
         break;
@@ -547,6 +600,7 @@ export default function BookingFlow() {
         {/* Content Area */}
         <MogzuCorporateScrollSurface>
           <div className="max-w-[1200px] mx-auto px-6 py-4">
+            {usingDemoBooking ? <DevMockDataBanner /> : null}
             {/* Header */}
             <div className="mb-4">
               <button onClick={handleBack} className="flex items-center gap-2 text-[#0e1e3f] mb-3 hover:text-[#2563eb] transition-colors">
@@ -1207,9 +1261,19 @@ export default function BookingFlow() {
                         <span className="text-[#0e1e3f] font-medium">{contactNumber}</span>
                       </div>
                       <div className="flex">
-                        <span className="text-[#878e9e] w-40">Need approval from:</span>
-                        <span className="text-[#0e1e3f] font-medium">{approver}</span>
+                        <span className="text-[#878e9e] w-40">Approval:</span>
+                        <span className="text-[#0e1e3f] font-medium">
+                          {approvalDecision.requiresApproval
+                            ? formatWorkflowLevels(approvalDecision.requiredLevels)
+                            : 'Direct to vendor (no manager chain)'}
+                        </span>
                       </div>
+                      {approver ? (
+                        <div className="flex">
+                          <span className="text-[#878e9e] w-40">Named approver:</span>
+                          <span className="text-[#0e1e3f] font-medium">{approver}</span>
+                        </div>
+                      ) : null}
                     </div>
 
                     <div className="border-t border-[#ececec] pt-3 mt-3">

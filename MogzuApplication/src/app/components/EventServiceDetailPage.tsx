@@ -1,19 +1,111 @@
-import { useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router'
-import { Calendar, ChevronDown, MapPin, Star, Users } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate, useParams } from 'react-router'
+import { Calendar, ChevronDown, Loader2, MapPin, Star, Users } from 'lucide-react'
 import { SharedHeader } from './layouts/SharedHeader'
 import { SharedSidebar } from './layouts/SharedSidebar'
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface'
-import { formatInr, getEventServiceById } from '@/app/lib/eventsServicesData'
+import { DevMockDataBanner } from './global/DevMockDataBanner'
+import { WishlistHeart } from './global/WishlistHeart'
+import { ListingReviewsPanel } from './global/ListingReviewsPanel'
+import {
+  formatInr,
+  getEventServiceById,
+  type EventService,
+  type EventServiceCategory,
+  type EventServicePricingType,
+  type EventType,
+} from '@/app/lib/eventsServicesData'
 import { getPricingBadgeConfig } from './ui/PriceBlock'
+import {
+  isListingUuid,
+  resolveEventsListingDetail,
+  type EventsListingDetail,
+} from '@/app/lib/activityListingResolver'
+import { QA_IMAGES } from '@/app/lib/qaImagery'
+import { storageService } from '@/lib/storage'
 
 type DetailTab = 'overview' | 'included' | 'addons' | 'reviews' | 'faqs'
 type PaymentMethod = 'UPI' | 'Bank Transfer' | 'Credit'
 
+const DEFAULT_INCLUDED = [
+  'Professional setup and coordination',
+  'On-ground vendor support',
+  'Quality assurance checklist',
+]
+
+const DEFAULT_FAQS = [
+  {
+    q: 'How far in advance should we book?',
+    a: 'We recommend booking at least 7–14 days before your event date.',
+  },
+  {
+    q: 'Can packages be customized?',
+    a: 'Yes. Share your requirements and the vendor will tailor the scope.',
+  },
+]
+
+function listingToEventService(l: EventsListingDetail): EventService {
+  const meta = (l.metadata ?? {}) as Record<string, unknown>
+  const imgs = (l.listing_images ?? [])
+    .sort((a, b) => a.display_order - b.display_order)
+    .map((img) => storageService.listingImages.getUrl(img.storage_path))
+    .filter(Boolean)
+  const pricingType: EventServicePricingType =
+    l.pricing_type === 'offer'
+      ? 'offer_price'
+      : l.pricing_type === 'request_for_price'
+        ? 'request_for_price'
+        : 'transparent'
+  const rawIncluded = meta.included
+  const included = Array.isArray(rawIncluded)
+    ? rawIncluded.filter((item): item is string => typeof item === 'string')
+    : DEFAULT_INCLUDED
+  const rawFaqs = meta.faqs
+  const faqs = Array.isArray(rawFaqs)
+    ? rawFaqs
+        .filter((f): f is { q: string; a: string } => typeof f === 'object' && f != null && 'q' in f && 'a' in f)
+        .map((f) => ({ q: String(f.q), a: String(f.a) }))
+    : DEFAULT_FAQS
+  const rawDates = Array.isArray(meta.availabilityDates) ? meta.availabilityDates : []
+  const availabilityDates = rawDates.filter((d): d is string => typeof d === 'string')
+  const rawTypes = Array.isArray(meta.supportedEventTypes) ? meta.supportedEventTypes : []
+  const supportedEventTypes = rawTypes.filter((t): t is EventType => typeof t === 'string') as EventType[]
+  const category = (typeof meta.category === 'string' ? meta.category : 'Catering') as EventServiceCategory
+  return {
+    id: l.id,
+    name: l.title,
+    vendorName: l.vendors?.business_name ?? 'Vendor',
+    category,
+    city: l.location_city ?? '',
+    pricingType,
+    price: l.base_price ?? undefined,
+    originalPrice: typeof meta.originalPrice === 'number' ? meta.originalPrice : undefined,
+    rating: typeof meta.rating === 'number' ? meta.rating : 4.5,
+    ratingCount: typeof meta.ratingCount === 'number' ? meta.ratingCount : 0,
+    images: imgs.length > 0 ? imgs : [QA_IMAGES.eventCard[0] ?? ''],
+    included,
+    faqs,
+    addOns: (l.listing_add_ons ?? []).map((a) => ({
+      id: a.id,
+      name: a.name,
+      price: a.price,
+    })),
+    availabilityDates,
+    supportedEventTypes: supportedEventTypes.length > 0 ? supportedEventTypes : ['Conference', 'Team Outing', 'Other'],
+  }
+}
+
 export default function EventServiceDetailPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { id } = useParams<{ id: string }>()
-  const service = id ? getEventServiceById(id) : null
+  const navState = location.state as { source_listing_id?: string } | undefined
+  const routeId = navState?.source_listing_id ?? id ?? ''
+
+  const [service, setService] = useState<EventService | null>(null)
+  const [usingDemo, setUsingDemo] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [selectedImage, setSelectedImage] = useState(0)
@@ -40,6 +132,40 @@ export default function EventServiceDetailPage() {
   const [quoteNotes, setQuoteNotes] = useState('')
   const [quoteSubmitted, setQuoteSubmitted] = useState(false)
 
+  useEffect(() => {
+    if (!routeId) {
+      setService(null)
+      setUsingDemo(false)
+      setLoading(false)
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      setLoadError('')
+      try {
+        const listing = await resolveEventsListingDetail(routeId)
+        if (cancelled) return
+        if (listing) {
+          setService(listingToEventService(listing))
+          setUsingDemo(false)
+        } else {
+          const mock = getEventServiceById(routeId)
+          setService(mock)
+          setUsingDemo(Boolean(mock))
+        }
+      } catch {
+        if (!cancelled) setLoadError('Unable to load service details right now. Please retry.')
+      }
+      if (!cancelled) setLoading(false)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [routeId])
+
+  const canBookLive = Boolean(service && isListingUuid(service.id))
+
   const selectedAddOns = useMemo(() => {
     if (!service) return []
     return service.addOns.filter((a) => selectedAddOnIds.includes(a.id))
@@ -52,6 +178,12 @@ export default function EventServiceDetailPage() {
   const openBookModal = () => {
     if (!service) return
     if (!selectedDate) return
+    if (canBookLive) {
+      navigate(`/book/event/${encodeURIComponent(service.id)}`, {
+        state: { selectedDate, pax, addOnIds: selectedAddOnIds },
+      })
+      return
+    }
     setBookStep(1)
     setBookModalOpen(true)
   }
@@ -60,6 +192,32 @@ export default function EventServiceDetailPage() {
     const generated = `BK-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`
     setBookingId(generated)
     setBookStep(4)
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#FFFDF9] flex items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-[#2563eb]" aria-label="Loading service" />
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-[#FFFDF9] p-8">
+        <div className="max-w-4xl mx-auto bg-white border border-[#ececec] rounded-xl p-8 text-center">
+          <h1 className="text-[22px] font-bold text-[#0e1e3f]">Unable to load service</h1>
+          <p className="mt-2 text-sm text-[#475569]">{loadError}</p>
+          <button
+            type="button"
+            onClick={() => navigate('/event-services')}
+            className="mt-4 h-11 px-6 rounded-full bg-[#2563eb] text-white text-[13px] font-semibold"
+          >
+            Back to Event Services
+          </button>
+        </div>
+      </div>
+    )
   }
 
   if (!service) {
@@ -100,6 +258,8 @@ export default function EventServiceDetailPage() {
               <span className="text-[#878e9e]">{service.name}</span>
             </div>
 
+            {usingDemo ? <DevMockDataBanner /> : null}
+
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6">
               <section>
                 {/* Gallery */}
@@ -128,7 +288,10 @@ export default function EventServiceDetailPage() {
                       <h1 className="text-[22px] font-bold text-[#0e1e3f]">{service.name}</h1>
                       <p className="mt-1 text-[14px] text-[#878e9e]">{service.vendorName}</p>
                     </div>
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-[12px] font-semibold text-slate-700">{service.category}</span>
+                    <div className="flex items-center gap-2">
+                      <WishlistHeart listingId={service.id} variant="inline" />
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-[12px] font-semibold text-slate-700">{service.category}</span>
+                    </div>
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-4 text-[13px] text-[#475569]">
                     <span className="inline-flex items-center gap-1"><MapPin className="size-4 text-[#878e9e]" />{service.city}</span>
@@ -212,16 +375,20 @@ export default function EventServiceDetailPage() {
                     ) : null}
 
                     {tab === 'reviews' ? (
-                      <div className="space-y-3">
-                        <div className="rounded-lg bg-slate-50 border border-slate-100 p-3">
-                          <p className="text-[13px] font-semibold text-[#0e1e3f]">Corporate Team — Verified Booking</p>
-                          <p className="mt-1 text-[13px] text-[#475569]">Professional execution and great communication from the vendor.</p>
+                      canBookLive ? (
+                        <ListingReviewsPanel listingId={service.id} />
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="rounded-lg bg-slate-50 border border-slate-100 p-3">
+                            <p className="text-[13px] font-semibold text-[#0e1e3f]">Corporate Team — Verified Booking</p>
+                            <p className="mt-1 text-[13px] text-[#475569]">Professional execution and great communication from the vendor.</p>
+                          </div>
+                          <div className="rounded-lg bg-slate-50 border border-slate-100 p-3">
+                            <p className="text-[13px] font-semibold text-[#0e1e3f]">People Ops Manager — Verified Booking</p>
+                            <p className="mt-1 text-[13px] text-[#475569]">Setup was on time, and post-event support was excellent.</p>
+                          </div>
                         </div>
-                        <div className="rounded-lg bg-slate-50 border border-slate-100 p-3">
-                          <p className="text-[13px] font-semibold text-[#0e1e3f]">People Ops Manager — Verified Booking</p>
-                          <p className="mt-1 text-[13px] text-[#475569]">Setup was on time, and post-event support was excellent.</p>
-                        </div>
-                      </div>
+                      )
                     ) : null}
 
                     {tab === 'faqs' ? (

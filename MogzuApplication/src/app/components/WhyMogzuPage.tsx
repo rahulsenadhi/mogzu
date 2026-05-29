@@ -1,8 +1,11 @@
 import { Link } from 'react-router';
 import { ArrowLeft, Target, Shield, Heart } from 'lucide-react';
 import { MogzuLogo } from '@/app/components/branding/MogzuLogo';
+import { useMarketingCms } from '@/app/lib/useMarketingCms';
 
 export default function WhyMogzuPage() {
+  const { block: cms, fromCms } = useMarketingCms('why-mogzu');
+
   return (
     <div className="min-h-screen bg-white font-['Inter',_sans-serif] selection:bg-[#FFD100]/30 selection:text-[#0e1e3f]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
@@ -23,13 +26,17 @@ export default function WhyMogzuPage() {
           </div>
           <div>
             <h1 className="text-5xl font-black text-[#0e1e3f] tracking-tighter mb-2">Why Mogzu</h1>
-            <p className="text-2xl text-gray-500 font-medium">The Operating System for Execution</p>
+            <p className="text-2xl text-gray-500 font-medium">
+              {fromCms && cms?.title ? cms.title : 'The Operating System for Execution'}
+            </p>
           </div>
         </div>
 
         <div className="prose prose-lg max-w-4xl text-gray-600 mb-16">
           <p className="text-xl leading-relaxed">
-            Mogzu was built to solve a single, massive problem: the coordination chaos of corporate events. We believe that HR and operations teams should spend their time focusing on strategy and culture, not chasing down 15 different vendors for GST invoices.
+            {fromCms && cms?.body
+              ? cms.body
+              : 'Mogzu was built to solve a single, massive problem: the coordination chaos of corporate events. We believe that HR and operations teams should spend their time focusing on strategy and culture, not chasing down 15 different vendors for GST invoices.'}
           </p>
         </div>
 

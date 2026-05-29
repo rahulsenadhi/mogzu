@@ -55,6 +55,94 @@ Use this for significant implementation updates.
 
 Latest entries:
 - Date: 2026-05-24
+- Summary: Post-plan Batch 38 — Lead operations hub at `/admin/leads` (Inbox | Pipeline | Quick Share tabs). Fixed unassigned assignment (always-visible picker, demo patch, `listLeadAssigneesForPicker` + migration `20260525000001`). Sidebar consolidated to one **Lead operations** link; `/sales/pipeline` and `/admin/quick-share` redirect into hub.
+- Files changed: `LeadOperationsHub.tsx`, `LeadDetailDrawer.tsx`, `AdminLeadsPage.tsx`, `SalesPipelinePage.tsx`, `AdminQuickSharePage.tsx`, `leadAssignees.ts`, `leadOpsNavigation.ts`, `routes.tsx`, `AdminLayout.tsx`, migrations `20260525000001_*`
+- Verification performed: `npm run build` exit 0
+- Risks / notes: Apply both lead migrations in Supabase for live assign dropdown. Iteration deferred: demo status menu, polish pass.
+- Owner: Project team
+- Date: 2026-05-24
+- Summary: Post-plan Batch 37 — plan closure. `/vendor/promotions` redirects to live promotions; `db.promotions.setPaymentReference` replaces `(db as any).supabase` in vendor pay-boost flow. FRONTEND_COMPLETION_PLAN Section 2 marked complete (batches 23–37). Workspace diff uncommitted (~60 files) since commit `b5f790f`.
+- Files changed: `routes.tsx`, `VendorPromotionOfferPage.tsx`, `VendorAdCampaignPage.tsx`, `db.ts`, `VendorPromotionsRealPage.tsx`, `FRONTEND_COMPLETION_PLAN.md`, `FIXES.md`
+- Verification performed: `npm run build` exit 0 (~29s)
+- Owner: Project team
+- Date: 2026-05-24
+- Summary: Post-plan Batch 36 — admin + corp demo surfaces. Mogzu orders merges Supabase `public_leads` with local orders; paid promotions links to approval queue; categories/ai-autonomy/vendor-passport/apparel flagged with demo banners or live paths.
+- Files changed: `AdminMogzuOrdersPage.tsx`, `AdminPaidPromotionsPage.tsx`, `AdminAddProductPage.tsx`, `AdminCategoryManagementPage.tsx`, `CorporateAiAutonomyPage.tsx`, `VendorPassportPage.tsx`, `ApparelPage.tsx`, `FRONTEND_COMPLETION_PLAN.md`, `FIXES.md`
+- Verification performed: `npm run build` exit 0 (~14s)
+- Owner: Project team
+- Date: 2026-05-24
+- Summary: Post-plan Batch 35 — gifting product booking chain + vendor legacy surfaces. Product PDP resolves gifting listing UUIDs and forwards ids to booking flow; booking flow shows demo banner and opens live booking detail after Supabase persist; vendor ad/offer/product pages flagged as legacy with links to live paths.
+- Files changed: `ProductBookingPage.tsx`, `BookingFlow.tsx`, `VendorAdCampaignPage.tsx`, `VendorPromotionOfferPage.tsx`, `VendorAddProductPage.tsx`, `FRONTEND_COMPLETION_PLAN.md`, `FIXES.md`
+- Verification performed: `npm run build` exit 0 (~14s)
+- Owner: Project team
+- Date: 2026-05-24
+- Summary: Post-plan Batch 34 — celebration detail → live checkout IDs; browse/shortlist/vendor-product demo banners. `resolveGiftingListing` maps route id to gifting listing UUID; Mogzu Direct / partner browse pages flag cache-only data; shortlist + vendor products show legacy demo banners.
+- Files changed: `activityListingResolver.ts`, `CelebrationDetailPage.tsx`, `MogzuDirectCorporateDetailPage.tsx`, `PartnerListingCorporateDetailPage.tsx`, `ShortlistCorporatePage.tsx`, `VendorProductManagementPage.tsx`, `FRONTEND_COMPLETION_PLAN.md`, `FIXES.md`
+- Verification performed: `npm run build` exit 0 (~15s)
+- Risks / notes: Celebration UI still uses mock product cards for numeric ids; live path activates when route id is UUID or maps to active gifting listing. Batches 23–34 likely uncommitted.
+- Owner: Project team
+- Date: 2026-05-24
+- Summary: Post-plan Batch 33 — corporate deals/promotions + HeyGenie. `/deals` loads `db.promotions.listActive()`; claim flow redeems live promos; `/promotions` links to claim; `/heygenie` reads corporate config; `/admin/heygenie` already on Supabase.
+- Files changed: `promotionOffers.ts`, `db.ts`, `DealsPage.tsx`, `DealClaimFlow.tsx`, `PromotionsPage.tsx`, `HeyGeniePage.tsx`, `FRONTEND_COMPLETION_PLAN.md`, `FIXES.md`
+- Verification performed: `npm run build` exit 0 (~20s)
+- Owner: Project team
+- Date: 2026-05-24
+- Summary: Post-plan Batch 32 — marketing + admin settings. Landing demo form persists via `submit_public_lead`; CMS slugs override hero/copy on `/`, `/why-mogzu`, `/vendor-benefits`; `/admin/settings` is a live configuration hub with Supabase stats.
+- Files changed: `useMarketingCms.ts`, `LandingPage.tsx`, `WhyMogzuPage.tsx`, `VendorBenefitsPage.tsx`, `AdminSettingsPage.tsx`, `FRONTEND_COMPLETION_PLAN.md`, `FIXES.md`
+- Verification performed: `npm run build` exit 0 (~21s)
+- Owner: Project team
+- Date: 2026-05-24
+- Summary: Post-plan Batch 31 — booking confirmation chain. `/booking/new` submits to Supabase; `/booking-confirmation` and `/booking-success` load by `bookingId`; classic payment creates booking when `spaceId` is UUID; RFQ on EventDetailPage persists live.
+- Files changed: `submitBookingDraftToSupabase.ts`, `createClassicCheckoutBooking.ts`, `BookingSummaryPage.tsx`, `BookingConfirmationFlowPage.tsx`, `ClassicBookingSuccessPage.tsx`, `BookingPayment.tsx`, `EventDetailPage.tsx`, `FRONTEND_COMPLETION_PLAN.md`, `FIXES.md`
+- Verification performed: `npm run build` exit 0 (~22s)
+- Owner: Project team
+- Date: 2026-05-24
+- Summary: Post-plan Batch 30 — celebration checkout + approval request persistence. `CelebrationBookingFlow` writes `db.bookings` when payload includes listing/vendor UUIDs; `ApprovalRequestPage` loads/withdraws/resubmits by `bookingId`; classic `BookingPayment` Send for Approval persists when `spaceId` is listing UUID.
+- Files changed: `createCorporatePendingApprovalBooking.ts`, `ApprovalRequestPage.tsx`, `CelebrationBookingFlow.tsx`, `BookingPayment.tsx`, `FRONTEND_COMPLETION_PLAN.md`, `FIXES.md`
+- Verification performed: `npm run build` exit 0 (~30s)
+- Risks / notes: Celebration catalogue still mock IDs until CelebrationsPage passes real `listingId`/`vendorId`. Batches 23–30 likely uncommitted.
+- Owner: Project team
+- Date: 2026-05-24
+- Summary: Post-plan Batch 29 — classic DSpace booking chain stability (RequestToBook/BookingAddOns TDZ), legacy banners, ActivitySuite live metrics from Supabase bookings.
+- Files changed: `RequestToBook.tsx`, `BookingAddOns.tsx`, `BookingReview.tsx`, `BookingPayment.tsx`, `ActivitySuite.tsx`, `LoginPage.tsx`, `authRedirect.ts`, `auth.ts`, `FRONTEND_COMPLETION_PLAN.md`, `FIXES.md`
+- Verification performed: `npm run build` exit 0
+- Owner: Project team
+- Date: 2026-05-24
+- Summary: Post-plan Batch 28 — admin events/DSpace surfaces. Replaced stub admin pages with Supabase listing approval queues, booking panels, and detail review screens; demo fallback when tables empty.
+- Files changed: `adminModuleBookings.ts`, `AdminModuleBookingsPanel.tsx`, `AdminModuleListingsQueuePage.tsx`, `AdminListingApprovalDetailPage.tsx`, `AdminEventsPage.tsx`, `AdminDspacePage.tsx`, `AdminEventsBookings.tsx`, `AdminDspaceBookings.tsx`, `AdminEventDetailPage.tsx`, `AdminSpaceDetailPage.tsx`, `AdminBookingsPage.tsx`, `FRONTEND_COMPLETION_PLAN.md`, `FIXES.md`
+- Verification performed: `npm run build` exit 0 (~30s)
+- Risks / notes: Admin booking status updates require live UUID rows; demo rows are read-only. Batches 23–28 still uncommitted unless user committed separately.
+- Owner: Project team
+- Date: 2026-05-24
+- Summary: Post-plan Batch 27 — vendor listing lifecycle actions + EventsPage UUID nav state. Submit/withdraw/resubmit on vendor event-activity catalog persists to Supabase.
+- Files changed: `VendorEventActivityPage.tsx`, `EventsPage.tsx`, `FRONTEND_COMPLETION_PLAN.md`, `FIXES.md`
+- Verification performed: `npm run build` exit 0 (~30s)
+- Owner: Project team
+- Date: 2026-05-24
+- Summary: Post-plan Batch 26 — event activity detail + vendor enquiries. EventDetailPage loads events listings from Supabase; EventActivityPage passes UUID routes; vendor enquiries tab lists pending event bookings.
+- Files changed: `EventDetailPage.tsx`, `EventActivityPage.tsx`, `VendorEventActivityPage.tsx`, `eventsServicesData.ts`, `FRONTEND_COMPLETION_PLAN.md`, `FIXES.md`
+- Verification performed: `npm run build` exit 0 (~29s)
+- Risks / notes: EventDetailPage still uses PriceBlock legacy flow for mock IDs. Vendor catalog submit-for-review actions remain local on demo rows.
+- Owner: Project team
+- Date: 2026-05-24
+- Summary: Post-plan Batch 25 — event service detail + vendor event-activity Supabase wiring. EventServiceDetailPage loads events listings; VendorEventActivityPage loads vendor catalog from `events` module; fixed UUID navigation from EventServiceContent.
+- Files changed: `EventServiceDetailPage.tsx`, `EventServiceContent.tsx`, `VendorEventActivityPage.tsx`, `activityListingResolver.ts`, `FRONTEND_COMPLETION_PLAN.md`, `FIXES.md`
+- Verification performed: `npm run build` exit 0 (~29s)
+- Risks / notes: Vendor event-activity enquiries tab still demo. Legacy booking modal remains for mock service IDs.
+- Owner: Project team
+- Date: 2026-05-24
+- Summary: Post-plan Batch 24 — SpaceDetailPage Supabase wiring. `resolveSpacexListing()` searches `spacex_coworking` + `spacex_stay`; detail page overlays live listing fields; demo banner; WishlistHeart; Book Now → `/book/space/:id` for UUID listings.
+- Files changed: `SpaceDetailPage.tsx`, `activityListingResolver.ts`, `FRONTEND_COMPLETION_PLAN.md`, `FIXES.md`
+- Verification performed: `npm run build` exit 0 (~26s)
+- Risks / notes: Category-specific amenities/policies still use mock templates when live listing lacks metadata. Next P0: `/events/services/:id`, `/vendor/event-activity`.
+- Owner: Project team
+- Date: 2026-05-24
+- Summary: Post-plan Batch 23 — SpaceX/coworking catalogue Supabase wiring. CoworkingPage + CoworkingDetailPage load `spacex_coworking` listings; SpaceXPage demo banner when empty; book CTA on coworking detail routes to `/book/space/:id`.
+- Files changed: `CoworkingPage.tsx`, `CoworkingDetailPage.tsx`, `SpaceXPage.tsx`, `FRONTEND_COMPLETION_PLAN.md`, `FIXES.md`
+- Verification performed: `npm run build` exit 0 (~31s)
+- Risks / notes: SpaceDetailPage (`/dspace/:id`, `/spacex/:id`) remains mock-heavy — Batch 24 candidate. Vendor event-activity still ⚠️.
+- Owner: Project team
+- Date: 2026-05-24
 - Summary: Post-plan Batch 22 — events catalogue Supabase wiring + Batch 2c heart sweep completion. `EventsPage` loads `db.listings.listByModule('events')` with demo fallback banner; canonical `WishlistHeart` + `RatingBadge` on cards. `EventServiceContent` heart swapped to `WishlistHeart`. Plan doc updated: `/events`, `/event-services`, `/activities`, `/bookings/:id/track` marked ✅. All 15 original plan batches + post-plan batches 16–22 complete; ~57 commits ahead of origin, uncommitted working tree.
 - Files changed: `EventsPage.tsx`, `EventServiceContent.tsx`, `FRONTEND_COMPLETION_PLAN.md`, `FIXES.md`
 - Verification performed: `npm run build` exit 0 (~26s)

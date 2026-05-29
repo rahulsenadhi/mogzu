@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { CheckCircle2, Loader2, ShieldAlert, XCircle } from 'lucide-react'
+import { ADMIN_MODULE } from '@/app/components/admin/adminModuleStyles'
+import { LeadOpsPageHeader } from '@/app/components/leads/LeadOpsPageHeader'
+import { LEAD_OPS } from '@/app/components/leads/leadOpsStyles'
 import { useAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { storageService } from '@/lib/storage'
@@ -220,32 +223,40 @@ export default function AdminGiftingProductsPage() {
   }
 
   return (
-    <div className="p-6">
-      <h1 className="mb-1 text-2xl font-bold text-[#0e1e3f]">Gifting product approval queue</h1>
-      <p className="mb-4 text-sm text-slate-500">
-        Review vendor submissions. Approve to make products visible in the gifting shop.
-      </p>
+    <div className={ADMIN_MODULE.page}>
+      <LeadOpsPageHeader
+        eyebrow="Gifting module"
+        title="Product approval"
+        description="Review vendor submissions. Approved products appear in the corporate gifting shop (same catalogue buyers see)."
+        actions={
+          <button
+            type="button"
+            onClick={() => navigate('/gifting')}
+            className={LEAD_OPS.secondaryBtn}
+          >
+            View gifting shop
+          </button>
+        }
+      />
 
-      {notice && (
+      {notice ? (
         <p
           role="status"
-          className="mb-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-700"
+          className={`${LEAD_OPS.surfaceMuted} text-sm text-blue-800`}
         >
           {notice}
         </p>
-      )}
+      ) : null}
 
-      <div className="mb-4 flex gap-2 overflow-x-auto whitespace-nowrap">
+      <div className={`${ADMIN_MODULE.card} flex gap-2 overflow-x-auto p-3`} role="tablist" aria-label="Approval status">
         {(['pending', 'approved', 'rejected', 'paused', 'all'] as const).map((t) => (
           <button
             key={t}
             type="button"
+            role="tab"
+            aria-selected={tab === t}
             onClick={() => setTab(t)}
-            className={`h-9 rounded-lg border px-4 text-sm ${
-              tab === t
-                ? 'border-[#2563eb] bg-[#ebf1ff] text-[#2563eb]'
-                : 'border-slate-200 bg-white text-slate-600'
-            }`}
+            className={ADMIN_MODULE.navChip(tab === t)}
           >
             {t === 'all' ? 'All' : t[0].toUpperCase() + t.slice(1)}
           </button>
@@ -297,7 +308,7 @@ export default function AdminGiftingProductsPage() {
         </div>
       )}
 
-      <div className="overflow-auto rounded-xl border border-[#ececec] bg-white">
+      <div className={`${ADMIN_MODULE.tableWrap} overflow-auto`}>
         {loading ? (
           <div className="flex items-center justify-center py-14">
             <Loader2 className="size-6 animate-spin text-slate-400" />

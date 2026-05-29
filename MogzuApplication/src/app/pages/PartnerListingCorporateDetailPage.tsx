@@ -15,6 +15,9 @@ import AdminListingActionPanel from '@/app/pages/admin/AdminListingActionPanel';
 import { submitLead } from '@/lib/publicLeads';
 import { useAuth } from '@/lib/auth';
 import PublicLeadForm from '@/app/components/PublicLeadForm';
+import { DevMockDataBanner } from '@/app/components/global/DevMockDataBanner';
+import { getPublicListing } from '@/lib/publicCatalogue';
+import { isListingUuid } from '@/app/lib/activityListingResolver';
 import { useCurrency } from '@/lib/i18n/useCurrency';
 import {
   MOGZU_GLASS_CARD,
@@ -62,6 +65,8 @@ export default function PartnerListingCorporateDetailPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedTab, setSelectedTab] = useState<TabId>('overview');
   const [bookingNotice, setBookingNotice] = useState('');
+  const [liveListingFound, setLiveListingFound] = useState(false);
+  const [liveLookupDone, setLiveLookupDone] = useState(false);
   const { activeRole } = useDemoRole();
   const { profile } = useAuth();
   const { formatCurrency } = useCurrency();
@@ -81,6 +86,24 @@ export default function PartnerListingCorporateDetailPage() {
     );
   }, [idDecoded, catalogueItem, navigate]);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!idDecoded || !isListingUuid(idDecoded)) {
+      setLiveListingFound(false);
+      setLiveLookupDone(true);
+      return;
+    }
+    setLiveLookupDone(false);
+    void getPublicListing(idDecoded).then(({ data }) => {
+      if (cancelled) return;
+      setLiveListingFound(Boolean(data?.id));
+      setLiveLookupDone(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [idDecoded]);
+
   const domainListing = useMemo(() => {
     if (!idDecoded) return null;
     return loadPartnerListings().find((r) => r.id === idDecoded) ?? null;
@@ -95,6 +118,8 @@ export default function PartnerListingCorporateDetailPage() {
     if (!listing) return null;
     return buildListingJsonLd(listing, catalogueItem?.vendor_name ?? null);
   }, [listing, catalogueItem?.vendor_name]);
+
+  const usingDemoCatalog = liveLookupDone && Boolean(listing) && !liveListingFound;
 
   const portfolioAll = useMemo(() => {
     if (!listing) return [];
@@ -175,6 +200,7 @@ export default function PartnerListingCorporateDetailPage() {
         />
         <MogzuCorporateScrollSurface>
           <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6 md:py-8">
+            {usingDemoCatalog ? <DevMockDataBanner /> : null}
             {!idParam ? (
               <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
                 Invalid listing URL.

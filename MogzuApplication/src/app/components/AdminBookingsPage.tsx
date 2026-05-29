@@ -10,7 +10,7 @@ export default function AdminBookingsPage() {
 
   return (
     <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
-      <AdminPageTitleRow title="Bookings" />
+      <AdminPageTitleRow title="Bookings" totalLabel="Events & DSpace" />
 
       <div className="mt-4 mb-4 flex gap-2 border-b border-slate-200">
         <button

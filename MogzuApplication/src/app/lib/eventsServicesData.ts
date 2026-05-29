@@ -46,6 +46,8 @@ export type EventService = {
 
 export type EventActivityListing = {
   id: number
+  /** Supabase listing UUID when loaded from live catalogue */
+  listingUuid?: string
   name: string
   city: string
   category: EventServiceCategory

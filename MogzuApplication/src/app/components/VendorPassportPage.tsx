@@ -8,6 +8,7 @@ import {
   loadCorporateApprovedVendors,
   type CorporateVendorTab,
 } from '@/app/lib/corporateVendorDirectoryStorage';
+import { DevMockDataBanner } from '@/app/components/global/DevMockDataBanner';
 
 interface SavedVendor {
   id: string;
@@ -113,6 +114,9 @@ export default function VendorPassportPage() {
     setPreferredOverrides((p) => ({ ...p, [id]: !current }));
   };
 
+  const approvedFromAdmin = useMemo(() => loadCorporateApprovedVendors(), [corpTick]);
+  const usingDemoDirectory = approvedFromAdmin.length === 0;
+
   const filteredVendors = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     let list =
@@ -164,6 +168,7 @@ export default function VendorPassportPage() {
                 {uiNotice}
               </p>
             ) : null}
+            {usingDemoDirectory ? <DevMockDataBanner /> : null}
 
             <div className="flex items-center justify-between mb-6">
               <div className="flex gap-2">

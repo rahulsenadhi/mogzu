@@ -196,6 +196,7 @@ export function approvedGiftListingToApparelProduct(l: CorporateApprovedListing)
   return {
     ...base,
     id: hash,
+    mogzuListingId: l.listingId,
     name: l.listingTitle,
     brand: (l.businessName || base.brand).slice(0, 40),
     description: l.shortDescription || base.description,
@@ -211,6 +212,7 @@ export function approvedGiftListingToPartnerBagProduct(l: CorporateApprovedListi
   return {
     ...base,
     id: hash,
+    mogzuListingId: l.listingId,
     name: l.listingTitle,
     brand: (l.businessName || base.brand).slice(0, 60),
     description: l.shortDescription || base.description,
@@ -226,6 +228,7 @@ export function approvedGiftListingToPartnerTechProduct(l: CorporateApprovedList
   return {
     ...base,
     id: hash,
+    mogzuListingId: l.listingId,
     name: l.listingTitle,
     brand: (l.businessName || base.brand).slice(0, 60),
     description: l.shortDescription || base.description,
@@ -241,6 +244,7 @@ export function approvedGiftListingToPartnerWellnessProduct(l: CorporateApproved
   return {
     ...base,
     id: hash,
+    mogzuListingId: l.listingId,
     name: l.listingTitle,
     brand: (l.businessName || base.brand).slice(0, 60),
     description: l.shortDescription || base.description,
@@ -256,6 +260,7 @@ export function approvedGiftListingToPartnerStationeryProduct(l: CorporateApprov
   return {
     ...base,
     id: hash,
+    mogzuListingId: l.listingId,
     name: l.listingTitle,
     brand: (l.businessName || base.brand).slice(0, 60),
     description: l.shortDescription || base.description,

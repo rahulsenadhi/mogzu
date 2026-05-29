@@ -2,6 +2,8 @@
 
 export interface Product {
   id: number;
+  /** Supabase listing UUID when surfaced from corporate-approved partner catalogue */
+  mogzuListingId?: string;
   name: string;
   category: string;
   subcategory: string;

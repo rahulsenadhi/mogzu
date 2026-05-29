@@ -16,11 +16,7 @@ import { db } from '@/lib/db'
 import { storageService } from '@/lib/storage'
 import type { Listing, ListingImage } from '@/lib/database.types'
 
-function uuidToNumber(id: string): number {
-  let h = 0
-  for (let i = 0; i < id.length; i++) h = ((h << 5) - h + id.charCodeAt(i)) | 0
-  return Math.abs(h)
-}
+import { isListingUuid, uuidToNumber } from '@/app/lib/activityListingResolver'
 
 function listingToEventActivityListing(
   l: Listing & { listing_images?: ListingImage[] },
@@ -48,6 +44,7 @@ function listingToEventActivityListing(
       : 'Activities'
   return {
     id: uuidToNumber(l.id),
+    listingUuid: l.id,
     name: l.title,
     city: l.location_city ?? '',
     category,
@@ -587,14 +584,26 @@ export default function EventActivityPage() {
                         : 'transparent'
                   const badge = getPricingBadgeConfig(normalizedPricingType)
                   const CategoryIcon = getEventIconByCategoryText(activity.category)
+                  const detailRouteId = activity.listingUuid ?? String(activity.id)
+                  const wishlistId = activity.listingUuid ?? String(activity.id)
 
                   return (
                     <div
-                      key={activity.id}
+                      key={detailRouteId}
                       role="button"
                       tabIndex={0}
-                      onClick={() => navigate(`/event-activity/${activity.id}`)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate(`/event-activity/${activity.id}`) }}
+                      onClick={() =>
+                        navigate(`/event-activity/${encodeURIComponent(detailRouteId)}`, {
+                          state: { source_listing_id: activity.listingUuid, pricing_type: normalizedPricingType },
+                        })
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          navigate(`/event-activity/${encodeURIComponent(detailRouteId)}`, {
+                            state: { source_listing_id: activity.listingUuid, pricing_type: normalizedPricingType },
+                          })
+                        }
+                      }}
                       className="bg-white/65 backdrop-blur-md rounded-2xl overflow-hidden border border-white/50 shadow-[0_10px_30px_rgba(37,99,235,0.14)] hover:shadow-[0_18px_36px_rgba(37,99,235,0.22)] transition-all group h-full flex flex-col cursor-pointer"
                     >
                       <ListingCardImageGallery
@@ -618,7 +627,7 @@ export default function EventActivityPage() {
                           Compare
                         </button>
                         <WishlistHeart
-                          listingId={String(cardId)}
+                          listingId={wishlistId}
                           className="absolute top-2.5 right-2.5 z-[3] w-8 h-8 bg-white/95 rounded-full flex items-center justify-center hover:bg-white hover:-translate-y-0.5 active:scale-95 transition-all shadow border border-[#e2e8f0]"
                         />
                         <div className="absolute bottom-2.5 right-2.5 z-[3] bg-[#16a34a] text-white text-[10px] font-semibold px-2.5 h-6 rounded-full inline-flex items-center gap-1 shadow-md">
@@ -651,7 +660,12 @@ export default function EventActivityPage() {
                         </div>
                         <button
                           type="button"
-                          onClick={(e) => { e.stopPropagation(); navigate(`/event-activity/${activity.id}`) }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            navigate(`/event-activity/${encodeURIComponent(detailRouteId)}`, {
+                              state: { source_listing_id: activity.listingUuid, pricing_type: normalizedPricingType },
+                            })
+                          }}
                           className="mt-3 w-full h-9 rounded-lg bg-[#2563eb] text-white text-[13px] font-semibold hover:bg-[#1d4ed8] transition-colors"
                         >
                           View details

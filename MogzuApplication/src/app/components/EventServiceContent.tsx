@@ -16,6 +16,7 @@ import { getListingSlideImagesFromRecord } from './dspaceCardUtils';
 import { useListingCardImageScroller } from '@/app/hooks/useListingCardImageScroller';
 import { db } from '@/lib/db';
 import { storageService } from '@/lib/storage';
+import { isListingUuid, uuidToNumber } from '@/app/lib/activityListingResolver';
 import type { Listing, ListingImage } from '@/lib/database.types';
 
 function listingToServiceListing(
@@ -647,7 +648,7 @@ export default function EventServiceContent() {
                 const activeImageIndex = getActiveIndex(cardId);
                 const inCompare = compareIds.includes(row.id);
                 const badge = getPricingBadgeConfig(row.pricingType);
-                const detailId = row.id.replace(/[^\d]/g, '') || '1';
+                const detailId = isListingUuid(row.id) ? row.id : String(uuidToNumber(row.id));
                 const iconConfig = getEventServiceCategoryIconConfig(row.category);
                 const Icon = iconConfig.icon;
                 return (

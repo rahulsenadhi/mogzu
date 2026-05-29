@@ -1,11 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
-import { BarChart2, Bell, Calendar, Eye, FileText, HelpCircle, Megaphone, Plus, Search, Trash2, X } from 'lucide-react';
+import { BarChart2, Bell, Calendar, Eye, FileText, HelpCircle, Loader2, Megaphone, Plus, Search, Trash2, X } from 'lucide-react';
 import { VendorAppShell } from './layouts/VendorAppShell';
 import { VendorTopRightMenu } from './layouts/VendorTopRightMenu';
+import { DevMockDataBanner } from './global/DevMockDataBanner';
 import { VendorRejectionFeedbackDrawer, type VendorRejectionListing } from './vendor/VendorRejectionFeedbackDrawer';
 import { VendorPerformanceStatsDrawer, type VendorPerformanceListing } from './vendor/VendorPerformanceStatsDrawer';
 import type { RejectionReasonCategory } from '@/app/lib/vendorRejectionChecklist';
+import { isListingUuid } from '@/app/lib/activityListingResolver';
+import { useAuth } from '@/lib/auth';
+import { db } from '@/lib/db';
+import { storageService } from '@/lib/storage';
 
 const COVER_PLACEHOLDER =
   'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&q=80&w=200';
@@ -29,12 +34,137 @@ type VendorEventActivity = {
   };
 };
 
+const MODULE_ID = 'events' as const;
+
+type ListingWithImages = Listing & { listing_images?: ListingImage[] };
+
+const ACTIVITY_CATEGORIES: VendorEventActivity['category'][] = [
+  'Indoor Fun',
+  'Outdoor Adventure',
+  'Sports',
+  'Team Building',
+  'Wellness',
+];
+
+const DEMO_VENDOR_ACTIVITIES: VendorEventActivity[] = [
+  {
+    id: 'ea-1',
+    title: 'Corporate Escape Rooms',
+    category: 'Indoor Fun',
+    teamSize: 10,
+    pricePerUnitLabel: '₹2,000/hr per team',
+    status: 'Active',
+    createdAt: formatDate(new Date(Date.now() - 1000 * 60 * 60 * 24 * 9)),
+    coverUrl: COVER_PLACEHOLDER,
+    hasAddOns: true,
+  },
+  {
+    id: 'ea-2',
+    title: 'Team Mini-Golf Challenge',
+    category: 'Outdoor Adventure',
+    teamSize: 15,
+    pricePerUnitLabel: '₹1,800/hr per team',
+    status: 'Draft',
+    createdAt: formatDate(new Date(Date.now() - 1000 * 60 * 60 * 24 * 2)),
+    coverUrl: COVER_PLACEHOLDER,
+    hasAddOns: true,
+  },
+  {
+    id: 'ea-rejected-1',
+    title: 'Leadership Workshop Sprint',
+    category: 'Team Building',
+    teamSize: 24,
+    pricePerUnitLabel: '₹3,500/hr per team',
+    status: 'Rejected',
+    createdAt: formatDate(new Date(Date.now() - 1000 * 60 * 60 * 24 * 4)),
+    coverUrl: COVER_PLACEHOLDER,
+    hasAddOns: false,
+    rejection: {
+      submissionDate: formatDate(new Date(Date.now() - 1000 * 60 * 60 * 24 * 6)),
+      rejectionDate: formatDate(new Date(Date.now() - 1000 * 60 * 60 * 24 * 2)),
+      reasonCategory: 'Missing Media',
+      rejectionReason:
+        'Please upload at least three high-resolution photos of your venue and one cover image in landscape orientation.',
+    },
+  },
+];
+
+function listingStatusLabel(status: ListingStatus): VendorEventActivity['status'] {
+  switch (status) {
+    case 'active':
+      return 'Active';
+    case 'draft':
+      return 'Draft';
+    case 'paused':
+      return 'Paused';
+    case 'rejected':
+      return 'Rejected';
+    case 'pending_approval':
+      return 'Pending';
+  }
+}
+
+function mapActivityCategory(raw: unknown): VendorEventActivity['category'] {
+  if (typeof raw === 'string' && ACTIVITY_CATEGORIES.includes(raw as VendorEventActivity['category'])) {
+    return raw as VendorEventActivity['category'];
+  }
+  return 'Indoor Fun';
+}
+
+function listingToVendorActivity(l: ListingWithImages): VendorEventActivity {
+  const meta = (l.metadata ?? {}) as Record<string, unknown>;
+  const cover =
+    (l.listing_images ?? [])
+      .sort((a, b) => a.display_order - b.display_order)
+      .map((img) => storageService.listingImages.getUrl(img.storage_path))
+      .find(Boolean) ?? COVER_PLACEHOLDER;
+  const unit =
+    l.price_unit === 'per_hour' ? '/hr' : l.price_unit === 'per_person' ? '/person' : '';
+  const pricePerUnitLabel =
+    l.base_price != null
+      ? `₹${l.base_price.toLocaleString('en-IN')}${unit} per team`
+      : 'On request';
+  const row: VendorEventActivity = {
+    id: l.id,
+    title: l.title,
+    category: mapActivityCategory(meta.activityCategory ?? meta.category),
+    teamSize: l.max_capacity ?? 10,
+    pricePerUnitLabel,
+    status: listingStatusLabel(l.status),
+    createdAt: formatDate(new Date(l.created_at)),
+    coverUrl: cover,
+    hasAddOns: meta.hasAddOns === true,
+    resubmission_notes:
+      typeof meta.resubmission_notes === 'string' ? meta.resubmission_notes : undefined,
+  };
+  if (l.status === 'rejected') {
+    row.rejection = {
+      submissionDate:
+        typeof meta.submissionDate === 'string'
+          ? meta.submissionDate
+          : formatDate(new Date(l.created_at)),
+      rejectionDate:
+        typeof meta.rejectionDate === 'string'
+          ? meta.rejectionDate
+          : formatDate(new Date(l.updated_at)),
+      reasonCategory:
+        (typeof meta.reasonCategory === 'string'
+          ? meta.reasonCategory
+          : 'Other') as RejectionReasonCategory,
+      rejectionReason:
+        typeof meta.rejectionReason === 'string' ? meta.rejectionReason : undefined,
+    };
+  }
+  return row;
+}
+
 function formatDate(d: Date) {
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: '2-digit' });
 }
 
 export default function VendorEventActivityPage() {
   const navigate = useNavigate();
+  const { vendorId } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const createFormRef = useRef<HTMLDivElement | null>(null);
 
@@ -43,6 +173,7 @@ export default function VendorEventActivityPage() {
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [usingDemo, setUsingDemo] = useState(false);
   const [activities, setActivities] = useState<VendorEventActivity[]>([]);
   const [statusFilter, setStatusFilter] = useState<'all' | VendorEventActivity['status']>('all');
   const [categoryFilter, setCategoryFilter] = useState<'all' | VendorEventActivity['category']>('all');
@@ -63,6 +194,18 @@ export default function VendorEventActivityPage() {
   const [requestsNotice, setRequestsNotice] = useState('');
   const [requestLoading, setRequestLoading] = useState(false);
   const [requestError, setRequestError] = useState('');
+  const [enquiries, setEnquiries] = useState<
+    Array<{
+      id: string;
+      listingTitle: string;
+      bookerName: string;
+      corporateName: string;
+      status: string;
+      createdAt: string;
+      amount: number | null;
+    }>
+  >([]);
+  const [usingDemoEnquiries, setUsingDemoEnquiries] = useState(false);
   const [uiNotice, setUiNotice] = useState<string | null>(null);
 
   const [rejectionOpen, setRejectionOpen] = useState(false);
@@ -134,67 +277,36 @@ export default function VendorEventActivityPage() {
     }
   }, [searchParams, activities]);
 
-  useEffect(() => {
+  const loadActivities = useCallback(async () => {
     setLoading(true);
     setLoadError('');
-
-    const t = window.setTimeout(() => {
-      const fail = Math.random() < 0.08;
-      if (fail) {
-        setLoadError('Unable to load vendor event activities right now. Please retry.');
-        setLoading(false);
-        return;
-      }
-
-      setActivities([
-        {
-          id: 'ea-1',
-          title: 'Corporate Escape Rooms',
-          category: 'Indoor Fun',
-          teamSize: 10,
-          pricePerUnitLabel: '₹2,000/hr per team',
-          status: 'Active',
-          createdAt: formatDate(new Date(Date.now() - 1000 * 60 * 60 * 24 * 9)),
-          coverUrl: COVER_PLACEHOLDER,
-          hasAddOns: true,
-        },
-        {
-          id: 'ea-2',
-          title: 'Team Mini-Golf Challenge',
-          category: 'Outdoor Adventure',
-          teamSize: 15,
-          pricePerUnitLabel: '₹1,800/hr per team',
-          status: 'Draft',
-          createdAt: formatDate(new Date(Date.now() - 1000 * 60 * 60 * 24 * 2)),
-          coverUrl: COVER_PLACEHOLDER,
-          hasAddOns: true,
-        },
-        {
-          id: 'ea-rejected-1',
-          title: 'Leadership Workshop Sprint',
-          category: 'Team Building',
-          teamSize: 24,
-          pricePerUnitLabel: '₹3,500/hr per team',
-          status: 'Rejected',
-          createdAt: formatDate(new Date(Date.now() - 1000 * 60 * 60 * 24 * 4)),
-          coverUrl: COVER_PLACEHOLDER,
-          hasAddOns: false,
-          rejection: {
-            submissionDate: formatDate(new Date(Date.now() - 1000 * 60 * 60 * 24 * 6)),
-            rejectionDate: formatDate(new Date(Date.now() - 1000 * 60 * 60 * 24 * 2)),
-            reasonCategory: 'Missing Media',
-            rejectionReason: 'Please upload at least three high-resolution photos of your venue and one cover image in landscape orientation.',
-          },
-        },
-      ]);
-
-      // Sometimes start empty (demo)
-      if (Math.random() < 0.15) setActivities([]);
+    if (!vendorId) {
+      setActivities(DEMO_VENDOR_ACTIVITIES);
+      setUsingDemo(true);
       setLoading(false);
-    }, 650);
+      return;
+    }
+    const { data, error } = await db.listings.listByVendor(vendorId);
+    if (error) {
+      setLoadError('Unable to load vendor event activities right now. Please retry.');
+      setActivities(DEMO_VENDOR_ACTIVITIES);
+      setUsingDemo(true);
+    } else {
+      const rows = ((data ?? []) as ListingWithImages[]).filter((l) => l.module === MODULE_ID);
+      if (rows.length > 0) {
+        setActivities(rows.map(listingToVendorActivity));
+        setUsingDemo(false);
+      } else {
+        setActivities(DEMO_VENDOR_ACTIVITIES);
+        setUsingDemo(true);
+      }
+    }
+    setLoading(false);
+  }, [vendorId]);
 
-    return () => window.clearTimeout(t);
-  }, []);
+  useEffect(() => {
+    loadActivities();
+  }, [loadActivities]);
 
   const resetForm = () => {
     setTitle('');
@@ -230,19 +342,50 @@ export default function VendorEventActivityPage() {
     return ok;
   };
 
-  const submit = () => {
+  const submit = async () => {
     if (!validate()) return;
     setSubmitting(true);
     setSubmitError('');
     setSubmitSuccess('');
 
-    window.setTimeout(() => {
-      if (Math.random() < 0.12) {
-        setSubmitError('Unable to create this activity right now. Please retry.');
+    if (vendorId) {
+      const { data, error } = await db.listings.create({
+        vendor_id: vendorId,
+        module: MODULE_ID,
+        category_id: null,
+        title: title.trim(),
+        description: null,
+        pricing_type: 'transparent',
+        base_price: null,
+        price_unit: 'per_hour',
+        min_capacity: 1,
+        max_capacity: Number(teamSize),
+        location_city: null,
+        location_address: null,
+        cancellation_policy: null,
+        confirmation_sla_hours: 24,
+        buffer_minutes: 0,
+        is_mogzu_direct: false,
+        status: 'draft',
+        metadata: {
+          activityCategory: category,
+          category,
+          pricePerUnitLabel: pricePerUnitLabel.trim() || '₹2,000/hr per team',
+        },
+      });
+      if (error || !data) {
+        setSubmitError(error?.message ?? 'Unable to create this activity right now. Please retry.');
         setSubmitting(false);
         return;
       }
+      await loadActivities();
+      setSubmitSuccess('Activity created as draft. Submit for review when ready.');
+      setSubmitting(false);
+      resetForm();
+      return;
+    }
 
+    window.setTimeout(() => {
       const row: VendorEventActivity = {
         id: `ea-${Date.now()}`,
         title: title.trim(),
@@ -259,52 +402,103 @@ export default function VendorEventActivityPage() {
       setSubmitSuccess('Activity created. Enquiries will show up in Requests (demo).');
       setSubmitting(false);
       resetForm();
-    }, 900);
+    }, 400);
   };
 
   const handleRetryLoad = () => {
-    setLoading(true);
-    setLoadError('');
-    setActivities([]);
-    const t = window.setTimeout(() => {
-      setActivities([
-        {
-          id: 'ea-1',
-          title: 'Corporate Escape Rooms',
-          category: 'Indoor Fun',
-          teamSize: 10,
-          pricePerUnitLabel: '₹2,000/hr per team',
-          status: 'Active',
-          createdAt: formatDate(new Date(Date.now() - 1000 * 60 * 60 * 24 * 9)),
-          coverUrl: COVER_PLACEHOLDER,
-          hasAddOns: true,
-        },
-      ]);
-      setLoading(false);
-    }, 650);
+    loadActivities();
   };
 
-  const openRequests = () => {
+  const patchLocalActivity = (id: string, patch: Partial<VendorEventActivity>) => {
+    setActivities((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+  };
+
+  const updateListingStatus = async (
+    id: string,
+    status: ListingStatus,
+    localPatch: Partial<VendorEventActivity>,
+    successMsg: string,
+  ) => {
+    if (isListingUuid(id)) {
+      const { error } = await db.listings.updateStatus(id, status);
+      if (error) {
+        setSubmitError(error.message);
+        return;
+      }
+      setSubmitSuccess(successMsg);
+      await loadActivities();
+      return;
+    }
+    patchLocalActivity(id, localPatch);
+    setSubmitSuccess(successMsg);
+  };
+
+  const submitForReview = (id: string) =>
+    updateListingStatus(id, 'pending_approval', { status: 'Pending' }, 'Submitted for admin review.');
+
+  const withdrawFromReview = (id: string) =>
+    updateListingStatus(id, 'draft', { status: 'Draft' }, 'Withdrawn to draft.');
+
+  const resubmitListing = (id: string) =>
+    updateListingStatus(
+      id,
+      'pending_approval',
+      { status: 'Pending', rejection: undefined },
+      'Resubmitted for review.',
+    );
+
+  const openRequests = useCallback(async () => {
     setRequestsNotice('');
     setRequestError('');
     setRequestLoading(true);
 
-    window.setTimeout(() => {
-      const r = Math.random();
-      if (r < 0.12) {
-        setRequestError('We could not load booking enquiries. Please retry.');
-        setRequestLoading(false);
-        return;
-      }
-      if (r < 0.35) {
-        setRequestsNotice('No enquiries pending right now.');
-        setRequestLoading(false);
-        return;
-      }
-      setRequestsNotice('3 enquiries ready to review (demo).');
+    if (!vendorId) {
+      setEnquiries([]);
+      setUsingDemoEnquiries(true);
+      setRequestsNotice('Sign in as a vendor to review live booking enquiries.');
       setRequestLoading(false);
-    }, 750);
-  };
+      return;
+    }
+
+    const { data, error } = await db.bookings.listByVendor(vendorId);
+    if (error) {
+      setRequestError('We could not load booking enquiries. Please retry.');
+      setEnquiries([]);
+      setRequestLoading(false);
+      return;
+    }
+
+    const rows = (data ?? []).filter((b) => {
+      const listing = b.listings as { module?: string; title?: string } | null;
+      return listing?.module === MODULE_ID && b.status === 'pending_vendor';
+    });
+
+    if (rows.length === 0) {
+      setEnquiries([]);
+      setUsingDemoEnquiries(false);
+      setRequestsNotice('No enquiries pending right now.');
+    } else {
+      setEnquiries(
+        rows.map((b) => {
+          const listing = b.listings as { title?: string } | null;
+          const profile = b.user_profiles as { full_name?: string } | null;
+          const corp = b.corporate_accounts as { name?: string } | null;
+          return {
+            id: b.id,
+            listingTitle: listing?.title ?? 'Event activity',
+            bookerName: profile?.full_name ?? 'Corporate booker',
+            corporateName: corp?.name ?? 'Corporate account',
+            status: b.status,
+            createdAt: formatDate(new Date(b.created_at)),
+            amount: b.total_amount ?? null,
+          };
+        }),
+      );
+      setUsingDemoEnquiries(false);
+      setRequestsNotice(`${rows.length} enquir${rows.length === 1 ? 'y' : 'ies'} awaiting your response.`);
+    }
+    setRequestLoading(false);
+  }, [vendorId]);
 
   const deleteActivity = (id: string) => {
     setActivities((prev) => prev.filter((a) => a.id !== id));
@@ -316,8 +510,23 @@ export default function VendorEventActivityPage() {
       if (!src) return prev;
       return [{ ...src, id: `ea-${Date.now()}`, title: `${src.title} (Copy)`, status: 'Draft', createdAt: formatDate(new Date()) }, ...prev];
     });
-  const togglePauseActivate = (id: string) =>
-    setActivities((prev) => prev.map((x) => (x.id === id ? { ...x, status: x.status === 'Active' ? 'Paused' : 'Active' } : x)));
+  const togglePauseActivate = async (id: string) => {
+    const row = activities.find((x) => x.id === id);
+    if (!row) return;
+    if (vendorId && isListingUuid(id)) {
+      const next: ListingStatus = row.status === 'Active' ? 'paused' : 'active';
+      const { error } = await db.listings.updateStatus(id, next);
+      if (error) {
+        setSubmitError(error.message);
+        return;
+      }
+      await loadActivities();
+      return;
+    }
+    setActivities((prev) =>
+      prev.map((x) => (x.id === id ? { ...x, status: x.status === 'Active' ? 'Paused' : 'Active' } : x)),
+    );
+  };
 
   const closePreview = () => setPreviewTitle('');
 
@@ -377,6 +586,8 @@ export default function VendorEventActivityPage() {
               {uiNotice}
             </p>
           ) : null}
+
+          {usingDemo && !loading ? <DevMockDataBanner /> : null}
 
           <div className="p-4 sm:p-6">
             <div className="mb-4 flex flex-wrap gap-2">
@@ -561,11 +772,7 @@ export default function VendorEventActivityPage() {
                           {a.status === 'Draft' && (
                             <button
                               type="button"
-                              onClick={() =>
-                                setActivities((prev) =>
-                                  prev.map((x) => (x.id === a.id ? { ...x, status: 'Pending' } : x)),
-                                )
-                              }
+                              onClick={() => submitForReview(a.id)}
                               className="rounded-md bg-[#2563EB] px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
                             >
                               Submit for review
@@ -574,11 +781,7 @@ export default function VendorEventActivityPage() {
                           {a.status === 'Pending' && (
                             <button
                               type="button"
-                              onClick={() =>
-                                setActivities((prev) =>
-                                  prev.map((x) => (x.id === a.id ? { ...x, status: 'Draft' } : x)),
-                                )
-                              }
+                              onClick={() => withdrawFromReview(a.id)}
                               className="rounded p-2 text-slate-500 hover:bg-slate-100 hover:text-blue-600"
                               title="Withdraw"
                             >
@@ -588,13 +791,7 @@ export default function VendorEventActivityPage() {
                           {a.status === 'Rejected' && (
                             <button
                               type="button"
-                              onClick={() =>
-                                setActivities((prev) =>
-                                  prev.map((x) =>
-                                    x.id === a.id ? { ...x, status: 'Pending', rejection: undefined } : x,
-                                  ),
-                                )
-                              }
+                              onClick={() => resubmitListing(a.id)}
                               className="rounded-md bg-[#2563EB] px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
                             >
                               Resubmit
@@ -725,10 +922,15 @@ export default function VendorEventActivityPage() {
             {activeTab === 'requests' && (
               <div className="rounded-lg border border-slate-200 bg-white p-5">
                 <h2 className="text-sm font-semibold text-slate-900">Booking enquiries</h2>
-                <p className="mt-1 text-xs text-slate-500">Review and respond to vendor event activity enquiries (demo).</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Review pending event activity bookings from corporate clients.
+                </p>
+
+                {usingDemoEnquiries && !requestLoading ? <DevMockDataBanner /> : null}
 
                 {requestLoading ? (
                   <div className="mt-4 rounded-lg border border-dashed border-slate-200 bg-white p-10 text-center">
+                    <Loader2 className="mx-auto mb-3 size-8 animate-spin text-[#2563EB]" />
                     <p className="text-sm font-medium text-slate-700">Loading enquiries…</p>
                   </div>
                 ) : requestError ? (
@@ -750,22 +952,32 @@ export default function VendorEventActivityPage() {
                       <p className="text-sm text-slate-500">Choose “Enquiries” to load your request list.</p>
                     )}
 
-                    <div className="mt-4 flex flex-col sm:flex-row gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setRequestsNotice('Accepted (demo). The corporate portal will be notified in a future release.')}
-                        className="flex-1 rounded-md bg-[#2563EB] px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                      >
-                        Review & accept
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setRequestsNotice('Declined (demo). You can send a counter-offer later.')}
-                        className="flex-1 rounded-md border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                      >
-                        Decline
-                      </button>
-                    </div>
+                    {enquiries.length > 0 ? (
+                      <ul className="mt-4 divide-y divide-slate-100 rounded-lg border border-slate-200">
+                        {enquiries.map((enq) => (
+                          <li key={enq.id} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <p className="text-sm font-semibold text-slate-900">{enq.listingTitle}</p>
+                              <p className="text-xs text-slate-500">
+                                {enq.bookerName} · {enq.corporateName} · {enq.createdAt}
+                              </p>
+                              {enq.amount != null ? (
+                                <p className="mt-1 text-xs font-medium text-[#2563EB]">
+                                  ₹{enq.amount.toLocaleString('en-IN')}
+                                </p>
+                              ) : null}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/vendor/booking-requests/${enq.id}`)}
+                              className="rounded-md bg-[#2563EB] px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                            >
+                              Review
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
                   </div>
                 )}
               </div>

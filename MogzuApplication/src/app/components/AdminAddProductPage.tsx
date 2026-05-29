@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { ChevronDown, ImagePlus } from 'lucide-react';
+import { MogzuLegacyDemoBanner } from '@/app/components/ui/MogzuLegacyDemoBanner';
 
 export default function AdminAddProductPage() {
   const navigate = useNavigate();
@@ -14,6 +15,18 @@ export default function AdminAddProductPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold text-slate-900 tracking-tight">Add Product</h1>
+      <MogzuLegacyDemoBanner />
+      <p className="text-sm text-slate-600">
+        Mock admin product form. For live listings use{' '}
+        <Link to="/admin/gifting/products" className="font-semibold text-blue-600 hover:underline">
+          gifting approval
+        </Link>{' '}
+        or{' '}
+        <Link to="/admin/mogzu-direct/new" className="font-semibold text-blue-600 hover:underline">
+          Mogzu Direct
+        </Link>
+        .
+      </p>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-5 lg:p-6 space-y-4">

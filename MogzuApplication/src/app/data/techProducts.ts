@@ -1,5 +1,6 @@
 export interface TechProduct {
   id: number;
+  mogzuListingId?: string;
   name: string;
   subcategory: 'powerbanks' | 'speakers' | 'earbuds' | 'smartbottles' | 'wirelesschargers' | 'pendrives' | 'techkits' | 'smartclocks' | 'laptopstands' | 'desklamps';
   brand: string;

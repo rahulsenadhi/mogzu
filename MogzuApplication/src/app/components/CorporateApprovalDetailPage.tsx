@@ -13,6 +13,14 @@ import { SharedHeader } from './layouts/SharedHeader'
 import { SharedSidebar } from './layouts/SharedSidebar'
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface'
 import { useAuth } from '@/lib/auth'
+import {
+  approveBookingStep,
+  canRoleApproveLevel,
+  formatChainProgress,
+  getNextPendingLevel,
+  getBookingApprovalMeta,
+  WORKFLOW_LEVEL_LABELS,
+} from '@/lib/bookingApprovalMeta'
 import { db } from '@/lib/db'
 import type {
   Booking,
@@ -76,7 +84,23 @@ export default function CorporateApprovalDetailPage() {
   const [actionSuccess, setActionSuccess] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  const canApprove = role === 'l2_manager' || role === 'l3_admin'
+  const canApprove = role === 'l2_manager' || role === 'l3_admin' || role === 'mogzu_admin'
+
+  const approvalNote = useMemo(
+    () => (request ? getBookingApprovalMeta(request) : { userNote: '', meta: null }),
+    [request],
+  )
+
+  const nextApprovalLevel = useMemo(
+    () => (approvalNote.meta ? getNextPendingLevel(approvalNote.meta) : null),
+    [approvalNote.meta],
+  )
+
+  const canApproveCurrentStep = useMemo(() => {
+    if (!request || request.status !== 'pending_approval' || !role) return false
+    if (!approvalNote.meta || !nextApprovalLevel) return canApprove
+    return canRoleApproveLevel(role, nextApprovalLevel)
+  }, [request, role, approvalNote.meta, nextApprovalLevel, canApprove])
 
   const loadRequest = useCallback(async () => {
     if (!id) return
@@ -99,8 +123,8 @@ export default function CorporateApprovalDetailPage() {
   const listIntent = (location.state as { intent?: 'approve' | 'reject' } | null)?.intent
 
   const canTakeAction = useMemo(
-    () => request?.status === 'pending_approval' && canApprove,
-    [request?.status, canApprove],
+    () => request?.status === 'pending_approval' && canApproveCurrentStep,
+    [request?.status, canApproveCurrentStep],
   )
 
   useEffect(() => {
@@ -114,27 +138,52 @@ export default function CorporateApprovalDetailPage() {
   }, [canTakeAction, listIntent])
 
   const handleApprove = async () => {
-    if (!request || !canTakeAction || !profile) return
+    if (!request || !canTakeAction || !profile || !role) return
     setActionError('')
     if (!approvalComment.trim()) {
       setActionError('Approval comment is required.')
       return
     }
     setSubmitting(true)
-    const { error } = await db.bookings.approve(request.id, profile.id)
-    if (error) {
-      setActionError(error.message)
+
+    const listingTitle = request.listings?.title ?? 'Booking'
+    const comment = approvalComment.trim()
+
+    if (!request.corporate_id) {
+      setActionError('Corporate account missing on this booking.')
       setSubmitting(false)
       return
     }
-    db.notifications.notify({
-      userId: request.user_id,
-      type: 'approval_decided',
-      title: 'Your booking was approved',
-      body: `${request.listings?.title ?? 'Booking'} — awaiting vendor confirmation. Manager comment: ${approvalComment.trim()}`,
-      linkUrl: `/bookings/${request.id}`,
+
+    const result = await approveBookingStep({
+      bookingId: request.id,
+      booking: request,
+      corporateId: request.corporate_id,
+      requesterUserId: request.user_id,
+      totalAmount: request.total_amount ?? 0,
+      listingTitle,
+      approverId: profile.id,
+      role,
+      approvalComment: comment,
     })
-    setActionSuccess('Request approved. Vendor will be notified.')
+
+    if (!result.ok) {
+      setActionError(
+        result.forbidden && approvalNote.meta
+          ? `Your role cannot approve ${WORKFLOW_LEVEL_LABELS[getNextPendingLevel(approvalNote.meta)!]}.`
+          : result.error,
+      )
+      setSubmitting(false)
+      return
+    }
+
+    if (result.kind === 'advanced') {
+      setActionSuccess(
+        'Your approval was recorded. The next approver in the chain has been notified.',
+      )
+    } else {
+      setActionSuccess('Request approved. Vendor will be notified.')
+    }
     setSubmitting(false)
     loadRequest()
   }
@@ -307,12 +356,30 @@ export default function CorporateApprovalDetailPage() {
                         )}
                       </div>
 
-                      {request.purpose_note && (
+                      {approvalNote.meta && (
+                        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+                            Approval chain
+                          </p>
+                          <p className="mt-1 text-sm font-medium text-amber-900">
+                            {formatChainProgress(approvalNote.meta)}
+                          </p>
+                          {nextApprovalLevel && canTakeAction ? (
+                            <p className="mt-2 text-xs text-amber-800">
+                              Your step: {WORKFLOW_LEVEL_LABELS[nextApprovalLevel]}
+                            </p>
+                          ) : null}
+                        </div>
+                      )}
+
+                      {approvalNote.userNote && (
                         <div className="mt-4 rounded-lg bg-slate-50 p-4">
                           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                             Purpose note
                           </p>
-                          <p className="mt-1 text-sm text-gray-800">{request.purpose_note}</p>
+                          <p className="mt-1 whitespace-pre-wrap text-sm text-gray-800">
+                            {approvalNote.userNote}
+                          </p>
                         </div>
                       )}
 

@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { getPostLoginPath } from './authRedirect'
+import {
+  getCorporateLoginRedirectPath,
+  getPostLoginPath,
+  sanitizeCorporateReturnPath,
+} from './authRedirect'
 
 describe('getPostLoginPath', () => {
   it('routes Mogzu admin roles to /admin', () => {
@@ -20,5 +24,28 @@ describe('getPostLoginPath', () => {
     expect(getPostLoginPath('l2_manager')).toBe('/dashboard')
     expect(getPostLoginPath('l3_admin')).toBe('/dashboard')
     expect(getPostLoginPath(null)).toBe('/dashboard')
+  })
+})
+
+describe('getCorporateLoginRedirectPath', () => {
+  it('sends corporate primary roles to dashboard even when fallback is admin', () => {
+    expect(
+      getCorporateLoginRedirectPath(
+        { role: 'l3_admin', corporate_id: 'corp-1' } as never,
+        'mogzu_admin',
+      ),
+    ).toBe('/dashboard')
+  })
+
+  it('still sends true admin primary roles to /admin', () => {
+    expect(getCorporateLoginRedirectPath({ role: 'mogzu_admin' } as never, null)).toBe('/admin')
+  })
+})
+
+describe('sanitizeCorporateReturnPath', () => {
+  it('blocks admin and vendor return paths', () => {
+    expect(sanitizeCorporateReturnPath('/admin')).toBeUndefined()
+    expect(sanitizeCorporateReturnPath('/vendor/dashboard')).toBeUndefined()
+    expect(sanitizeCorporateReturnPath('/events')).toBe('/events')
   })
 })

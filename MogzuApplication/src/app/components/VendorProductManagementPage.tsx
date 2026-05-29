@@ -12,6 +12,7 @@ import {
   VENDOR_CATALOG_UPDATED_EVENT,
 } from '@/app/lib/vendorProductsCatalogStorage';
 import { VendorAppShell } from './layouts/VendorAppShell';
+import { MogzuLegacyDemoBanner } from '@/app/components/ui/MogzuLegacyDemoBanner';
 
 type MgmtTab = 'product' | 'inventory' | 'category';
 
@@ -254,6 +255,7 @@ export default function VendorProductManagementPage() {
       >
         <main className="min-h-full w-full bg-transparent">
           <div className="p-4 sm:p-6">
+            <MogzuLegacyDemoBanner className="mb-4" />
             <section className="rounded-lg border border-slate-200 bg-white p-4">
               {uiNotice ? (
                 <p className="mb-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-700">

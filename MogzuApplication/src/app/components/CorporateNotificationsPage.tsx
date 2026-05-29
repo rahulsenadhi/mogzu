@@ -19,8 +19,22 @@ import {
   CreditCard,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { notifications as notificationsApi } from '@/lib/db';
-import type { Notification as DbNotification, NotificationType } from '@/lib/database.types';
+import {
+  announcementAudienceLabel,
+  resolveCorporateAnnouncementRecipients,
+} from '@/lib/corporateAnnouncementBroadcast';
+import {
+  applyCorporateInboxFilters,
+  DEFAULT_CORPORATE_INBOX_FILTERS,
+  hasActiveCorporateInboxFilters,
+  type CorporateInboxFilters,
+  type InboxCategoryFilter,
+  type InboxKindFilter,
+  type InboxReadFilter,
+} from '@/lib/corporateNotificationInboxFilters';
+import { notifications as notificationsApi, userProfiles as userProfilesApi } from '@/lib/db';
+import type { Notification as DbNotification, NotificationType, UserProfile, UserRole } from '@/lib/database.types';
+import { subscribeToTable } from '@/lib/realtime';
 
 type NotifKind = 'action' | 'shared';
 type NotifStatus = 'pending' | 'read';
@@ -93,243 +107,22 @@ function mapDbNotification(n: DbNotification): DisplayNotification {
   };
 }
 
-const _mockNotificationsDeprecated = [
-  {
-    id: 'n1',
-    title: 'Booking Approval Required',
-    message: 'Sarah Jenkins requested approval for "Grand Hyatt Event Space". Needs approval by tomorrow.',
-    date: '10 mins ago',
-    type: 'action',
-    status: 'pending',
-    icon: <AlertCircle className="w-5 h-5 text-amber-500" />,
-    avatar: 'https://images.unsplash.com/photo-1758691737605-69a0e78bd193?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjb3Jwb3JhdGUlMjBmZW1hbGUlMjBkaXZlcnNlJTIwc21pbGluZyUyMGF2YXRhcnxlbnwxfHx8fDE3NzM3NTYyMDF8MA&ixlib=rb-4.1.0&q=80&w=1080',
-  },
-  {
-    id: 'n2',
-    title: 'New Team Policy Published',
-    message: 'Corporate updated the "Q3 Remote Work & Co-working Reimbursement" policies.',
-    date: '2 hours ago',
-    type: 'shared',
-    status: 'read',
-    icon: <Megaphone className="w-5 h-5 text-blue-500" />,
-  },
-  {
-    id: 'n3',
-    title: 'Invoice Payment Failed',
-    message: 'Transaction TRX-9975-3 failed. Please update the corporate payment method.',
-    date: 'Yesterday',
-    type: 'action',
-    status: 'pending',
-    icon: <AlertCircle className="w-5 h-5 text-rose-500" />,
-  },
-  {
-    id: 'n6',
-    title: 'Payment Successful',
-    message: 'Payment for booking BK-2024-0091 was successful. Receipt is ready for download.',
-    date: '3 hours ago',
-    type: 'shared',
-    status: 'read',
-    icon: <CheckCircle2 className="w-5 h-5 text-emerald-500" />,
-  },
-  {
-    id: 'n7',
-    title: 'Refund Initiated',
-    message: 'Refund for cancelled booking BK-2024-0088 has been initiated and is under processing.',
-    date: 'Oct 24, 2024',
-    type: 'shared',
-    status: 'pending',
-    icon: <Clock className="w-5 h-5 text-amber-500" />,
-  },
-  {
-    id: 'n8',
-    title: 'Refund Completed',
-    message: 'Refund for booking BK-2024-0072 has been completed and credited to the original payment method.',
-    date: 'Oct 23, 2024',
-    type: 'shared',
-    status: 'read',
-    icon: <CheckCircle2 className="w-5 h-5 text-emerald-500" />,
-  },
-  {
-    id: 'n9',
-    title: 'Enquiry Submitted Successfully',
-    message: 'Your enquiry for "Grand Hyatt Event Space" has been sent to the vendor.',
-    date: 'Just now',
-    type: 'shared',
-    status: 'read',
-    icon: <Send className="w-5 h-5 text-blue-500" />,
-  },
-  {
-    id: 'n10',
-    title: 'Vendor Responded with Best Offer',
-    message: 'A best offer is available for enquiry ENQ-2201. Review and respond.',
-    date: '20 mins ago',
-    type: 'action',
-    status: 'pending',
-    icon: <AlertCircle className="w-5 h-5 text-amber-500" />,
-  },
-  {
-    id: 'n11',
-    title: 'Vendor Accepted Offer',
-    message: 'Your offer for enquiry ENQ-2198 has been accepted. Proceed to payment.',
-    date: '1 hour ago',
-    type: 'action',
-    status: 'pending',
-    icon: <CheckCircle2 className="w-5 h-5 text-emerald-500" />,
-  },
-  {
-    id: 'n12',
-    title: 'Vendor Declined Offer',
-    message: 'Your offer for enquiry ENQ-2191 was declined. View alternatives.',
-    date: 'Yesterday',
-    type: 'shared',
-    status: 'read',
-    icon: <AlertCircle className="w-5 h-5 text-rose-500" />,
-  },
-  {
-    id: 'n13',
-    title: 'Enquiry Expired',
-    message: 'Enquiry ENQ-2186 expired due to no vendor response in 24 hours.',
-    date: 'Oct 24, 2024',
-    type: 'shared',
-    status: 'pending',
-    icon: <Clock className="w-5 h-5 text-amber-500" />,
-  },
-  {
-    id: 'n14',
-    title: 'Vendor Withdrew Listing',
-    message: 'The listing for enquiry ENQ-2180 was withdrawn by the vendor.',
-    date: 'Oct 24, 2024',
-    type: 'shared',
-    status: 'pending',
-    icon: <AlertCircle className="w-5 h-5 text-rose-500" />,
-  },
-  {
-    id: 'n15',
-    title: 'Personal Spend Limit at 80%',
-    message: 'You have used 80% of your approved personal budget this quarter.',
-    date: 'Today',
-    type: 'shared',
-    status: 'pending',
-    icon: <AlertCircle className="w-5 h-5 text-amber-500" />,
-  },
-  {
-    id: 'n16',
-    title: 'Personal Spend Limit Reached',
-    message: 'You have reached 100% of your personal spend limit. New requests may require manager approval.',
-    date: 'Today',
-    type: 'action',
-    status: 'pending',
-    icon: <AlertCircle className="w-5 h-5 text-rose-500" />,
-  },
-  {
-    id: 'n17',
-    title: 'Department Budget at 80%',
-    message: 'Your department has consumed 80% of the allocated budget.',
-    date: 'Today',
-    type: 'shared',
-    status: 'pending',
-    icon: <AlertCircle className="w-5 h-5 text-amber-500" />,
-  },
-  {
-    id: 'n18',
-    title: 'Department Budget Exhausted',
-    message: 'Department budget is exhausted. New requests are blocked until reset or limit increase.',
-    date: 'Today',
-    type: 'action',
-    status: 'pending',
-    icon: <AlertCircle className="w-5 h-5 text-rose-500" />,
-  },
-  {
-    id: 'n19',
-    title: 'Booking Confirmed',
-    message: 'Your booking BK-2024-0091 is confirmed and vendor has been notified.',
-    date: '2 hours ago',
-    type: 'shared',
-    status: 'read',
-    icon: <CheckCircle2 className="w-5 h-5 text-emerald-500" />,
-  },
-  {
-    id: 'n20',
-    title: 'Booking Cancelled by Employee',
-    message: 'Booking BK-2024-0088 was cancelled by the requester.',
-    date: 'Yesterday',
-    type: 'shared',
-    status: 'read',
-    icon: <AlertCircle className="w-5 h-5 text-slate-500" />,
-  },
-  {
-    id: 'n21',
-    title: 'Booking Cancelled by Vendor',
-    message: 'Vendor cancelled booking BK-2024-0079. Please review alternatives.',
-    date: 'Yesterday',
-    type: 'action',
-    status: 'pending',
-    icon: <AlertCircle className="w-5 h-5 text-rose-500" />,
-  },
-  {
-    id: 'n22',
-    title: 'Upcoming Booking Reminder',
-    message: 'Reminder: Booking BK-2024-0091 starts in 24 hours.',
-    date: 'Today',
-    type: 'shared',
-    status: 'pending',
-    icon: <Clock className="w-5 h-5 text-blue-500" />,
-  },
-  {
-    id: 'n23',
-    title: 'Request Submitted for Approval',
-    message: 'Your request for "Grand Hyatt Event Space" was submitted and is pending manager review.',
-    date: '5 mins ago',
-    type: 'shared',
-    status: 'pending',
-    icon: <Send className="w-5 h-5 text-blue-500" />,
-  },
-  {
-    id: 'n24',
-    title: 'Request Approved',
-    message: 'Your approval request APR-4821 has been approved.',
-    date: '1 hour ago',
-    type: 'shared',
-    status: 'read',
-    icon: <CheckCircle2 className="w-5 h-5 text-emerald-500" />,
-  },
-  {
-    id: 'n25',
-    title: 'Request Rejected with Reason',
-    message: 'APR-4814 was rejected: "Budget head exhausted for this month. Please revise and resubmit."',
-    date: 'Yesterday',
-    type: 'action',
-    status: 'pending',
-    icon: <AlertCircle className="w-5 h-5 text-rose-500" />,
-  },
-  {
-    id: 'n26',
-    title: 'Approval Deadline Approaching',
-    message: 'Approval request APR-4826 is due in 2 hours. Review before escalation.',
-    date: 'Just now',
-    type: 'action',
-    status: 'pending',
-    icon: <Clock className="w-5 h-5 text-amber-500" />,
-  },
-  {
-    id: 'n4',
-    title: 'Mogzu System Update',
-    date: 'Oct 24, 2024',
-    message: 'The Activity Suite has new integrated empanelled vendors in your region.',
-    type: 'shared',
-    status: 'read',
-    icon: <Bell className="w-5 h-5 text-slate-400" />,
-  },
-  {
-    id: 'n5',
-    title: 'Employee Gifting Order Shipped',
-    message: 'Diwali Hampers (50x) have been dispatched to the Bangalore office.',
-    date: 'Oct 23, 2024',
-    type: 'shared',
-    status: 'read',
-    icon: <CheckCircle2 className="w-5 h-5 text-emerald-500" />,
-  }
-];
+const ROLE_LABELS: Partial<Record<UserRole, string>> = {
+  l1_employee: 'Employee',
+  l2_manager: 'Manager',
+  l3_admin: 'Admin',
+  mogzu_admin: 'Mogzu admin',
+};
+
+type PublishMember = { id: string; name: string; role: string };
+
+function mapProfileToMember(p: UserProfile): PublishMember {
+  return {
+    id: p.id,
+    name: p.full_name?.trim() || p.phone || 'Team member',
+    role: ROLE_LABELS[p.role] ?? p.role,
+  };
+}
 
 const teamDepartments = [
   "All Company",
@@ -340,17 +133,10 @@ const teamDepartments = [
   "Operations"
 ];
 
-const teamMembers = [
-  { id: 'u1', name: 'Sarah Jenkins', role: 'Engineering Lead' },
-  { id: 'u2', name: 'James Brown', role: 'Corporate Admin' },
-  { id: 'u3', name: 'Priya Sharma', role: 'Marketing Director' },
-  { id: 'u4', name: 'Michael Chen', role: 'Product Manager' },
-  { id: 'u5', name: 'Emily Davis', role: 'HR Specialist' }
-];
-
 export default function CorporateNotificationsPage() {
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { profile, corporateId, role } = useAuth();
+  const canPublish = role === 'l3_admin' || role === 'mogzu_admin';
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -362,8 +148,15 @@ export default function CorporateNotificationsPage() {
   const [notifications, setNotifications] = useState<DisplayNotification[]>([]);
   const [publishError, setPublishError] = useState('');
   const [publishSuccess, setPublishSuccess] = useState('');
-  const [inboxFilterNotice, setInboxFilterNotice] = useState('');
+  const [showInboxFilters, setShowInboxFilters] = useState(false);
+  const [inboxFilters, setInboxFilters] = useState<CorporateInboxFilters>(
+    DEFAULT_CORPORATE_INBOX_FILTERS,
+  );
   const [publishDraftNotice, setPublishDraftNotice] = useState('');
+  const [corporateProfiles, setCorporateProfiles] = useState<UserProfile[]>([]);
+  const [teamMembers, setTeamMembers] = useState<PublishMember[]>([]);
+  const [teamMembersLoading, setTeamMembersLoading] = useState(false);
+  const [publishBusy, setPublishBusy] = useState(false);
   const loadTimerRef = useRef<number | null>(null);
 
   // Publish Form State
@@ -401,14 +194,74 @@ export default function CorporateNotificationsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id]);
 
-  const filteredNotifications = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return notifications;
-    return notifications.filter((n) =>
-      n.title.toLowerCase().includes(q) ||
-      n.message.toLowerCase().includes(q)
-    );
-  }, [notifications, searchQuery]);
+  useEffect(() => {
+    if (!profile?.id) return
+    return subscribeToTable<DbNotification>(`corporate-notifications-feed-${profile.id}`, {
+      table: 'notifications',
+      filter: `user_id=eq.${profile.id}`,
+      onData: () => void loadNotifications(),
+    })
+  }, [profile?.id]);
+
+  useEffect(() => {
+    if (!canPublish && activeTab === 'publish') {
+      setActiveTab('inbox');
+    }
+  }, [canPublish, activeTab]);
+
+  useEffect(() => {
+    if (!corporateId) {
+      setTeamMembers([]);
+      return;
+    }
+    setTeamMembersLoading(true);
+    void userProfilesApi.listByCorporate(corporateId).then(({ data, error }) => {
+      setTeamMembersLoading(false);
+      if (error || !data?.length) {
+        setCorporateProfiles([]);
+        setTeamMembers([]);
+        return;
+      }
+      const profiles = data as UserProfile[];
+      setCorporateProfiles(profiles);
+      setTeamMembers(profiles.map(mapProfileToMember));
+    });
+  }, [corporateId]);
+
+  const teamOptions = useMemo(() => {
+    const fromDb = corporateProfiles
+      .map((p) => p.department?.trim())
+      .filter((d): d is string => Boolean(d));
+    const merged = new Set([
+      ...teamDepartments.filter((d) => d !== 'All Company'),
+      ...fromDb,
+    ]);
+    return Array.from(merged).sort((a, b) => a.localeCompare(b));
+  }, [corporateProfiles]);
+
+  const filteredNotifications = useMemo(
+    () => applyCorporateInboxFilters(notifications, inboxFilters, searchQuery),
+    [notifications, inboxFilters, searchQuery],
+  );
+
+  const inboxFilterActive = hasActiveCorporateInboxFilters(inboxFilters);
+
+  const setReadFilter = (read: InboxReadFilter) => {
+    setInboxFilters((prev) => ({ ...prev, read }))
+  }
+
+  const setKindFilter = (kind: InboxKindFilter) => {
+    setInboxFilters((prev) => ({ ...prev, kind }))
+  }
+
+  const setCategoryFilter = (category: InboxCategoryFilter) => {
+    setInboxFilters((prev) => ({ ...prev, category }))
+  }
+
+  const clearInboxFilters = () => {
+    setInboxFilters(DEFAULT_CORPORATE_INBOX_FILTERS)
+    setSearchQuery('')
+  }
 
   const unreadCount = useMemo(
     () => notifications.filter((n) => n.status === 'pending').length,
@@ -502,36 +355,97 @@ export default function CorporateNotificationsPage() {
   };
 
   const handlePublishAnnouncement = () => {
-    setPublishError('');
-    setPublishSuccess('');
-    setPublishDraftNotice('');
+    void (async () => {
+      setPublishError('');
+      setPublishSuccess('');
+      setPublishDraftNotice('');
 
-    if (!publishForm.title.trim()) {
-      setPublishError('Announcement title is required.');
-      return;
-    }
-    if (!publishForm.message.trim()) {
-      setPublishError('Message content is required.');
-      return;
-    }
-    if (publishForm.targetType === 'team' && !publishForm.selectedTeam) {
-      setPublishError('Select a team for this announcement.');
-      return;
-    }
-    if (publishForm.targetType === 'members' && publishForm.selectedMembers.length === 0) {
-      setPublishError('Select at least one team member.');
-      return;
-    }
+      if (!publishForm.title.trim()) {
+        setPublishError('Announcement title is required.');
+        return;
+      }
+      if (!publishForm.message.trim()) {
+        setPublishError('Message content is required.');
+        return;
+      }
+      if (publishForm.targetType === 'team' && !publishForm.selectedTeam) {
+        setPublishError('Select a team for this announcement.');
+        return;
+      }
+      if (publishForm.targetType === 'members' && publishForm.selectedMembers.length === 0) {
+        setPublishError('Select at least one team member.');
+        return;
+      }
+      if (!canPublish) {
+        setPublishError('Only corporate admins (L3) can publish announcements.');
+        return;
+      }
+      if (!corporateId) {
+        setPublishError('Corporate account not loaded. Sign in again and retry.');
+        return;
+      }
 
-    setPublishSuccess('Announcement published successfully.');
-    setPublishForm({
-      title: '',
-      message: '',
-      targetType: 'all',
-      selectedTeam: '',
-      selectedMembers: [],
-      priority: 'normal',
-    });
+      const recipientIds = resolveCorporateAnnouncementRecipients(
+        corporateProfiles,
+        profile?.id,
+        publishForm,
+      );
+
+      if (recipientIds.length === 0) {
+        setPublishError(
+          publishForm.targetType === 'team'
+            ? 'No active users matched that department. Set department on user profiles in Company Settings.'
+            : 'No recipients matched this audience.',
+        );
+        return;
+      }
+
+      setPublishBusy(true);
+      const senderLabel =
+        profile?.full_name?.trim() || profile?.phone || 'Corporate admin';
+      const audienceLabel = announcementAudienceLabel(publishForm);
+      const body =
+        publishForm.priority === 'high'
+          ? `[High priority] ${publishForm.message.trim()}`
+          : publishForm.message.trim();
+
+      const { error } = await notificationsApi.broadcastSystem({
+        title: publishForm.title.trim(),
+        body,
+        userIds: recipientIds,
+        senderLabel,
+        audienceLabel,
+        linkUrl: '/corporate/notifications',
+        forceEmail: publishForm.priority === 'high',
+      });
+      setPublishBusy(false);
+
+      if (error) {
+        setPublishError(error);
+        return;
+      }
+
+      setPublishSuccess(
+        `Announcement sent to ${recipientIds.length} teammate${recipientIds.length !== 1 ? 's' : ''}.`,
+      );
+      setPublishForm({
+        title: '',
+        message: '',
+        targetType: 'all',
+        selectedTeam: '',
+        selectedMembers: [],
+        priority: 'normal',
+      });
+      void loadNotifications();
+    })();
+  };
+
+  const handleMarkAllRead = () => {
+    if (!profile?.id) return;
+    setNotifications((prev) =>
+      prev.map((n) => (n.status === 'pending' ? { ...n, status: 'read' } : n)),
+    );
+    void notificationsApi.markAllRead(profile.id);
   };
 
   return (
@@ -568,19 +482,22 @@ export default function CorporateNotificationsPage() {
                     <span className="bg-blue-100 text-blue-700 py-0.5 px-2 rounded-full text-xs">{unreadCount}</span>
                   </div>
                 </button>
-                <button 
-                  onClick={() => setActiveTab('publish')}
-                  className={`pb-3 text-sm font-medium transition-colors border-b-2 ${
-                    activeTab === 'publish' 
-                      ? 'border-blue-600 text-blue-600' 
-                      : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <Send className="w-4 h-4" />
-                    Publish Announcement
-                  </div>
-                </button>
+                {canPublish ? (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('publish')}
+                    className={`pb-3 text-sm font-medium transition-colors border-b-2 ${
+                      activeTab === 'publish'
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Send className="w-4 h-4" />
+                      Publish Announcement
+                    </div>
+                  </button>
+                ) : null}
               </div>
             </div>
 
@@ -603,32 +520,122 @@ export default function CorporateNotificationsPage() {
                     </div>
                     <button
                       type="button"
-                      onClick={() =>
-                        setInboxFilterNotice(
-                          'Notification filters will be available in a future update. Use search to narrow the list for now.'
-                        )
-                      }
-                      className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                      onClick={() => setShowInboxFilters((v) => !v)}
+                      aria-expanded={showInboxFilters}
+                      className={`flex items-center justify-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium transition-colors ${
+                        inboxFilterActive || showInboxFilters
+                          ? 'border-blue-600 bg-blue-50 text-blue-700'
+                          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                      }`}
                     >
                       <Filter className="w-4 h-4" />
-                      Filter
+                      Filters
+                      {inboxFilterActive ? (
+                        <span className="rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] text-white">
+                          on
+                        </span>
+                      ) : null}
                     </button>
                     <button
                       type="button"
-                      onClick={() =>
-                        setNotifications((prev) =>
-                          prev.map((n) => (n.status === 'pending' ? { ...n, status: 'read' } : n))
-                        )
-                      }
+                      onClick={handleMarkAllRead}
                       className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
                     >
                       Mark all as read
                     </button>
                   </div>
 
-                  {inboxFilterNotice && (
-                    <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-                      {inboxFilterNotice}
+                  {(showInboxFilters || inboxFilterActive) && (
+                    <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Filter inbox
+                        </p>
+                        {inboxFilterActive ? (
+                          <button
+                            type="button"
+                            onClick={clearInboxFilters}
+                            className="text-xs font-semibold text-blue-600 hover:underline"
+                          >
+                            Clear filters
+                          </button>
+                        ) : null}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {(
+                          [
+                            ['all', 'All'],
+                            ['unread', 'Unread'],
+                            ['read', 'Read'],
+                          ] as const
+                        ).map(([id, label]) => (
+                          <button
+                            key={id}
+                            type="button"
+                            onClick={() => setReadFilter(id)}
+                            aria-pressed={inboxFilters.read === id}
+                            className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                              inboxFilters.read === id
+                                ? 'border-blue-600 bg-blue-600 text-white'
+                                : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {(
+                          [
+                            ['all', 'Any type'],
+                            ['action', 'Action needed'],
+                            ['shared', 'Updates'],
+                          ] as const
+                        ).map(([id, label]) => (
+                          <button
+                            key={id}
+                            type="button"
+                            onClick={() => setKindFilter(id)}
+                            aria-pressed={inboxFilters.kind === id}
+                            className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                              inboxFilters.kind === id
+                                ? 'border-blue-600 bg-blue-600 text-white'
+                                : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {(
+                          [
+                            ['all', 'All topics'],
+                            ['approvals', 'Approvals'],
+                            ['payments', 'Payments'],
+                            ['bookings', 'Bookings'],
+                            ['gifting', 'Gifting'],
+                            ['system', 'System'],
+                          ] as const
+                        ).map(([id, label]) => (
+                          <button
+                            key={id}
+                            type="button"
+                            onClick={() => setCategoryFilter(id)}
+                            aria-pressed={inboxFilters.category === id}
+                            className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                              inboxFilters.category === id
+                                ? 'border-violet-600 bg-violet-600 text-white'
+                                : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        Showing {filteredNotifications.length} of {notifications.length} notifications
+                      </p>
                     </div>
                   )}
 
@@ -652,8 +659,21 @@ export default function CorporateNotificationsPage() {
                     )}
 
                     {!isLoading && !loadError && filteredNotifications.length === 0 && (
-                      <div className="p-6 text-center">
-                        <p className="text-sm text-slate-500">No notifications found.</p>
+                      <div className="p-6 text-center space-y-3">
+                        <p className="text-sm text-slate-500">
+                          {notifications.length === 0
+                            ? 'No notifications yet.'
+                            : 'No notifications match your filters.'}
+                        </p>
+                        {notifications.length > 0 && (inboxFilterActive || searchQuery.trim()) ? (
+                          <button
+                            type="button"
+                            onClick={clearInboxFilters}
+                            className="text-sm font-semibold text-blue-600 hover:underline"
+                          >
+                            Clear filters
+                          </button>
+                        ) : null}
                       </div>
                     )}
 
@@ -734,9 +754,12 @@ export default function CorporateNotificationsPage() {
             )}
 
             {/* PUBLISH TAB */}
-            {activeTab === 'publish' && (
+            {activeTab === 'publish' && canPublish && (
               <div className="max-w-2xl bg-white rounded-xl border border-slate-200 shadow-sm p-6 lg:p-8">
                 <h2 className="text-lg font-semibold text-slate-900 mb-6">Create New Announcement</h2>
+                <p className="mb-4 text-sm text-slate-500">
+                  Recipients always receive an in-app notification. Email is queued when they have system emails enabled, or for all recipients when priority is High.
+                </p>
                 {publishError && (
                   <div className="mb-4 p-3 border border-slate-200 bg-slate-50 rounded-lg">
                     <p className="text-sm text-slate-700">{publishError}</p>
@@ -774,6 +797,26 @@ export default function CorporateNotificationsPage() {
                       value={publishForm.message}
                       onChange={(e) => setPublishForm({...publishForm, message: e.target.value})}
                     />
+                  </div>
+
+                  <div>
+                    <label htmlFor="announcement-priority" className="block text-sm font-medium text-slate-700 mb-1.5">
+                      Priority
+                    </label>
+                    <select
+                      id="announcement-priority"
+                      value={publishForm.priority}
+                      onChange={(e) =>
+                        setPublishForm({
+                          ...publishForm,
+                          priority: e.target.value as 'normal' | 'high',
+                        })
+                      }
+                      className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white"
+                    >
+                      <option value="normal">Normal — in-app; email if recipient opted in</option>
+                      <option value="high">High — in-app + email all recipients</option>
+                    </select>
                   </div>
 
                   <div className="pt-4 border-t border-slate-100">
@@ -825,8 +868,8 @@ export default function CorporateNotificationsPage() {
                           onChange={(e) => setPublishForm({...publishForm, selectedTeam: e.target.value})}
                         >
                           <option value="">Choose a team...</option>
-                          {teamDepartments.filter(d => d !== "All Company").map((dept, idx) => (
-                            <option key={idx} value={dept}>{dept}</option>
+                          {teamOptions.map((dept) => (
+                            <option key={dept} value={dept}>{dept}</option>
                           ))}
                         </select>
                       </div>
@@ -835,6 +878,13 @@ export default function CorporateNotificationsPage() {
                     {publishForm.targetType === 'members' && (
                       <div className="animate-in fade-in slide-in-from-top-2 duration-200">
                         <label className="block text-sm text-slate-600 mb-1.5">Select Members</label>
+                        {teamMembersLoading ? (
+                          <p className="text-sm text-slate-500 py-2">Loading team members…</p>
+                        ) : teamMembers.length === 0 ? (
+                          <p className="text-sm text-slate-500 rounded-lg border border-dashed border-slate-200 p-4">
+                            No corporate users found. Invite teammates from Company Settings, then return here to target announcements.
+                          </p>
+                        ) : null}
                         <div className="border border-slate-200 rounded-lg overflow-hidden max-h-48 overflow-y-auto">
                           {teamMembers.map(member => (
                             <label key={member.id} className="flex items-center gap-3 p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0">
@@ -874,11 +924,13 @@ export default function CorporateNotificationsPage() {
                       Save Draft
                     </button>
                     <button
+                      type="button"
+                      disabled={publishBusy}
                       onClick={handlePublishAnnouncement}
-                      className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm shadow-blue-600/20"
+                      className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm shadow-blue-600/20 disabled:opacity-60"
                     >
                       <Send className="w-4 h-4" />
-                      Publish Now
+                      {publishBusy ? 'Publishing…' : 'Publish Now'}
                     </button>
                   </div>
 

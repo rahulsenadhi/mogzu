@@ -1,43 +1,46 @@
-// Phase 3 Feature 3 — admin lead inbox.
+// Phase 3 — admin lead inbox (gifting + events enquiry operations).
 
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router'
-import { Loader2, Mail, Phone, ShieldAlert, Sparkles, UserCircle2 } from 'lucide-react'
-import { AdminPageTitleRow } from '@/app/components/admin/AdminPageChrome'
-import { LeadTriageToolbar } from '@/app/components/leads/LeadTriageToolbar'
+import { Link, useNavigate } from 'react-router'
+import { stashLeadQuickSharePrefill } from '@/lib/leadOpsNavigation'
 import {
-  MOGZU_GLASS_HERO,
-  MOGZU_GLASS_PANEL,
-} from '@/app/components/ui/mogzuGlassStyles'
-import { useAuth } from '@/lib/auth'
+  Inbox,
+  Loader2,
+  PenLine,
+  PhoneCall,
+  ShieldAlert,
+  ShoppingBag,
+  Users,
+} from 'lucide-react'
+import { LeadBulkAssignBar } from '@/app/components/leads/LeadBulkAssignBar'
+import { LeadSavedViewsBar } from '@/app/components/leads/LeadSavedViewsBar'
+import { LeadDetailDrawer } from '@/app/components/leads/LeadDetailDrawer'
+import { LeadFilterBar, type StatusFilterValue } from '@/app/components/leads/LeadFilterBar'
+import { LeadInboxCard } from '@/app/components/leads/LeadInboxCard'
+import { LeadIntakeModal } from '@/app/components/leads/LeadIntakeModal'
+import { LeadOpsBanner } from '@/app/components/leads/LeadOpsBanner'
+import { LeadOpsEmptyState } from '@/app/components/leads/LeadOpsEmptyState'
+import { LeadOpsPageHeader } from '@/app/components/leads/LeadOpsPageHeader'
+import { LeadOpsStats, type LeadOpsStatKey } from '@/app/components/leads/LeadOpsStats'
+import { LEAD_OPS } from '@/app/components/leads/leadOpsStyles'
+import { findDuplicateLeads } from '@/lib/leadDuplicates'
+import type { LeadQuickSharePrefill } from '@/lib/leadEnquiryVertical'
+import type { LeadIntakeChannel } from '@/lib/leadSources'
+import { applyLeadDemoPatch, patchLeadListDemo } from '@/lib/leadDemoPatch'
 import { triageLeads, type LeadQuickFilter } from '@/lib/leadTriageUtils'
+import type { EnquiryVertical } from '@/lib/leadEnquiryVertical'
+import type { LeadSourceFilter } from '@/lib/leadSources'
+import type { LeadInboxFilterSnapshot } from '@/lib/leadSavedViews'
+import { useAuth } from '@/lib/auth'
+import { listLeadAssigneesForPicker } from '@/lib/leadAssignees'
+import type { UserProfile } from '@/lib/database.types'
 import {
-  BUDGET_BANDS,
-  TIMELINES,
+  assignLeadOwner,
   listLeads,
   updateLeadStatus,
   type LeadStatus,
   type PublicLead,
 } from '@/lib/publicLeads'
-
-const STATUS_FILTERS: { value: LeadStatus | 'all'; label: string; color: string }[] = [
-  { value: 'all', label: 'All', color: 'bg-slate-900 text-white' },
-  { value: 'new', label: 'New', color: 'bg-sky-600 text-white' },
-  { value: 'assigned', label: 'Assigned', color: 'bg-indigo-600 text-white' },
-  { value: 'qualified', label: 'Qualified', color: 'bg-amber-500 text-white' },
-  { value: 'converted', label: 'Converted', color: 'bg-emerald-600 text-white' },
-  { value: 'closed', label: 'Closed', color: 'bg-slate-500 text-white' },
-  { value: 'spam', label: 'Spam', color: 'bg-rose-500 text-white' },
-]
-
-const STATUS_BADGE: Record<LeadStatus, string> = {
-  new: 'bg-sky-100 text-sky-700 border-sky-200',
-  assigned: 'bg-indigo-100 text-indigo-700 border-indigo-200',
-  qualified: 'bg-amber-100 text-amber-700 border-amber-200',
-  converted: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-  closed: 'bg-slate-100 text-slate-600 border-slate-200',
-  spam: 'bg-rose-100 text-rose-700 border-rose-200',
-}
 
 const DEMO_LEADS: PublicLead[] = [
   {
@@ -48,7 +51,8 @@ const DEMO_LEADS: PublicLead[] = [
     client_company: 'Infosys Ltd',
     client_email: 'priya.mehta@infosys.com',
     client_phone: '+91 98765 43210',
-    requirement_summary: 'Looking for a premium offsite venue for 120 employees in Bangalore. Need catering + AV. Budget is flexible for the right venue.',
+    requirement_summary:
+      'Premium offsite venue for 120 employees in Bangalore. Catering + AV required.',
     budget_band: '10L_50L',
     timeline: 'this_quarter',
     status: 'new',
@@ -58,6 +62,55 @@ const DEMO_LEADS: PublicLead[] = [
     updated_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
   },
   {
+    id: 'demo-phone',
+    listing_id: null,
+    source_slug: 'staff_inbound_phone',
+    client_name: 'Rahul Verma',
+    client_company: 'TCS',
+    client_email: 'lead+919876543210@intake.mogzu.local',
+    client_phone: '+91 98765 43210',
+    requirement_summary:
+      '[Vertical: Gifting]\n300 Diwali hampers with custom branding, delivery by 15 Oct.',
+    budget_band: '2L_10L',
+    timeline: 'this_quarter',
+    status: 'new',
+    assigned_agent_id: null,
+    assigned_at: null,
+    metadata: {
+      intake_channel: 'inbound_phone',
+      intake_vertical: 'gifting',
+      staff_logged: true,
+      callback_requested: true,
+    },
+    created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    updated_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'demo-referral',
+    listing_id: null,
+    source_slug: 'staff_referral',
+    client_name: 'Anita Desai',
+    client_company: 'HDFC Bank',
+    client_email: 'anita.desai@hdfcbank.com',
+    client_phone: '+91 99887 76655',
+    requirement_summary:
+      '[Vertical: Events]\nLeadership offsite, 120 pax, Goa, Jan 2027 — referred by Vikram Shah.',
+    budget_band: '10L_50L',
+    timeline: 'this_year',
+    status: 'assigned',
+    assigned_agent_id: null,
+    assigned_at: null,
+    metadata: {
+      intake_channel: 'referral',
+      intake_vertical: 'events',
+      referrer_name: 'Vikram Shah',
+      referrer_company: 'HDFC Bank',
+      staff_logged: true,
+    },
+    created_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+    updated_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+  },
+  {
     id: 'demo-2',
     listing_id: null,
     source_slug: 'partner_listing_detail',
@@ -65,96 +118,72 @@ const DEMO_LEADS: PublicLead[] = [
     client_company: 'Wipro Technologies',
     client_email: 'rohan.s@wipro.com',
     client_phone: '+91 91234 56789',
-    requirement_summary: 'Corporate gifting for 300 employees, Diwali 2026. Mix of gift hampers and e-vouchers. Need GST invoice.',
+    requirement_summary: 'Corporate Diwali gifting for 300 employees — hampers + e-vouchers.',
     budget_band: '2L_10L',
     timeline: 'this_month',
-    status: 'assigned',
-    assigned_agent_id: 'a1b2c3d4-0000-0000-0000-000000000001',
-    assigned_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+    status: 'qualified',
+    assigned_agent_id: null,
+    assigned_at: null,
+    metadata: { owner_display_name: 'Sales Team', intake_vertical: 'gifting' },
     created_at: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
     updated_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
   },
-  {
-    id: 'demo-3',
-    listing_id: null,
-    source_slug: 'explore',
-    client_name: 'Ananya Singh',
-    client_company: 'TCS',
-    client_email: 'ananya.singh@tcs.com',
-    client_phone: null,
-    requirement_summary: 'Team outing for 60 pax. Looking for activity-based venue with team-building workshops.',
-    budget_band: '50k_2L',
-    timeline: 'this_month',
-    status: 'qualified',
-    assigned_agent_id: 'a1b2c3d4-0000-0000-0000-000000000002',
-    assigned_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    updated_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'demo-4',
-    listing_id: null,
-    source_slug: 'public_page',
-    client_name: 'Kartik Nair',
-    client_company: 'HDFC Bank',
-    client_email: 'kartik.nair@hdfcbank.com',
-    client_phone: '+91 88888 77777',
-    requirement_summary: 'Annual day event for 500 pax in Mumbai. Need a full-service event management partner.',
-    budget_band: 'gt_50L',
-    timeline: 'this_quarter',
-    status: 'converted',
-    assigned_agent_id: 'a1b2c3d4-0000-0000-0000-000000000001',
-    assigned_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-    updated_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'demo-5',
-    listing_id: null,
-    source_slug: 'mogzu_direct_detail',
-    client_name: 'Sneha Kapoor',
-    client_company: null,
-    client_email: 'sneha.k@startupxyz.io',
-    client_phone: '+91 77777 66666',
-    requirement_summary: 'Coworking space for 10-person startup, need flexible desks + 1 private cabin.',
-    budget_band: 'lt_50k',
-    timeline: 'asap',
-    status: 'new',
-    assigned_agent_id: null,
-    assigned_at: null,
-    created_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-    updated_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-  },
 ]
 
-function fmtTime(iso: string): string {
-  try {
-    const d = new Date(iso)
-    const diff = Date.now() - d.getTime()
-    if (diff < 60 * 60 * 1000) return `${Math.round(diff / 60000)}m ago`
-    if (diff < 24 * 60 * 60 * 1000) return `${Math.round(diff / 3600000)}h ago`
-    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-  } catch {
-    return iso
-  }
+function LeadWorkstationEmpty() {
+  return (
+    <div
+      className={`${LEAD_OPS.surface} ${LEAD_OPS.drawerPanelInline} hidden flex-col items-center justify-center gap-3 p-10 text-center lg:flex`}
+    >
+      <div className="flex size-14 items-center justify-center rounded-2xl border border-white/70 bg-white/60 text-slate-300">
+        <Inbox className="size-7" aria-hidden />
+      </div>
+      <p className="text-base font-semibold text-slate-800">Select a lead</p>
+      <p className="max-w-xs text-sm leading-relaxed text-slate-500">
+        Assign an owner, send a Quick Share catalogue, and move the enquiry through to Won.
+      </p>
+    </div>
+  )
 }
 
-export default function AdminLeadsPage() {
-  const { role } = useAuth()
-  const isStaff = role === 'mogzu_admin' || role === 'support' || role === 'sales_agent'
+type AdminLeadsPageProps = {
+  embedded?: boolean
+  onGoCatalogue?: (prefill: LeadQuickSharePrefill) => void
+}
+
+export default function AdminLeadsPage({ embedded = false, onGoCatalogue }: AdminLeadsPageProps = {}) {
+  const navigate = useNavigate()
+  const { role, profile } = useAuth()
+  const isStaff =
+    role === 'mogzu_admin' ||
+    role === 'support' ||
+    role === 'sales_agent' ||
+    role === 'account_manager'
 
   const [rows, setRows] = useState<PublicLead[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState('')
-  const [filter, setFilter] = useState<LeadStatus | 'all'>('all')
+  const [success, setSuccess] = useState('')
+  const [statusFilter, setStatusFilter] = useState<StatusFilterValue>('all')
   const [search, setSearch] = useState('')
   const [quickFilter, setQuickFilter] = useState<LeadQuickFilter>('all')
+  const [vertical, setVertical] = useState<EnquiryVertical>('all')
+  const [sourceFilter, setSourceFilter] = useState<LeadSourceFilter>('all')
+  const [intakeOpen, setIntakeOpen] = useState(false)
+  const [intakeChannel, setIntakeChannel] = useState<LeadIntakeChannel>('inbound_phone')
+  const [selectedLead, setSelectedLead] = useState<PublicLead | null>(null)
   const [isDemo, setIsDemo] = useState(false)
+  const [bulkMode, setBulkMode] = useState(false)
+  const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkAssigneeId, setBulkAssigneeId] = useState('')
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const [assignees, setAssignees] = useState<(UserProfile & { email?: string | null })[]>([])
 
   const load = useCallback(async () => {
     setLoading(true)
-    const { data, error: err } = await listLeads(filter === 'all' ? undefined : filter)
+    const status = statusFilter === 'all' ? undefined : statusFilter
+    const { data, error: err } = await listLeads(status)
     if (err) {
       setError(err)
       setRows(DEMO_LEADS)
@@ -167,234 +196,428 @@ export default function AdminLeadsPage() {
       setIsDemo(false)
     }
     setLoading(false)
-  }, [filter])
+  }, [statusFilter])
 
   useEffect(() => {
-    if (isStaff) load()
+    if (isStaff) void load()
     else setLoading(false)
   }, [isStaff, load])
 
-  const setStatus = async (lead: PublicLead, next: LeadStatus) => {
-    if (isDemo) return
-    setBusy(lead.id)
-    const { error: err } = await updateLeadStatus(lead.id, next)
-    setBusy(null)
-    if (err) {
-      setError(err)
-      return
-    }
-    load()
+  useEffect(() => {
+    if (!isStaff) return
+    void listLeadAssigneesForPicker(profile ?? null, isDemo).then((res) => {
+      setAssignees(res.data)
+    })
+  }, [isStaff, profile, isDemo])
+
+  useEffect(() => {
+    setBulkSelectedIds(new Set())
+  }, [search, quickFilter, vertical, sourceFilter, statusFilter])
+
+  useEffect(() => {
+    setSelectedLead((prev) => {
+      if (!prev) return null
+      return rows.find((r) => r.id === prev.id) ?? prev
+    })
+  }, [rows])
+
+  const filteredRows = triageLeads(rows, search, quickFilter, vertical, sourceFilter)
+
+  useEffect(() => {
+    setSelectedLead((prev) => {
+      if (filteredRows.length === 0) return null
+      if (prev && filteredRows.some((r) => r.id === prev.id)) return prev
+      return filteredRows[0]
+    })
+  }, [search, quickFilter, vertical, sourceFilter, statusFilter, rows])
+
+  const statusCounts = {
+    all: rows.length,
+    new: rows.filter((r) => r.status === 'new').length,
+    assigned: rows.filter((r) => r.status === 'assigned').length,
+    qualified: rows.filter((r) => r.status === 'qualified').length,
+    converted: rows.filter((r) => r.status === 'converted').length,
+    closed: rows.filter((r) => r.status === 'closed').length,
+    spam: rows.filter((r) => r.status === 'spam').length,
   }
 
-  const filteredRows = triageLeads(rows, search, quickFilter)
+  const openIntake = (channel: LeadIntakeChannel) => {
+    setIntakeChannel(channel)
+    setIntakeOpen(true)
+    setSuccess('')
+  }
 
-  const counts = STATUS_FILTERS.reduce<Record<string, number>>((acc, s) => {
-    acc[s.value] = s.value === 'all' ? rows.length : rows.filter((r) => r.status === s.value).length
-    return acc
-  }, {})
+  const handleLeadCreated = () => {
+    setIntakeOpen(false)
+    setSuccess('Enquiry saved — it appears at the top of your inbox.')
+    void load()
+  }
+
+  const setStatus = async (lead: PublicLead, next: LeadStatus) => {
+    if (next === lead.status) return
+    if (isDemo) {
+      setRows((prev) => patchLeadListDemo(prev, lead.id, { status: next }))
+      setSelectedLead((prev) =>
+        prev?.id === lead.id ? applyLeadDemoPatch(lead, { status: next }) : prev,
+      )
+      return
+    }
+    setBusy(lead.id)
+    const { error: err } = await updateLeadStatus(lead.id, next, lead)
+    setBusy(null)
+    if (err) setError(err)
+    else void load()
+  }
+
+  const patchDemoLead = (leadId: string, patch: Partial<PublicLead>) => {
+    setRows((prev) => patchLeadListDemo(prev, leadId, patch))
+    setSelectedLead((prev) => {
+      if (!prev || prev.id !== leadId) return prev
+      return applyLeadDemoPatch(prev, patch)
+    })
+  }
+
+  const handleStatClick = (_key: LeadOpsStatKey, quickFilter: LeadQuickFilter) => {
+    setQuickFilter(quickFilter)
+    if (_key === 'new') setStatusFilter('new')
+  }
+
+  const inboxFilterSnapshot: LeadInboxFilterSnapshot = {
+    kind: 'inbox',
+    search,
+    statusFilter,
+    vertical,
+    sourceFilter,
+    quickFilter,
+  }
+
+  const applyInboxSavedView = (snapshot: LeadInboxFilterSnapshot) => {
+    setSearch(snapshot.search)
+    setStatusFilter(snapshot.statusFilter)
+    setVertical(snapshot.vertical)
+    setSourceFilter(snapshot.sourceFilter)
+    setQuickFilter(snapshot.quickFilter)
+  }
+
+  const toggleBulkLead = (leadId: string) => {
+    setBulkSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(leadId)) next.delete(leadId)
+      else next.add(leadId)
+      return next
+    })
+  }
+
+  const handleBulkAssign = async () => {
+    if (!bulkAssigneeId || bulkSelectedIds.size === 0) return
+    const assignee = assignees.find((a) => a.id === bulkAssigneeId)
+    if (!assignee) return
+    const display = assignee.full_name ?? assignee.email ?? 'Staff'
+    setBulkBusy(true)
+    setError('')
+    let ok = 0
+    let fail = 0
+    for (const id of bulkSelectedIds) {
+      const lead = rows.find((r) => r.id === id)
+      if (!lead) continue
+      if (isDemo) {
+        const nextStatus: LeadStatus =
+          lead.status === 'new' || lead.status === 'assigned' ? 'assigned' : lead.status
+        patchDemoLead(id, {
+          status: nextStatus,
+          assigned_at: new Date().toISOString(),
+          metadata: {
+            ...lead.metadata,
+            owner_user_id: bulkAssigneeId,
+            owner_display_name: display,
+            owner_assigned_at: new Date().toISOString(),
+          },
+        })
+        ok += 1
+        continue
+      }
+      const { error: err } = await assignLeadOwner(
+        id,
+        { user_id: bulkAssigneeId, display_name: display },
+        lead,
+      )
+      if (err) fail += 1
+      else ok += 1
+    }
+    setBulkBusy(false)
+    setBulkSelectedIds(new Set())
+    setBulkMode(false)
+    setBulkAssigneeId('')
+    if (fail === 0) {
+      setSuccess(`Assigned ${ok} lead${ok !== 1 ? 's' : ''} to ${display}.`)
+    } else {
+      setError(`Assigned ${ok} / ${ok + fail}. ${fail} failed.`)
+    }
+    if (!isDemo) void load()
+  }
+
+  const openQuickShare = (lead: PublicLead, preferredModule: 'gifting' | 'events') => {
+    const prefill: LeadQuickSharePrefill = {
+      id: lead.id,
+      client_name: lead.client_name,
+      client_company: lead.client_company,
+      client_email: lead.client_email,
+      client_phone: lead.client_phone,
+      requirement_summary: lead.requirement_summary,
+      budget_band: lead.budget_band,
+      timeline: lead.timeline,
+      source_slug: lead.source_slug,
+      listing_id: lead.listing_id,
+      preferredModule,
+    }
+    const goHub = () => {
+      if (onGoCatalogue) {
+        onGoCatalogue(prefill)
+        return
+      }
+      stashLeadQuickSharePrefill(prefill)
+      navigate('/admin/leads?tab=catalogue')
+    }
+    const goStandalone = () =>
+      navigate('/admin/quick-share', { state: { fromLead: prefill } })
+    const go = embedded || onGoCatalogue ? goHub : goStandalone
+    if (isDemo) {
+      go()
+      return
+    }
+    if (lead.status === 'new') {
+      void setStatus(lead, 'assigned').finally(go)
+    } else {
+      go()
+    }
+  }
 
   if (!isStaff) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center p-12 text-center">
         <ShieldAlert className="mb-3 size-10 text-amber-500" />
         <p className="text-base font-semibold text-amber-800">Access restricted</p>
-        <p className="mt-1 text-sm text-slate-500">Sales agent, support, or admin role required.</p>
+        <p className="mt-1 text-sm text-slate-500">Sales, support, or admin role required.</p>
       </div>
     )
   }
 
+  const shellClass = embedded ? 'space-y-5' : LEAD_OPS.page
+
   return (
-    <div className="mx-auto w-full max-w-[1280px] space-y-5">
-        {/* Hero header */}
-        <div className={MOGZU_GLASS_HERO}>
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#CFE0FF] bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-[#1E4DB7]">
-                <Sparkles className="size-3.5" />
-                Lead operations
-              </span>
-              <AdminPageTitleRow title="Lead inbox" totalLabel={`${filteredRows.length} visible · ${rows.length} total`} />
-              {isDemo && (
-                <p className="mt-1 text-xs text-slate-400 italic">Showing demo data — submit a lead from any listing page to populate this inbox.</p>
-              )}
+    <div className={shellClass}>
+      {!embedded ? (
+        <LeadOpsPageHeader
+          title="Lead inbox"
+          description="Log enquiries from calls and referrals, qualify in one workstation, and send curated Quick Share catalogues to clients."
+          demoHint={isDemo ? 'Showing demo data — connect Supabase for live leads.' : undefined}
+          actions={
+            <>
+              <button type="button" onClick={() => openIntake('inbound_phone')} className={LEAD_OPS.primaryBtn}>
+                <PhoneCall className="size-4" />
+                Log phone call
+              </button>
+              <button type="button" onClick={() => openIntake('referral')} className={LEAD_OPS.secondaryBtn}>
+                <PenLine className="size-4" />
+                Log enquiry
+              </button>
+            </>
+          }
+          footer={
+            <>
+              <LeadOpsStats leads={rows} onStatClick={handleStatClick} />
+              <nav className="mt-4 flex flex-wrap gap-2" aria-label="Related tools">
+                <Link to="/admin/mogzu-orders" className={LEAD_OPS.secondaryBtn}>
+                  <ShoppingBag className="size-4" />
+                  Orders
+                </Link>
+              </nav>
+            </>
+          }
+        />
+      ) : (
+        <div className="space-y-4">
+          {isDemo ? (
+            <LeadOpsBanner variant="demo" title="Demo inbox">
+              Sample enquiries for layout review. Connect Supabase and apply lead migrations for live
+              assignment and persistence.
+            </LeadOpsBanner>
+          ) : null}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <LeadOpsStats leads={rows} onStatClick={handleStatClick} />
+            <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => openIntake('inbound_phone')} className={LEAD_OPS.primaryBtn}>
+              <PhoneCall className="size-4" />
+              Log phone call
+            </button>
+            <button type="button" onClick={() => openIntake('referral')} className={LEAD_OPS.secondaryBtn}>
+              <PenLine className="size-4" />
+              Log enquiry
+            </button>
             </div>
           </div>
-
-          {/* Status filter tabs */}
-          <div className="mt-5 flex flex-wrap gap-2">
-            {STATUS_FILTERS.map((s) => (
-              <button
-                key={s.value}
-                type="button"
-                onClick={() => setFilter(s.value)}
-                aria-pressed={filter === s.value}
-                className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#93c5fd]/60 ${
-                  filter === s.value
-                    ? `${s.color} shadow-sm`
-                    : 'border border-slate-200 bg-white/80 text-slate-600 hover:border-slate-300 hover:bg-white'
-                }`}
-              >
-                {s.label}
-                <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${filter === s.value ? 'bg-white/25' : 'bg-slate-100 text-slate-500'}`}>
-                  {counts[s.value] ?? 0}
-                </span>
-              </button>
-            ))}
-          </div>
         </div>
+      )}
 
-        {error && !isDemo && (
-          <p className="mb-4 rounded-lg border border-rose-100 bg-rose-50 px-4 py-2.5 text-sm text-rose-700">
-            {error}
-          </p>
-        )}
+      {error && !isDemo ? (
+        <LeadOpsBanner variant="error">{error}</LeadOpsBanner>
+      ) : null}
 
-        {/* Lead list */}
-        <div className={MOGZU_GLASS_PANEL}>
-          <LeadTriageToolbar
-            search={search}
-            onSearchChange={setSearch}
-            quickFilter={quickFilter}
-            onQuickFilterChange={setQuickFilter}
-            visibleCount={filteredRows.length}
-            totalCount={rows.length}
-            searchPlaceholder="Search admin leads…"
-          />
+      {success ? <LeadOpsBanner variant="success">{success}</LeadOpsBanner> : null}
+
+      <LeadFilterBar
+        search={search}
+        onSearchChange={setSearch}
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
+        statusCounts={statusCounts}
+        vertical={vertical}
+        onVerticalChange={setVertical}
+        sourceFilter={sourceFilter}
+        onSourceFilterChange={setSourceFilter}
+        quickFilter={quickFilter}
+        onQuickFilterChange={setQuickFilter}
+        visibleCount={filteredRows.length}
+        totalCount={rows.length}
+        trailing={
+          <button
+            type="button"
+            onClick={() => {
+              setBulkMode((v) => {
+                if (v) setBulkSelectedIds(new Set())
+                return !v
+              })
+            }}
+            className={
+              bulkMode
+                ? `${LEAD_OPS.chip} border-[#2563eb] bg-[#2563eb]/10 text-[#2563eb]`
+                : `${LEAD_OPS.chip} border-slate-200 bg-white text-slate-700 hover:border-slate-300`
+            }
+            aria-pressed={bulkMode}
+          >
+            <Users className="size-3.5" aria-hidden />
+            {bulkMode ? 'Done selecting' : 'Bulk assign'}
+          </button>
+        }
+      />
+
+      <LeadSavedViewsBar
+        surface="inbox"
+        current={inboxFilterSnapshot}
+        onApply={(snapshot) => {
+          if (snapshot.kind !== 'inbox') return
+          applyInboxSavedView(snapshot)
+        }}
+      />
+
+      <LeadBulkAssignBar
+        selectedCount={bulkSelectedIds.size}
+        visibleCount={filteredRows.length}
+        assignees={assignees}
+        assigneeId={bulkAssigneeId}
+        onAssigneeChange={setBulkAssigneeId}
+        onAssign={() => void handleBulkAssign()}
+        onSelectAllVisible={() => setBulkSelectedIds(new Set(filteredRows.map((r) => r.id)))}
+        onClear={() => setBulkSelectedIds(new Set())}
+        onExitBulkMode={() => {
+          setBulkMode(false)
+          setBulkSelectedIds(new Set())
+        }}
+        busy={bulkBusy}
+      />
+
+      <div className={LEAD_OPS.workspaceGrid}>
+        <div className={LEAD_OPS.listColumn}>
           {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="size-6 animate-spin text-slate-400" />
+            <div className={`${LEAD_OPS.surface} flex justify-center py-24`}>
+              <Loader2 className="size-8 animate-spin text-slate-400" />
             </div>
           ) : filteredRows.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <UserCircle2 className="mb-3 size-10 text-slate-300" />
-              <p className="text-sm font-medium text-slate-500">
-                {search.trim() || quickFilter !== 'all'
-                  ? 'No leads match your filters.'
-                  : 'No leads in this status.'}
-              </p>
-              <p className="mt-1 text-xs text-slate-400">Try adjusting your filters or search terms.</p>
-            </div>
+            <LeadOpsEmptyState
+              icon={<Inbox className="size-8" aria-hidden />}
+              title="No leads match your filters"
+              description="Clear filters or log a new phone or referral enquiry to start triage."
+              action={
+                <button
+                  type="button"
+                  onClick={() => openIntake('inbound_phone')}
+                  className={LEAD_OPS.primaryBtn}
+                >
+                  <PhoneCall className="size-4" />
+                  Log phone call
+                </button>
+              }
+            />
           ) : (
-            <ul className="divide-y divide-slate-100/80">
-              {filteredRows.map((l) => (
-                <li key={l.id} className="group p-5 transition-colors hover:bg-white/60">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-
-                      {/* Name + company + status badge */}
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold text-slate-900">
-                          {l.client_name}
-                          {l.client_company ? (
-                            <span className="ml-1.5 font-normal text-slate-500">· {l.client_company}</span>
-                          ) : null}
-                        </p>
-                        <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${STATUS_BADGE[l.status]}`}>
-                          {l.status}
-                        </span>
-                        <span className="text-[11px] text-slate-400">{fmtTime(l.created_at)}</span>
-                      </div>
-
-                      {/* Contact */}
-                      <p className="mt-1 text-xs text-slate-500">
-                        {l.client_email}
-                        {l.client_phone ? ` · ${l.client_phone}` : ''}
-                      </p>
-
-                      {/* Requirement */}
-                      {l.requirement_summary && (
-                        <p className="mt-2.5 whitespace-pre-wrap rounded-xl border border-slate-100 bg-slate-50/70 px-4 py-3 text-sm leading-relaxed text-slate-700">
-                          {l.requirement_summary}
-                        </p>
-                      )}
-
-                      {/* Meta chips */}
-                      <div className="mt-2.5 flex flex-wrap gap-1.5">
-                        {l.budget_band && (
-                          <span className="rounded-full border border-violet-100 bg-violet-50 px-2.5 py-0.5 text-[10px] font-medium text-violet-700">
-                            {BUDGET_BANDS.find((b) => b.value === l.budget_band)?.label ?? 'Budget TBD'}
-                          </span>
-                        )}
-                        {l.timeline && (
-                          <span className="rounded-full border border-sky-100 bg-sky-50 px-2.5 py-0.5 text-[10px] font-medium text-sky-700">
-                            {TIMELINES.find((t) => t.value === l.timeline)?.label ?? 'Timeline TBD'}
-                          </span>
-                        )}
-                        {l.source_slug && (
-                          <span className="rounded-full border border-indigo-100 bg-indigo-50 px-2.5 py-0.5 text-[10px] font-medium text-indigo-700">
-                            {l.source_slug.replaceAll('_', ' ')}
-                          </span>
-                        )}
-                        <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-medium ${l.assigned_agent_id ? 'border-emerald-100 bg-emerald-50 text-emerald-700' : 'border-amber-100 bg-amber-50 text-amber-700'}`}>
-                          {l.assigned_agent_id ? `Assigned · ${l.assigned_agent_id.slice(0, 8)}` : 'Unassigned'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Action panel */}
-                    <div className="flex flex-col items-end gap-2">
-                      {/* Contact buttons */}
-                      <div className="flex gap-1.5">
-                        <a
-                          href={`mailto:${l.client_email}`}
-                          aria-label={`Email ${l.client_name}`}
-                          className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#93c5fd]/60 active:scale-[0.97]"
-                        >
-                          <Mail className="size-3.5" />
-                          Email
-                        </a>
-                        {l.client_phone && (
-                          <a
-                            href={`tel:${l.client_phone}`}
-                            aria-label={`Call ${l.client_name}`}
-                            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#93c5fd]/60 active:scale-[0.97]"
-                          >
-                            <Phone className="size-3.5" />
-                            Call
-                          </a>
-                        )}
-                      </div>
-
-                      {/* Status move buttons */}
-                      {!isDemo && (
-                        <div className="flex flex-wrap justify-end gap-1">
-                          {(['assigned', 'qualified', 'converted', 'closed', 'spam'] as LeadStatus[]).map((s) => (
-                            <button
-                              key={s}
-                              type="button"
-                              disabled={busy === l.id || l.status === s}
-                              onClick={() => setStatus(l, s)}
-                              aria-label={`Move ${l.client_name} to ${s}`}
-                              className="rounded-md border border-slate-200 px-2.5 py-1 text-[11px] font-medium text-slate-600 transition-all duration-200 hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#93c5fd]/60 active:scale-[0.97] disabled:cursor-default disabled:opacity-40"
-                            >
-                              → {s}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            filteredRows.map((l) => (
+              <LeadInboxCard
+                key={l.id}
+                lead={l}
+                selected={selectedLead?.id === l.id}
+                bulkMode={bulkMode}
+                bulkChecked={bulkSelectedIds.has(l.id)}
+                onBulkToggle={() => toggleBulkLead(l.id)}
+                hasDuplicate={
+                  findDuplicateLeads(rows, l.client_phone, l.client_email, l.id).length > 0
+                }
+                onSelect={() => setSelectedLead(l)}
+              />
+            ))
           )}
-          {filteredRows.length > 0 ? (
-            <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t border-white/60 bg-white/90 px-5 py-3 backdrop-blur-xl">
-              <p className="text-xs text-slate-600">
-                <span className="font-semibold text-slate-900">
-                  {filteredRows.filter((l) => !l.assigned_agent_id).length}
-                </span>{' '}
-                unassigned in current view
-              </p>
-              <Link
-                to="/sales/pipeline"
-                className="rounded-lg border border-[#2563EB]/30 bg-[#EFF6FF] px-3 py-1.5 text-xs font-semibold text-[#1D4ED8] transition hover:bg-[#DBEAFE] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#93c5fd]/60"
-              >
-                Open pipeline board →
-              </Link>
-            </div>
-          ) : null}
         </div>
+
+        <div className="hidden lg:block">
+          {selectedLead ? (
+            <LeadDetailDrawer
+              lead={selectedLead}
+              allLeads={rows}
+              isDemo={isDemo}
+              busy={busy === selectedLead.id}
+              layout="inline"
+              currentUserId={profile?.id ?? null}
+              currentUserName={profile?.full_name ?? profile?.email ?? null}
+              onClose={() => setSelectedLead(null)}
+              onUpdated={() => void load()}
+              onBusyChange={setBusy}
+              onOpenLead={setSelectedLead}
+              onQuickShare={openQuickShare}
+              onDemoPatch={isDemo ? patchDemoLead : undefined}
+            />
+          ) : (
+            <LeadWorkstationEmpty />
+          )}
+        </div>
+      </div>
+
+      {selectedLead ? (
+        <div className="lg:hidden">
+          <LeadDetailDrawer
+            lead={selectedLead}
+            allLeads={rows}
+            isDemo={isDemo}
+            busy={busy === selectedLead.id}
+            layout="overlay"
+            currentUserId={profile?.id ?? null}
+            currentUserName={profile?.full_name ?? profile?.email ?? null}
+            onClose={() => setSelectedLead(null)}
+            onUpdated={() => void load()}
+            onBusyChange={setBusy}
+            onOpenLead={setSelectedLead}
+            onQuickShare={openQuickShare}
+            onDemoPatch={isDemo ? patchDemoLead : undefined}
+          />
+        </div>
+      ) : null}
+
+      <LeadIntakeModal
+        open={intakeOpen}
+        initialChannel={intakeChannel}
+        existingLeads={rows}
+        loggedByUserId={profile?.id ?? null}
+        loggedByDisplayName={profile?.full_name ?? profile?.email ?? null}
+        onClose={() => setIntakeOpen(false)}
+        onCreated={handleLeadCreated}
+      />
     </div>
   )
 }

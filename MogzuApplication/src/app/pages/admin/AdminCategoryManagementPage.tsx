@@ -4,6 +4,7 @@ import { HTML5Backend } from 'react-dnd-html5-backend'
 import { GripVertical, Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
 import * as LucideIcons from 'lucide-react'
 import { AdminPageTitleRow } from '@/app/components/admin/AdminPageChrome'
+import { DevMockDataBanner } from '@/app/components/global/DevMockDataBanner'
 import { useAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import type { ListingCategory, ModuleId } from '@/lib/database.types'
@@ -256,6 +257,8 @@ export default function AdminCategoryManagementPage() {
             <Plus className="size-4" /> New category
           </button>
         </div>
+
+        {!loading && rows.length === 0 ? <DevMockDataBanner /> : null}
 
         {error && (
           <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">

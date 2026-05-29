@@ -29,6 +29,8 @@ import type { ListingBuyerDetailBlock } from '../../../utils/mogzuDataTypes';
 import { formatBuyerPaymentSummary } from '@/app/lib/mogzuDomain';
 import { useAuth } from '@/lib/auth';
 import { uploadBrandingLogo, PLACEMENT_OPTIONS, type PlacementType } from '@/lib/giftingBranding';
+import { DevMockDataBanner } from '@/app/components/global/DevMockDataBanner';
+import { resolveGiftingListing } from '@/app/lib/activityListingResolver';
 
 const imgAvatar = QA_IMAGES.avatar;
 const imgVendorAvatar = QA_IMAGES.vendorPortrait;
@@ -171,7 +173,8 @@ export default function ProductBookingPage() {
   // Get category and productId from URL params
   const [searchParams] = useSearchParams();
   const category = (searchParams.get('category') || 'apparel') as ProductCategory;
-  const productId = parseInt(searchParams.get('id') || '1');
+  const idParam = searchParams.get('id') || '1';
+  const productId = /^\d+$/.test(idParam) ? parseInt(idParam, 10) : 1;
   const errorMode = searchParams.get('error') === '1';
   const vcatParam = searchParams.get('vcat')?.trim();
   const vskuParam = searchParams.get('vsku')?.trim();
@@ -181,6 +184,12 @@ export default function ProductBookingPage() {
   const stateProduct = (location.state as any)?.product as any | undefined;
   const stateVendorCatalogId = (location.state as { vendorCatalogId?: string })?.vendorCatalogId?.trim();
   const stateVendorSku = (location.state as { vendorCatalogProductId?: string })?.vendorCatalogProductId?.trim();
+  const stateListingId = (location.state as { listingId?: string })?.listingId;
+  const stateVendorId = (location.state as { vendorId?: string })?.vendorId;
+
+  const [liveListingId, setLiveListingId] = useState<string | undefined>(stateListingId);
+  const [liveVendorId, setLiveVendorId] = useState<string | undefined>(stateVendorId);
+  const usingDemoCatalog = !liveListingId || !liveVendorId;
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedNav, setSelectedNav] = useState('activity');
@@ -214,6 +223,25 @@ export default function ProductBookingPage() {
     window.addEventListener(VENDOR_CATALOG_UPDATED_EVENT, onCat);
     return () => window.removeEventListener(VENDOR_CATALOG_UPDATED_EVENT, onCat);
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void resolveGiftingListing(idParam).then((row) => {
+      if (cancelled) return;
+      if (row?.id && row.vendor_id) {
+        setLiveListingId(row.id);
+        setLiveVendorId(row.vendor_id);
+        return;
+      }
+      if (!stateListingId || !stateVendorId) {
+        setLiveListingId(undefined);
+        setLiveVendorId(undefined);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [idParam, stateListingId, stateVendorId]);
 
   // Listing detail load simulation + guardrails
   const [isLoading, setIsLoading] = useState(true);
@@ -582,6 +610,9 @@ export default function ProductBookingPage() {
           colors: product.colors.map((co) => co.name),
           sizes: categoryConfig.sizeOptions.length > 0 ? categoryConfig.sizeOptions : ['Standard'],
           vendor: product.brand,
+          ...(liveListingId && liveVendorId
+            ? { listingId: liveListingId, vendorId: liveVendorId }
+            : {}),
         },
         customization: {
           productQty: totalFromBreakdown,
@@ -1099,6 +1130,11 @@ export default function ProductBookingPage() {
 
         {/* Content Area */}
         <MogzuCorporateScrollSurface>
+          {usingDemoCatalog ? (
+            <div className="max-w-7xl mx-auto px-6 pt-4">
+              <DevMockDataBanner />
+            </div>
+          ) : null}
           {/* Breadcrumb */}
           <div className="bg-white border-b border-[#ececec]">
             <div className="max-w-7xl mx-auto px-6 py-3">

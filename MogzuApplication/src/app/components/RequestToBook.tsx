@@ -54,31 +54,9 @@ export default function RequestToBook() {
     attendees?: string;
     contactNumber?: string;
   }>({});
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  const validateForm = () => {
-    const nextErrors: { planningFor?: string; attendees?: string; contactNumber?: string } = {};
-
-    if (!planningFor.trim()) {
-      nextErrors.planningFor = 'Please select a booking type.';
-    }
-
-    const attendeesCount = Number(attendees);
-    if (!attendees.trim() || Number.isNaN(attendeesCount) || attendeesCount < 1) {
-      nextErrors.attendees = 'Please enter a valid attendee count.';
-    } else if (attendeesCount > content.seatsMax) {
-      nextErrors.attendees = `Attendees cannot exceed ${content.seatsMax}.`;
-    }
-
-    const phone = contactNumber.replace(/\D/g, '');
-    if (phone.length !== 10) {
-      nextErrors.contactNumber = 'Please enter a valid 10-digit contact number.';
-    }
-
-    setFieldErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
-  };
-
-  // Category-specific content
+  // Category-specific content (must be defined before validateForm)
   const getCategoryContent = () => {
     switch (category) {
       case 'activity':
@@ -232,6 +210,29 @@ export default function RequestToBook() {
   };
 
   const content = getCategoryContent();
+
+  const validateForm = () => {
+    const nextErrors: { planningFor?: string; attendees?: string; contactNumber?: string } = {};
+
+    if (!planningFor.trim()) {
+      nextErrors.planningFor = 'Please select a booking type.';
+    }
+
+    const attendeesCount = Number(attendees);
+    if (!attendees.trim() || Number.isNaN(attendeesCount) || attendeesCount < 1) {
+      nextErrors.attendees = 'Please enter a valid attendee count.';
+    } else if (attendeesCount > content.seatsMax) {
+      nextErrors.attendees = `Attendees cannot exceed ${content.seatsMax}.`;
+    }
+
+    const phone = contactNumber.replace(/\D/g, '');
+    if (phone.length !== 10) {
+      nextErrors.contactNumber = 'Please enter a valid 10-digit contact number.';
+    }
+
+    setFieldErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
 
   const formattedBookingDate = (() => {
     if (!dspaceNav?.bookingStartDate) return 'Jun 28, 2024';

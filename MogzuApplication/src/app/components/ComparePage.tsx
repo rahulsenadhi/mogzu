@@ -6,6 +6,7 @@ import { SharedSidebar } from './layouts/SharedSidebar'
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface'
 import { db } from '@/lib/db'
 import { storageService } from '@/lib/storage'
+import { WishlistHeart } from './global/WishlistHeart'
 import type { Listing, ListingImage, Vendor } from '@/lib/database.types'
 
 type Detail = Listing & {
@@ -115,7 +116,7 @@ export default function ComparePage() {
                             className="border-b border-l border-slate-100 bg-slate-50 px-4 py-3 text-left"
                           >
                             <div className="flex items-center gap-3">
-                              <div className="size-12 overflow-hidden rounded-lg bg-slate-100">
+                              <div className="relative size-12 overflow-hidden rounded-lg bg-slate-100">
                                 {cover && (
                                   <img
                                     src={storageService.spaceImages.getUrl(cover.storage_path)}
@@ -123,6 +124,7 @@ export default function ComparePage() {
                                     className="size-full object-cover"
                                   />
                                 )}
+                                <WishlistHeart listingId={l.id} variant="overlay" className="!top-0.5 !right-0.5 !size-7" />
                               </div>
                               <div>
                                 <p className="font-semibold text-slate-900">{l.title}</p>

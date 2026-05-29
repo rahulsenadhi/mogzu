@@ -1,10 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { Search, ChevronDown, ChevronLeft, Upload, X, Calendar, MapPin, CreditCard, Check, Plus, Minus, AlertCircle } from 'lucide-react';
 import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
 import { ImageWithFallback } from './figma/ImageWithFallback';
+import { DevMockDataBanner } from '@/app/components/global/DevMockDataBanner';
+import { useAuth } from '@/lib/auth';
+import { createCorporatePendingApprovalBooking } from '@/app/lib/createCorporatePendingApprovalBooking';
+import { notifyFirstApprovers } from '@/lib/bookingApprovalMeta';
+import {
+  evaluateCorporateApproval,
+  listRules as listWorkflowRules,
+} from '@/lib/approvalWorkflow';
+import { db } from '@/lib/db';
+import type { ApprovalWorkflowRule, ModuleId } from '@/lib/database.types';
 
 interface Recipient {
   name: string;
@@ -13,13 +23,40 @@ interface Recipient {
   deliveryDate: string;
 }
 
+type CelebrationBookingPayload = {
+  product: { name: string; image: string; occasion?: string };
+  variant: { name: string };
+  color: string;
+  branding: string;
+  quantity: number;
+  totalPrice: number;
+  listingId?: string;
+  vendorId?: string;
+  module?: ModuleId;
+};
+
 export default function CelebrationBookingFlow() {
   const navigate = useNavigate();
+  const { profile, corporateId } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [bookingData, setBookingData] = useState<any>(null);
+  const [bookingData, setBookingData] = useState<CelebrationBookingPayload | null>(null);
   const [isFailed, setIsFailed] = useState(false);
   const [paymentNotice, setPaymentNotice] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [usedDemoPersist, setUsedDemoPersist] = useState(false);
+  const [workflowRules, setWorkflowRules] = useState<ApprovalWorkflowRule[]>([]);
+
+  const approvalDecision = useMemo(
+    () =>
+      evaluateCorporateApproval(
+        [],
+        workflowRules,
+        bookingData?.module ?? 'gifting',
+        bookingData?.totalPrice ?? 1299,
+      ),
+    [workflowRules, bookingData?.module, bookingData?.totalPrice],
+  );
 
   // Step 1: Order Details
   const [plannedFor, setPlannedFor] = useState('');
@@ -58,6 +95,13 @@ export default function CelebrationBookingFlow() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!corporateId) return;
+    void listWorkflowRules(corporateId).then((res) => {
+      setWorkflowRules(res.data ?? []);
+    });
+  }, [corporateId]);
+
   const steps = [
     { id: 1, name: 'Order Details', icon: 'file' },
     { id: 2, name: 'Delivery', icon: 'truck' },
@@ -72,27 +116,7 @@ export default function CelebrationBookingFlow() {
     setRecipients(recipients.filter((_, i) => i !== index));
   };
 
-  const handlePayment = () => {
-    setPaymentNotice('');
-    if (paymentMethod === 'card') {
-      if (!cardName || !cardNumber || !cardExpiry || !cardCvv) {
-        setPaymentNotice('Please fill in all card details before confirming payment.');
-        return;
-      }
-    } else if (paymentMethod === 'upi') {
-      if (!upiId) {
-        setPaymentNotice('Please enter a valid UPI ID before confirming payment.');
-        return;
-      }
-    }
-
-    // Simulate random failure 20% of the time as requested
-    if (Math.random() < 0.2) {
-      setIsFailed(true);
-      return;
-    }
-
-    // Save booking to localStorage
+  const persistDemoBooking = () => {
     const newBooking = {
       id: `CELE${Date.now().toString().slice(-6)}`,
       name: bookingData?.product.name || 'Celebration Hamper',
@@ -106,21 +130,161 @@ export default function CelebrationBookingFlow() {
       status: 'CONFIRMED',
       type: 'Confirmed',
       occasion: bookingData?.product.occasion || 'Celebration',
-      variant: bookingData?.variant.name || 'Standard',
+      variant: bookingData?.variant?.name || 'Standard',
       greetingMessage: addGreetingMessage ? greetingMessage : null,
       deliveryMethod,
       paymentMethod,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
     };
 
     const existingBookings = JSON.parse(localStorage.getItem('giftingBookings') || '[]');
     existingBookings.push(newBooking);
     localStorage.setItem('giftingBookings', JSON.stringify(existingBookings));
+    setUsedDemoPersist(true);
+  };
 
-    // Clear celebration booking data
+  const handlePayment = async () => {
+    setPaymentNotice('');
+    if (paymentMethod === 'card') {
+      if (!cardName || !cardNumber || !cardExpiry || !cardCvv) {
+        setPaymentNotice('Please fill in all card details before confirming payment.');
+        return;
+      }
+    } else if (paymentMethod === 'upi') {
+      if (!upiId) {
+        setPaymentNotice('Please enter a valid UPI ID before confirming payment.');
+        return;
+      }
+    }
+
+    setIsSubmitting(true);
+
+    const total = bookingData?.totalPrice ?? 1299;
+    const platformFee = Math.round(total * 0.05);
+    const baseAmount = Math.max(0, total - platformFee);
+    const deliverySummary =
+      deliveryMethod === 'single'
+        ? [singleAddress, city, state, pincode].filter(Boolean).join(', ')
+        : `${recipients.length} recipient(s)`;
+
+    const purposeNote = [
+      `Celebration: ${bookingData?.product.name ?? 'Hamper'}`,
+      bookingData?.variant?.name ? `Variant: ${bookingData.variant.name}` : null,
+      plannedFor ? `Planned for: ${plannedFor}` : null,
+      approver ? `Approver: ${approver}` : null,
+      `Delivery: ${deliverySummary}`,
+      deliveryDate ? `Delivery date: ${deliveryDate}` : null,
+      addGreetingMessage && greetingMessage ? `Greeting: ${greetingMessage}` : null,
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const listingId = bookingData?.listingId;
+    const vendorId = bookingData?.vendorId;
+    const canPersistLive =
+      Boolean(listingId && vendorId && corporateId && profile?.id);
+
+    if (canPersistLive && listingId && vendorId && corporateId && profile) {
+      const needsApproval = approvalDecision.requiresApproval;
+
+      if (needsApproval) {
+        const { bookingId, error } = await createCorporatePendingApprovalBooking({
+          corporateId,
+          userId: profile.id,
+          vendorId,
+          listingId,
+          module: bookingData?.module ?? 'gifting',
+          baseAmount,
+          addOnsAmount: 0,
+          platformFee,
+          totalAmount: total,
+          purposeNote,
+          requiredApprovalLevels: approvalDecision.requiredLevels,
+          groupSize: bookingData?.quantity ?? 1,
+          startTime: deliveryDate ? new Date(deliveryDate).toISOString() : null,
+          endTime: null,
+        });
+
+        if (error) {
+          setPaymentNotice(error);
+          setIsSubmitting(false);
+          return;
+        }
+
+        if (bookingId) {
+          await notifyFirstApprovers(corporateId, approvalDecision.requiredLevels, {
+            bookingId,
+            title: 'New celebration order awaiting your approval',
+            body: `${bookingData?.product.name ?? 'Celebration'} — ₹${total.toLocaleString('en-IN')}.`,
+          });
+        }
+
+        localStorage.removeItem('celebrationBooking');
+        setIsSubmitting(false);
+
+        if (bookingId) {
+          navigate('/booking-approval-request', {
+            state: {
+              category: 'gifting',
+              venueName: bookingData?.product.name,
+              bookingDate: deliveryDate || undefined,
+              totalAmount: total,
+              bookingId,
+            },
+          });
+          return;
+        }
+      } else {
+        const { data, error } = await db.bookings.create({
+          corporate_id: corporateId,
+          user_id: profile.id,
+          vendor_id: vendorId,
+          listing_id: listingId,
+          module: bookingData?.module ?? 'gifting',
+          status: 'pending_vendor',
+          group_size: bookingData?.quantity ?? 1,
+          start_time: deliveryDate ? new Date(deliveryDate).toISOString() : null,
+          end_time: null,
+          base_amount: baseAmount,
+          add_ons_amount: 0,
+          platform_fee: platformFee,
+          total_amount: total,
+          commission_rate: null,
+          payment_method: null,
+          payment_reference: null,
+          payment_status: 'pending',
+          purpose_note: purposeNote || null,
+          approved_by: null,
+          approved_at: null,
+          cancelled_at: null,
+          cancellation_reason: null,
+          cancellation_fee: null,
+          vendor_response_deadline: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          completed_at: null,
+        });
+
+        if (error || !data) {
+          setPaymentNotice(error?.message ?? 'Failed to create booking.');
+          setIsSubmitting(false);
+          return;
+        }
+
+        localStorage.removeItem('celebrationBooking');
+        setIsSubmitting(false);
+        navigate('/bookings');
+        return;
+      }
+    }
+
+    if (Math.random() < 0.2) {
+      setIsFailed(true);
+      setIsSubmitting(false);
+      return;
+    }
+
+    persistDemoBooking();
     localStorage.removeItem('celebrationBooking');
-
-    // Navigate to bookings page
+    setIsSubmitting(false);
     navigate('/bookings');
   };
 
@@ -713,6 +877,11 @@ export default function CelebrationBookingFlow() {
         {/* Page Content */}
         <MogzuCorporateScrollSurface>
           <div className="max-w-5xl mx-auto px-6 py-6">
+            {usedDemoPersist && (
+              <div className="mb-4">
+                <DevMockDataBanner message="Celebration order saved to demo storage — connect a catalogue listing UUID to persist in Supabase." />
+              </div>
+            )}
             {/* Progress Steps */}
             <div className="mb-6 bg-white rounded-lg shadow-sm p-6">
               <div className="flex items-center justify-between">
@@ -775,11 +944,13 @@ export default function CelebrationBookingFlow() {
                 </button>
               ) : (
                 <button
-                  onClick={handlePayment}
-                  className="px-8 py-2.5 bg-[#10b981] text-white rounded-lg text-sm font-semibold hover:bg-[#059669] transition-colors shadow-md flex items-center gap-2"
+                  type="button"
+                  onClick={() => void handlePayment()}
+                  disabled={isSubmitting}
+                  className="px-8 py-2.5 bg-[#10b981] text-white rounded-lg text-sm font-semibold hover:bg-[#059669] transition-colors shadow-md flex items-center gap-2 disabled:opacity-60"
                 >
                   <Check className="w-4 h-4" />
-                  Confirm & Pay
+                  {isSubmitting ? 'Processing…' : 'Confirm & Pay'}
                 </button>
               )}
             </div>

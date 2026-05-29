@@ -1,5 +1,6 @@
 export interface BagProduct {
   id: number;
+  mogzuListingId?: string;
   name: string;
   subcategory: 'laptop' | 'backpacks' | 'tote' | 'sling' | 'duffel' | 'travelkits' | 'leather' | 'ecofriendly' | 'drawstring';
   brand: string;

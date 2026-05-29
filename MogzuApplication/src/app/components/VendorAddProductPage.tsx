@@ -4,6 +4,8 @@ import { ImagePlus, Plus, Search, Trash2 } from 'lucide-react';
 import imgProductThumb from 'figma:asset/f6108faddc403caf1eea34c754f31b43ab0fb55b.png';
 import { appendVendorCatalogProduct } from '@/app/lib/vendorProductsCatalogStorage';
 import { VendorAppShell } from './layouts/VendorAppShell';
+import { MogzuLegacyDemoBanner } from '@/app/components/ui/MogzuLegacyDemoBanner';
+import { isListingUuid } from '@/app/lib/activityListingResolver';
 import PricingTypeSelector, { type PricingTypeSelectorValue } from './ui/PricingTypeSelector';
 
 type SpecRow = { id: string; label: string; value: string };
@@ -563,6 +565,33 @@ export default function VendorAddProductPage() {
             {uiNotice ? (
               <p className="mx-auto mb-3 max-w-[1300px] rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-700">
                 {uiNotice}
+              </p>
+            ) : null}
+            <MogzuLegacyDemoBanner className="mx-auto mb-4 max-w-[1300px]" />
+            {isCreate ? (
+              <p className="mx-auto mb-4 max-w-[1300px] text-sm text-slate-600">
+                This form saves to your local vendor catalog. To publish a live gifting listing for corporates, use{' '}
+                <button
+                  type="button"
+                  className="font-semibold text-blue-600 hover:underline"
+                  onClick={() => navigate('/vendor/gifting/products/new')}
+                >
+                  gifting product setup
+                </button>
+                .
+              </p>
+            ) : null}
+            {productId && isListingUuid(productId) ? (
+              <p className="mx-auto mb-4 max-w-[1300px] text-sm text-slate-600">
+                This product id is a live listing —{' '}
+                <button
+                  type="button"
+                  className="font-semibold text-blue-600 hover:underline"
+                  onClick={() => navigate(`/vendor/gifting/products/${productId}`)}
+                >
+                  open in gifting editor
+                </button>
+                .
               </p>
             ) : null}
             <section className="mx-auto max-w-[1300px] rounded-lg border border-slate-200 bg-white p-4">

@@ -76,8 +76,9 @@ export default function AdminLayout() {
     location.pathname.startsWith('/admin/access-reviews');
   const isSoc2Route = location.pathname.startsWith('/admin/compliance/soc2');
   const isWhiteLabelRoute = location.pathname.startsWith('/admin/white-label');
-  const isLeadsRoute = location.pathname.startsWith('/admin/leads');
-  const isSalesPipelineRoute = location.pathname.startsWith('/sales/pipeline');
+  const isLeadOpsRoute =
+    location.pathname.startsWith('/admin/leads') ||
+    location.pathname.startsWith('/sales/pipeline');
   const isPromotionsRoute = location.pathname === '/admin/promotions';
   const isNotificationsRoute = location.pathname === '/admin/notifications';
   const isDashboardRoute = location.pathname === '/admin' || location.pathname === '/admin/';
@@ -338,8 +339,12 @@ export default function AdminLayout() {
           <NavButton active={isAccessReviewRoute} icon={ShieldCheck} label="Access reviews" onClick={navLink('/admin/compliance/access-review')} />
           <NavButton active={isSoc2Route} icon={FileCheck2} label="SOC2 evidence" onClick={navLink('/admin/compliance/soc2')} />
           <NavButton active={isWhiteLabelRoute} icon={Palette} label="White-label" onClick={navLink('/admin/white-label')} />
-          <NavButton active={isLeadsRoute} icon={ClipboardList} label="Lead inbox" onClick={navLink('/admin/leads')} />
-          <NavButton active={isSalesPipelineRoute} icon={FileBarChart} label="Sales pipeline" onClick={navLink('/sales/pipeline')} />
+          <NavButton
+            active={isLeadOpsRoute}
+            icon={ClipboardList}
+            label="Lead operations"
+            onClick={navLink('/admin/leads')}
+          />
           <NavButton icon={Headphones} label="Support" onClick={navLink('/communication')} />
           <NavButton active={isPromotionsRoute} icon={Megaphone} label="Paid Promotion" onClick={navLink('/admin/promotions')} />
           <NavButton

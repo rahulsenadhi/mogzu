@@ -3,8 +3,11 @@ import { Users, CreditCard, Sliders, ArrowRight } from "lucide-react";
 import { MogzuLogo } from '@/app/components/branding/MogzuLogo';
 import { Button } from '@/app/components/ui/button';
 import { Card, CardContent } from '@/app/components/ui/card';
+import { useMarketingCms } from '@/app/lib/useMarketingCms';
+
 export default function VendorBenefitsPage() {
   const navigate = useNavigate();
+  const { block: cms, fromCms } = useMarketingCms('vendor-benefits');
 
   return (
     <div className="min-h-screen bg-stone-50 font-sans text-foreground selection:bg-blue-100 selection:text-slate-900 overflow-x-hidden">
@@ -66,14 +69,22 @@ export default function VendorBenefitsPage() {
           <div className="mb-8 inline-flex items-center gap-2 rounded-lg border border-gray-900 bg-white px-5 py-2.5 text-sm font-semibold uppercase tracking-wide text-gray-900 shadow-sm sm:mb-10">
             The Vendor OS
           </div>
-          <h1 className="mb-6 text-4xl font-bold leading-tight tracking-tight text-gray-900 sm:text-5xl md:text-6xl lg:mb-8">
-            Grow Your Business with <br />
-            <span className="mt-3 inline-block rotate-1 rounded-lg border border-gray-900 bg-white px-4 py-1 shadow-md">
-              Mogzu Network
-            </span>
-          </h1>
+          {fromCms && cms?.title ? (
+            <h1 className="mb-6 text-4xl font-bold leading-tight tracking-tight text-gray-900 sm:text-5xl md:text-6xl lg:mb-8">
+              {cms.title}
+            </h1>
+          ) : (
+            <h1 className="mb-6 text-4xl font-bold leading-tight tracking-tight text-gray-900 sm:text-5xl md:text-6xl lg:mb-8">
+              Grow Your Business with <br />
+              <span className="mt-3 inline-block rotate-1 rounded-lg border border-gray-900 bg-white px-4 py-1 shadow-md">
+                Mogzu Network
+              </span>
+            </h1>
+          )}
           <p className="mx-auto mb-10 max-w-3xl text-base font-semibold leading-relaxed text-gray-700 sm:text-lg md:text-xl lg:mb-12">
-            Join our curated network of top-tier Event Providers, Venue In-charges, and Corporate Gifting suppliers.
+            {fromCms && cms?.body
+              ? cms.body
+              : 'Join our curated network of top-tier Event Providers, Venue In-charges, and Corporate Gifting suppliers.'}
           </p>
           <div className="flex flex-col items-center justify-center gap-6 sm:flex-row">
             <Button

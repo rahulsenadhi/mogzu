@@ -1,73 +1,76 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
-import { ArrowLeft, CheckCircle2, CircleAlert, Clock3, Send, ShieldCheck, Sparkles, Tag, UserRound } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, CircleAlert, Clock3, Loader2, Send, ShieldCheck, Sparkles, Tag, UserRound } from 'lucide-react'
 import { SharedHeader } from '@/app/components/layouts/SharedHeader'
 import { SharedSidebar } from '@/app/components/layouts/SharedSidebar'
 import { MogzuCorporateScrollSurface } from '@/app/components/layouts/MogzuCorporateScrollSurface'
-
-const MOCK_DEALS = [
-  {
-    id: 1,
-    category: 'SpaceX',
-    title: '50% off Monthly Coworking',
-    provider: 'WeWork',
-    description: 'Get half off your first month of any hot desk membership when you book for at least 3 months.',
-    discount: '50% OFF',
-    imageUrl: 'https://images.unsplash.com/photo-1497366754035-f200968a6e72?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBvZmZpY2UlMjBzcGFjZXxlbnwxfHx8fDE3NzMyMjc4NDJ8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    validUntil: 'Dec 31, 2026',
-  },
-  {
-    id: 2,
-    category: 'Gifting',
-    title: 'Bulk Corporate Hampers',
-    provider: 'GiftBasket Co.',
-    description: 'Order 20 or more premium corporate gift hampers and receive an automatic 25% discount.',
-    discount: '25% OFF',
-    imageUrl: 'https://images.unsplash.com/photo-1508899203029-1c9eb493c9bd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxnaWZ0JTIwYmFza2V0fGVufDF8fHx8MTc3MzE0NzU1N3ww&ixlib=rb-4.1.0&q=80&w=1080',
-    validUntil: 'Nov 30, 2026',
-  },
-  {
-    id: 3,
-    category: 'Events',
-    title: 'Free AV Setup for Summits',
-    provider: 'Stage Masters',
-    description: 'Book a full-day corporate event gathering with us and get your entire audio-visual setup absolutely free.',
-    discount: 'FREE AV',
-    imageUrl: 'https://images.unsplash.com/photo-1768508664411-9bef1b361224?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjb3Jwb3JhdGUlMjBldmVudCUyMGdhdGhlcmluZ3xlbnwxfHx8fDE3NzMyMjk3NjZ8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    validUntil: 'Oct 15, 2026',
-  },
-  {
-    id: 4,
-    category: 'SpaceX',
-    title: 'Book 3 Days, Get 1 Free',
-    provider: 'Regus Meeting Rooms',
-    description: 'Book any premium meeting room for three consecutive days and get the fourth day completely free.',
-    discount: '1 DAY FREE',
-    imageUrl: 'https://images.unsplash.com/photo-1497366754035-f200968a6e72?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBvZmZpY2UlMjBzcGFjZXxlbnwxfHx8fDE3NzMyMjc4NDJ8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    validUntil: 'Dec 15, 2026',
-  },
-]
+import { DevMockDataBanner } from '@/app/components/global/DevMockDataBanner'
+import { db } from '@/lib/db'
+import {
+  findDemoDeal,
+  isPromotionUuid,
+  mapPromotionRowToDeal,
+  type CatalogDeal,
+} from '@/app/lib/promotionOffers'
 
 export default function DealClaimFlow() {
-  const { id } = useParams()
+  const { id = '' } = useParams()
   const navigate = useNavigate()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [step, setStep] = useState(1)
   const [isProcessing, setIsProcessing] = useState(false)
   const [isFailed, setIsFailed] = useState(false)
+  const [claimError, setClaimError] = useState('')
+  const [deal, setDeal] = useState<CatalogDeal | null>(null)
+  const [loadingDeal, setLoadingDeal] = useState(true)
 
-  const deal = MOCK_DEALS.find((item) => item.id === Number(id)) || MOCK_DEALS[0]
+  useEffect(() => {
+    const load = async () => {
+      setLoadingDeal(true)
+      const demo = findDemoDeal(id)
+      if (demo) {
+        setDeal(demo)
+        setLoadingDeal(false)
+        return
+      }
+      if (isPromotionUuid(id)) {
+        const { data, error } = await db.promotions.getById(id)
+        if (error || !data) {
+          setDeal(findDemoDeal('demo-1') ?? null)
+        } else {
+          setDeal(mapPromotionRowToDeal(data as never))
+        }
+        setLoadingDeal(false)
+        return
+      }
+      setDeal(findDemoDeal('demo-1') ?? null)
+      setLoadingDeal(false)
+    }
+    void load()
+  }, [id])
 
-  const handleConfirmClaim = () => {
+  const handleConfirmClaim = async () => {
+    if (!deal) return
+    setClaimError('')
     setIsProcessing(true)
-    setTimeout(() => {
+    setIsFailed(false)
+
+    if (deal.source === 'supabase' && isPromotionUuid(deal.id)) {
+      const { error } = await db.promotions.redeem(deal.id)
       setIsProcessing(false)
-      if (Math.random() < 0.2) {
+      if (error) {
+        setClaimError(error.message)
         setIsFailed(true)
         return
       }
       setStep(3)
-    }, 1500)
+      return
+    }
+
+    window.setTimeout(() => {
+      setIsProcessing(false)
+      setStep(3)
+    }, 700)
   }
 
   const stepItems = [
@@ -75,6 +78,14 @@ export default function DealClaimFlow() {
     { id: 2, label: 'Details' },
     { id: 3, label: 'Confirmation' },
   ]
+
+  if (loadingDeal || !deal) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#f8fbff]">
+        <Loader2 className="size-8 animate-spin text-slate-400" aria-label="Loading deal" />
+      </div>
+    )
+  }
 
   if (isFailed) {
     return (
@@ -90,7 +101,7 @@ export default function DealClaimFlow() {
                 </div>
                 <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Claim unsuccessful</h1>
                 <p className="mx-auto mt-3 max-w-xl text-sm text-slate-600">
-                  Something interrupted your request. Your deal has not been claimed yet, and no action was completed.
+                  {claimError || 'Something interrupted your request. Your deal has not been claimed yet.'}
                 </p>
                 <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
                   <button
@@ -134,6 +145,12 @@ export default function DealClaimFlow() {
               <ArrowLeft className="size-3.5" />
               Back to deals
             </button>
+
+            {deal.source === 'demo' ? (
+              <div className="mb-4">
+                <DevMockDataBanner message="Demo deal — live claims update the promotions table in Supabase." />
+              </div>
+            ) : null}
 
             <section className="relative overflow-hidden rounded-3xl border border-[#d8e4ff]/90 bg-gradient-to-r from-[#0e1e3f] via-[#1f3f8f] to-[#3568dd] px-6 py-6 shadow-[0_24px_60px_rgba(53,104,221,0.22)]">
               <div className="pointer-events-none absolute -right-10 -top-14 h-44 w-44 rounded-full bg-white/10 blur-2xl" />
@@ -180,7 +197,7 @@ export default function DealClaimFlow() {
                     <div>
                       <p className="inline-flex items-center gap-1 rounded-full bg-[#edf3ff] px-2.5 py-1 text-[11px] font-semibold text-[#1d4ed8]">
                         <Tag className="size-3" />
-                        {deal.category === 'SpaceX' ? 'D Space' : deal.category}
+                        {deal.category}
                       </p>
                       <h3 className="mt-3 text-xl font-semibold text-slate-900">{deal.title}</h3>
                       <p className="mt-1 text-sm font-medium text-[#3568dd]">{deal.provider}</p>
@@ -267,9 +284,14 @@ export default function DealClaimFlow() {
                     >
                       Back
                     </button>
+                    {claimError ? (
+                      <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                        {claimError}
+                      </p>
+                    ) : null}
                     <button
                       type="button"
-                      onClick={handleConfirmClaim}
+                      onClick={() => void handleConfirmClaim()}
                       disabled={isProcessing}
                       className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-[#3568dd] px-5 text-sm font-semibold text-white transition-colors motion-safe:duration-200 hover:bg-[#2a55b8] focus:outline-none focus:ring-2 focus:ring-[#3568dd]/30 disabled:cursor-not-allowed disabled:opacity-75"
                     >

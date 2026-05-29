@@ -1,12 +1,24 @@
 import { useNavigate, useLocation } from 'react-router';
 import { ChevronLeft, Upload, ChevronDown, AlertCircle } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
 import imgImage25005 from 'figma:asset/f6108faddc403caf1eea34c754f31b43ab0fb55b.png';
+import { MogzuLegacyDemoBanner } from '@/app/components/ui/MogzuLegacyDemoBanner';
 import { buildClassicBookingBaseState, computeGrandTotal } from '@/app/lib/classicBookingFlow';
 import { useAuth } from '@/lib/auth';
+import { isListingUuid } from '@/app/lib/activityListingResolver';
+import { db } from '@/lib/db';
+import { createCorporatePendingApprovalBooking } from '@/app/lib/createCorporatePendingApprovalBooking';
+import { createClassicCheckoutBooking } from '@/app/lib/createClassicCheckoutBooking';
+import { notifyFirstApprovers } from '@/lib/bookingApprovalMeta';
+import {
+  evaluateCorporateApproval,
+  listRules as listWorkflowRules,
+  type WorkflowLevel,
+} from '@/lib/approvalWorkflow';
+import type { ApprovalWorkflowRule, ModuleId } from '@/lib/database.types';
 
 const REGIONAL_METHODS: Record<string, { id: string; label: string; hint: string }> = {
   SG: { id: 'paynow', label: 'PayNow', hint: 'Singapore real-time transfer' },
@@ -17,7 +29,8 @@ const REGIONAL_METHODS: Record<string, { id: string; label: string; hint: string
 export default function BookingPayment() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { corporateAccount } = useAuth();
+  const { corporateAccount, profile, corporateId } = useAuth();
+  const [approvalSubmitting, setApprovalSubmitting] = useState(false);
   const region = corporateAccount?.region ?? 'IN';
   const regionalMethod = REGIONAL_METHODS[region] ?? null;
   const category = location.state?.category || 'default';
@@ -36,6 +49,24 @@ export default function BookingPayment() {
   const [duplicateError, setDuplicateError] = useState('');
   const [walletBalance] = useState(5000);
   const [showWalletPrompt, setShowWalletPrompt] = useState(false);
+  const [workflowRules, setWorkflowRules] = useState<ApprovalWorkflowRule[]>([]);
+  const [l3Approvers, setL3Approvers] = useState<{ id: string; name: string }[]>([]);
+  const [routeApproverId, setRouteApproverId] = useState('');
+
+  useEffect(() => {
+    if (!corporateId) return;
+    void listWorkflowRules(corporateId).then((res) => {
+      setWorkflowRules(res.data ?? []);
+    });
+    void db.userProfiles.listByRole(corporateId, 'l3_admin').then(({ data }) => {
+      const rows = (data ?? []).map((p) => ({
+        id: p.id,
+        name: p.full_name?.trim() || p.phone || 'Finance approver',
+      }));
+      setL3Approvers(rows);
+      if (rows.length === 1) setRouteApproverId(rows[0].id);
+    });
+  }, [corporateId]);
 
   // Coupon: demo-only validation + feedback.
   const [couponCode, setCouponCode] = useState('');
@@ -188,6 +219,16 @@ export default function BookingPayment() {
   const isPersonalLimitExceeded = effectiveAmount > personalRemainingBudget;
   const isDepartmentBudgetExceeded = effectiveAmount > departmentRemainingBudget;
   const isBudgetBlocked = isPersonalLimitExceeded || isDepartmentBudgetExceeded;
+
+  const approvalLevels = useMemo(() => {
+    const moduleHint: ModuleId =
+      category === 'event'
+        ? 'events'
+        : category === 'stay' || category === 'coworking' || category === 'conference'
+          ? 'spacex_coworking'
+          : 'gifting';
+    return evaluateCorporateApproval([], workflowRules, moduleHint, grandTotal).requiredLevels;
+  }, [workflowRules, grandTotal, category]);
 
   const handleApplyCoupon = () => {
     if (isApplyingCoupon) return;
@@ -352,6 +393,7 @@ export default function BookingPayment() {
         {/* Page Content */}
         <MogzuCorporateScrollSurface>
           <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
+            <MogzuLegacyDemoBanner className="mb-4" title="Classic booking flow" />
             {/* Back Button and Title */}
             <div className="mb-6">
               <button 
@@ -838,11 +880,23 @@ export default function BookingPayment() {
                       <div>
                         <label className="block text-xs font-medium text-gray-700 mb-1.5">Route Request To</label>
                         <div className="relative">
-                          <select className="w-full px-3 py-2 border border-gray-300 rounded-md appearance-none focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm bg-white">
-                            <option value="">Select Level 3 Manager...</option>
-                            <option value="sarah">Sarah Jenkins (VP Operations)</option>
-                            <option value="michael">Michael Chen (Director of Finance)</option>
-                            <option value="amanda">Amanda Roberts (Head of Procurement)</option>
+                          <select
+                            value={routeApproverId}
+                            onChange={(e) => setRouteApproverId(e.target.value)}
+                            disabled={l3Approvers.length === 0}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md appearance-none focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm bg-white disabled:bg-gray-100"
+                            aria-label="Route approval request to"
+                          >
+                            <option value="">
+                              {l3Approvers.length === 0
+                                ? 'No L3 approvers — workflow rules will notify managers'
+                                : 'Select finance approver (optional)…'}
+                            </option>
+                            {l3Approvers.map((a) => (
+                              <option key={a.id} value={a.id}>
+                                {a.name}
+                              </option>
+                            ))}
                           </select>
                           <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                         </div>
@@ -1083,69 +1137,184 @@ export default function BookingPayment() {
                   Cancel
                 </button>
                 <button 
+                  type="button"
+                  disabled={approvalSubmitting}
                   onClick={() => {
-                    const effectiveAmount = paymentTiming === 'full' ? grandTotal : partialAmount;
+                    void (async () => {
+                      const effectiveAmount = paymentTiming === 'full' ? grandTotal : partialAmount;
 
-                    // Demo thresholds aligned with BookingReview budget messaging.
-                    const personalRemainingBudget = 200000;
-                    const departmentRemainingBudget = 500000;
+                      const personalRemainingBudget = 200000;
+                      const departmentRemainingBudget = 500000;
 
-                    let reason = '';
-                    if (effectiveAmount > departmentRemainingBudget) {
-                      reason =
-                        'Budget exhausted. Requests blocked until reset or admin increases limit. Your request has been flagged for approval.';
-                    } else if (effectiveAmount > personalRemainingBudget) {
-                      reason = 'Exceeds your approved limit. Contact your manager.';
-                    }
+                      let reason = '';
+                      if (effectiveAmount > departmentRemainingBudget) {
+                        reason =
+                          'Budget exhausted. Requests blocked until reset or admin increases limit. Your request has been flagged for approval.';
+                      } else if (effectiveAmount > personalRemainingBudget) {
+                        reason = 'Exceeds your approved limit. Contact your manager.';
+                      }
 
-                    const query = reason ? `?reason=${encodeURIComponent(reason)}` : '';
-                    navigate(`/booking-approval-request${query}`, {
-                      state: {
-                        category,
-                        venueName: bookingFlow.spaceName || content.title,
-                        venueLocation: bookingFlow.location,
-                        bookingDate: bookingFlow.bookingStartDate || content.dateVal1,
-                        totalAmount: grandTotal,
-                      },
-                    });
+                      setApprovalSubmitting(true);
+                      let bookingId: string | undefined;
+
+                      const spaceId = bookingFlow.spaceId;
+                      if (
+                        spaceId &&
+                        isListingUuid(spaceId) &&
+                        corporateId &&
+                        profile?.id
+                      ) {
+                        const { data: listing } = await db.listings.getById(spaceId);
+                        if (listing?.vendor_id) {
+                          const routedApprover = l3Approvers.find((a) => a.id === routeApproverId);
+                          const purposeNote = [
+                            bookingFlow.selection.planningFor
+                              ? `Planning for: ${bookingFlow.selection.planningFor}`
+                              : null,
+                            bookingFlow.selection.approver
+                              ? `Approver: ${bookingFlow.selection.approver}`
+                              : null,
+                            routedApprover ? `Routed to: ${routedApprover.name}` : null,
+                            bookingFlow.bookingStartDate
+                              ? `When: ${bookingFlow.bookingStartDate}`
+                              : null,
+                            bookingFlow.location ? `Where: ${bookingFlow.location}` : null,
+                          ]
+                            .filter(Boolean)
+                            .join('\n');
+
+                          const requiredLevels: WorkflowLevel[] =
+                            approvalLevels.length > 0 ? approvalLevels : ['L1'];
+
+                          const { bookingId: createdId, error } =
+                            await createCorporatePendingApprovalBooking({
+                              corporateId,
+                              userId: profile.id,
+                              vendorId: listing.vendor_id,
+                              listingId: listing.id,
+                              module: listing.module as ModuleId,
+                              baseAmount: bookingFlow.bookingBaseTotal,
+                              addOnsAmount: bookingFlow.addOnTotal,
+                              platformFee: bookingFlow.serviceFee,
+                              totalAmount: grandTotal,
+                              purposeNote,
+                              requiredApprovalLevels: requiredLevels,
+                              groupSize: bookingFlow.selection.attendees || 1,
+                              startTime: null,
+                              endTime: null,
+                            });
+
+                          if (!error && createdId) {
+                            bookingId = createdId;
+                            await notifyFirstApprovers(corporateId, requiredLevels, {
+                              bookingId: createdId,
+                              title: 'New booking awaiting your approval',
+                              body: `${bookingFlow.spaceName || content.title} — ₹${grandTotal.toLocaleString('en-IN')}.`,
+                            });
+                          }
+                        }
+                      }
+
+                      setApprovalSubmitting(false);
+
+                      const queryParts: string[] = [];
+                      if (reason) queryParts.push(`reason=${encodeURIComponent(reason)}`);
+                      if (bookingId) queryParts.push(`bookingId=${encodeURIComponent(bookingId)}`);
+                      const query = queryParts.length ? `?${queryParts.join('&')}` : '';
+
+                      navigate(`/booking-approval-request${query}`, {
+                        state: {
+                          category,
+                          venueName: bookingFlow.spaceName || content.title,
+                          venueLocation: bookingFlow.location,
+                          bookingDate: bookingFlow.bookingStartDate || content.dateVal1,
+                          totalAmount: grandTotal,
+                          bookingId,
+                        },
+                      });
+                    })();
                   }}
-                  className="px-6 py-3 bg-white border border-blue-600 text-blue-600 rounded-lg font-medium text-base hover:bg-blue-50 transition-colors"
+                  className="px-6 py-3 bg-white border border-blue-600 text-blue-600 rounded-lg font-medium text-base hover:bg-blue-50 transition-colors disabled:opacity-60"
                 >
-                  Send for Approval
+                  {approvalSubmitting ? 'Submitting…' : 'Send for Approval'}
                 </button>
                 <button 
+                  type="button"
                   onClick={() => {
-                    if (isProcessing) {
-                      return;
-                    }
+                    void (async () => {
+                      if (isProcessing) {
+                        return;
+                      }
 
-                    const effectiveAmount = paymentTiming === 'full' ? grandTotal : partialAmount;
-                    const fingerprint = `${paymentMethod}-${paymentTiming}-${effectiveAmount}`;
-                    if (lastPaymentFingerprint === fingerprint) {
-                      setDuplicateError('Duplicate payment attempt blocked. Please check status or modify payment details.');
-                      return;
-                    }
+                      const effectiveAmount = paymentTiming === 'full' ? grandTotal : partialAmount;
+                      const fingerprint = `${paymentMethod}-${paymentTiming}-${effectiveAmount}`;
+                      if (lastPaymentFingerprint === fingerprint) {
+                        setDuplicateError('Duplicate payment attempt blocked. Please check status or modify payment details.');
+                        return;
+                      }
 
-                    if (paymentMethod === 'vendor' && walletBalance < effectiveAmount) {
-                      setShowWalletPrompt(true);
-                      return;
-                    }
+                      if (paymentMethod === 'vendor' && walletBalance < effectiveAmount) {
+                        setShowWalletPrompt(true);
+                        return;
+                      }
 
-                    setDuplicateError('');
-                    setShowWalletPrompt(false);
-                    setIsProcessing(true);
+                      setDuplicateError('');
+                      setShowWalletPrompt(false);
+                      setIsProcessing(true);
 
-                    setLastPaymentFingerprint(fingerprint);
-                    navigate('/booking-success', {
-                      state: {
-                        category,
-                        bookingFlow,
-                        paymentTiming,
-                        amountPaid: effectiveAmount,
-                        remainingAmount: Math.max(0, grandTotal - effectiveAmount),
-                        vendorOrderId: vendorOrderIdFromOffer,
-                      },
-                    });
+                      let bookingId: string | undefined;
+                      if (corporateId && profile?.id) {
+                        const {
+                          bookingId: createdId,
+                          error,
+                          requiresApproval,
+                        } = await createClassicCheckoutBooking({
+                          corporateId,
+                          userId: profile.id,
+                          bookingFlow,
+                          grandTotal,
+                          paymentMethod,
+                          amountPaid: effectiveAmount,
+                        });
+                        if (error) {
+                          setDuplicateError(error);
+                          setIsProcessing(false);
+                          return;
+                        }
+                        if (createdId) {
+                          bookingId = createdId;
+                          if (requiresApproval) {
+                            setIsProcessing(false);
+                            navigate(
+                              `/booking-approval-request?bookingId=${encodeURIComponent(createdId)}`,
+                              {
+                                state: {
+                                  category,
+                                  venueName: bookingFlow.spaceName || content.title,
+                                  bookingDate: bookingFlow.bookingStartDate || content.dateVal1,
+                                  totalAmount: grandTotal,
+                                  bookingId: createdId,
+                                },
+                              },
+                            );
+                            return;
+                          }
+                        }
+                      }
+
+                      setLastPaymentFingerprint(fingerprint);
+                      navigate('/booking-success', {
+                        state: {
+                          category,
+                          bookingFlow,
+                          paymentTiming,
+                          amountPaid: effectiveAmount,
+                          remainingAmount: Math.max(0, grandTotal - effectiveAmount),
+                          vendorOrderId: vendorOrderIdFromOffer,
+                          bookingId,
+                        },
+                      });
+                    })();
                   }}
                   className="px-12 py-3 bg-[#2563eb] text-white rounded-lg font-medium text-base hover:bg-[#1d4ed8] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                   disabled={isProcessing || isBudgetBlocked}

@@ -23,6 +23,7 @@ export default function CorporateAiAutonomyPage() {
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
   const [killBusy, setKillBusy] = useState(false)
+  const [hasStoredSettings, setHasStoredSettings] = useState(false)
 
   const toggleKill = async (next: boolean) => {
     if (!corporateId) return
@@ -53,6 +54,9 @@ export default function CorporateAiAutonomyPage() {
       setEnabled(data.is_enabled)
       setCap(data.spend_cap_inr)
       setBlocked(data.blocked_categories.join(', '))
+      setHasStoredSettings(true)
+    } else {
+      setHasStoredSettings(false)
     }
     setLoading(false)
   }, [corporateId])
@@ -124,6 +128,11 @@ export default function CorporateAiAutonomyPage() {
         </div>
       ) : (
         <div className="mx-auto max-w-3xl space-y-6">
+          {!loading && !hasStoredSettings ? (
+            <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">
+              No saved settings yet — defaults apply until you save.
+            </p>
+          ) : null}
           <section
             className={`${MOGZU_GLASS_CARD} border-2 p-6 ${
               enabled

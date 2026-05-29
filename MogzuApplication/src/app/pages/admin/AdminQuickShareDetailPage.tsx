@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import {
   ArrowLeft,
   Check,
@@ -12,6 +12,8 @@ import {
   Send,
 } from 'lucide-react'
 import { AdminPageTitleRow } from '@/app/components/admin/AdminPageChrome'
+import { LeadOpsBanner } from '@/app/components/leads/LeadOpsBanner'
+import { LEAD_OPS } from '@/app/components/leads/leadOpsStyles'
 import { useAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import type {
@@ -39,7 +41,11 @@ function fmt(iso: string | null): string {
 
 export default function AdminQuickShareDetailPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { id } = useParams<{ id: string }>()
+  const fromLeadFlow = Boolean(
+    (location.state as { returnToLeads?: boolean } | null)?.returnToLeads,
+  )
   const { profile } = useAuth()
   const [share, setShare] = useState<QuickShare | null>(null)
   const [items, setItems] = useState<ItemRow[]>([])
@@ -157,24 +163,34 @@ export default function AdminQuickShareDetailPage() {
 
   return (
     <div className="max-w-3xl space-y-4">
-      <button
-        type="button"
-        onClick={() => navigate('/admin/quick-share')}
-        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900"
-      >
-        <ArrowLeft className="size-3.5" /> Quick shares
-      </button>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => navigate('/admin/leads?tab=catalogue')}
+          className={`${LEAD_OPS.ghostBtn} min-h-[40px] px-2 text-sm`}
+        >
+          <ArrowLeft className="size-3.5" /> Quick Share
+        </button>
+        {fromLeadFlow ? (
+          <Link
+            to="/admin/leads?tab=inbox"
+            className={`${LEAD_OPS.secondaryBtn} min-h-[40px] text-sm`}
+          >
+            ← Lead inbox
+          </Link>
+        ) : null}
+      </div>
 
       <AdminPageTitleRow
         title={share.client_label || 'Quick share'}
         totalLabel={`${share.module} · expires ${fmt(share.expires_at)}`}
       />
 
-      {notice && (
-        <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+      {notice ? (
+        <LeadOpsBanner variant={notice.toLowerCase().includes('fail') ? 'error' : 'info'}>
           {notice}
-        </div>
-      )}
+        </LeadOpsBanner>
+      ) : null}
 
       <section className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-amber-50 p-4 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-wide text-indigo-900">Share link</p>

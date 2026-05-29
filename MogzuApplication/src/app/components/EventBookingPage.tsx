@@ -26,7 +26,17 @@ import {
   loadResaleContext,
   type ResaleContext,
 } from '@/lib/partnerCheckout'
+import {
+  buildBookingApprovalFields,
+  notifyFirstApprovers,
+} from '@/lib/bookingApprovalMeta'
+import {
+  evaluateCorporateApproval,
+  listRules as listWorkflowRules,
+  type ApprovalEvaluation,
+} from '@/lib/approvalWorkflow'
 import type {
+  ApprovalWorkflowRule,
   BudgetRule,
   CalendarSlot,
   Listing,
@@ -110,6 +120,7 @@ export default function EventBookingPage() {
   const [bookedSlots, setBookedSlots] = useState<CalendarSlot[]>([])
   const [availabilityRules, setAvailabilityRules] = useState<VendorAvailabilityRule[]>([])
   const [budgets, setBudgets] = useState<BudgetRule[]>([])
+  const [workflowRules, setWorkflowRules] = useState<ApprovalWorkflowRule[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
 
@@ -135,9 +146,10 @@ export default function EventBookingPage() {
     setLoading(true)
     setLoadError('')
 
-    const [listingRes, budgetRes] = await Promise.all([
+    const [listingRes, budgetRes, workflowRes] = await Promise.all([
       db.listings.getById(params.listingId),
       db.budgets.listByCorporate(corporateId),
+      listWorkflowRules(corporateId),
     ])
 
     if (listingRes.error || !listingRes.data) {
@@ -148,6 +160,7 @@ export default function EventBookingPage() {
     const l = listingRes.data as ListingDetail
     setListing(l)
     setBudgets((budgetRes.data ?? []) as BudgetRule[])
+    setWorkflowRules(workflowRes.data ?? [])
 
     // Pre-fill from query params (Hey Genie handoff). Clamp headcount to capacity.
     const headcountParam = parseInt(searchParams.get('headcount') ?? '', 10)
@@ -225,19 +238,16 @@ export default function EventBookingPage() {
   const partnerMargin = computeResaleMargin(baseAmount + addOnsAmount, partnerMarkupPct)
   const totalAmount = baseAmount + addOnsAmount + platformFee + partnerMargin
 
-  // ─── Approval decision ──────────────────────────────────────────────────────
-  const approvalDecision = useMemo(() => {
-    const matching = budgets.find(
-      (b) => b.module === null || b.module === listing?.module,
-    )
-    if (!matching) return { requiresApproval: false, reason: 'No budget rules configured.' }
-    if (!matching.requires_approval) return { requiresApproval: false, reason: 'Budget rule allows direct booking.' }
-    const autoFloor = matching.auto_approve_below
-    if (autoFloor != null && totalAmount <= autoFloor) {
-      return { requiresApproval: false, reason: `Under auto-approve threshold (₹${autoFloor.toLocaleString('en-IN')}).` }
-    }
-    return { requiresApproval: true, reason: 'Above auto-approve threshold — needs manager approval.' }
-  }, [budgets, listing?.module, totalAmount])
+  const approvalDecision = useMemo(
+    () =>
+      evaluateCorporateApproval(
+        budgets,
+        workflowRules,
+        listing?.module ?? null,
+        totalAmount,
+      ),
+    [budgets, workflowRules, listing?.module, totalAmount],
+  )
 
   // ─── Calendar grid ──────────────────────────────────────────────────────────
   const monthGrid = useMemo(() => {
@@ -359,7 +369,10 @@ export default function EventBookingPage() {
       payment_method: null,
       payment_reference: null,
       payment_status: 'pending',
-      purpose_note: purposeNote.trim() || null,
+      ...buildBookingApprovalFields(
+        purposeNote.trim() || null,
+        approvalDecision.requiredLevels,
+      ),
       approved_by: null,
       approved_at: null,
       cancelled_at: null,
@@ -398,17 +411,11 @@ export default function EventBookingPage() {
       await db.bookings.addAddOns(addOnRows)
     }
 
-    // Notify approver chain if this needs manager approval.
     if (status === 'pending_approval' && corporateId) {
-      const { data: managers } = await db.userProfiles.listByRole(corporateId, 'l2_manager')
-      ;(managers ?? []).forEach((m) => {
-        db.notifications.notify({
-          userId: m.id,
-          type: 'approval_required',
-          title: 'New booking awaiting your approval',
-          body: `${listing.title} — ₹${totalAmount.toLocaleString('en-IN')} for ${profile.full_name ?? 'a teammate'}.`,
-          linkUrl: `/corporate/approvals/${data.id}`,
-        })
+      await notifyFirstApprovers(corporateId, approvalDecision.requiredLevels, {
+        bookingId: data.id,
+        title: 'New event booking awaiting your approval',
+        body: `${listing.title} — ₹${totalAmount.toLocaleString('en-IN')} for ${profile.full_name ?? 'a teammate'}.`,
       })
     }
 
@@ -862,7 +869,7 @@ function StepReview({
   addOnsAmount: number
   platformFee: number
   totalAmount: number
-  approvalDecision: { requiresApproval: boolean; reason: string }
+  approvalDecision: ApprovalEvaluation
   purposeNote: string
   setPurposeNote: (s: string) => void
 }) {
@@ -945,6 +952,11 @@ function StepReview({
             : 'Goes directly to vendor confirmation'}
         </p>
         <p className="mt-1 text-xs">{approvalDecision.reason}</p>
+        {approvalDecision.requiredLevels.length > 0 ? (
+          <p className="mt-2 text-xs font-medium">
+            Approval chain: {approvalDecision.requiredLevels.join(' → ')}
+          </p>
+        ) : null}
       </div>
     </div>
   )

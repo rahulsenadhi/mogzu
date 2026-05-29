@@ -3,6 +3,11 @@ import { useParams, useNavigate } from 'react-router';
 import { ArrowLeft, Calendar, Users, Clock, MapPin, Check, ChevronRight, AlertCircle, Loader2 } from 'lucide-react';
 import { DevMockDataBanner } from './global/DevMockDataBanner';
 import { useAuth } from '@/lib/auth';
+import {
+  buildBookingApprovalFields,
+  notifyFirstApprovers,
+  resolveBookingApprovalOnCreate,
+} from '@/lib/bookingApprovalMeta';
 import { db } from '@/lib/db';
 import type { Listing } from '@/lib/database.types';
 import {
@@ -231,13 +236,29 @@ export default function ActivityBookingFlow() {
     const baseAmount = resolvedListing.base_price ?? parseInrAmount(activity.price) ?? 0;
     const totalAmount = baseAmount * groupSize;
 
+    const userPurposeNote = [
+      specialRequests.trim(),
+      dietaryRestrictions.trim() ? `Dietary: ${dietaryRestrictions.trim()}` : '',
+      accessibility.trim() ? `Accessibility: ${accessibility.trim()}` : '',
+      addOns.length ? `Add-ons: ${addOns.join(', ')}` : '',
+      contactName.trim()
+        ? `Contact: ${contactName.trim()} (${contactEmail.trim()}, ${contactPhone.trim()})`
+        : '',
+      companyName.trim() ? `Company: ${companyName.trim()}` : '',
+      billingAddress.trim() ? `Billing: ${billingAddress.trim()}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const approval = await resolveBookingApprovalOnCreate(corporateId, 'events', totalAmount);
+
     const { data, error } = await db.bookings.create({
       corporate_id: corporateId,
       user_id: profile.id,
       vendor_id: resolvedListing.vendor_id,
       listing_id: resolvedListing.id,
       module: 'events',
-      status: 'pending_vendor',
+      status: approval.status,
       group_size: groupSize,
       start_time: startTime.toISOString(),
       end_time: endTime.toISOString(),
@@ -249,23 +270,16 @@ export default function ActivityBookingFlow() {
       payment_method: null,
       payment_reference: null,
       payment_status: 'pending',
-      purpose_note: [
-        specialRequests.trim(),
-        dietaryRestrictions.trim() ? `Dietary: ${dietaryRestrictions.trim()}` : '',
-        accessibility.trim() ? `Accessibility: ${accessibility.trim()}` : '',
-        addOns.length ? `Add-ons: ${addOns.join(', ')}` : '',
-        contactName.trim() ? `Contact: ${contactName.trim()} (${contactEmail.trim()}, ${contactPhone.trim()})` : '',
-        companyName.trim() ? `Company: ${companyName.trim()}` : '',
-        billingAddress.trim() ? `Billing: ${billingAddress.trim()}` : '',
-      ]
-        .filter(Boolean)
-        .join('\n'),
+      ...buildBookingApprovalFields(userPurposeNote, approval.requiredLevels),
       approved_by: null,
       approved_at: null,
       cancelled_at: null,
       cancellation_reason: null,
       cancellation_fee: null,
-      vendor_response_deadline: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      vendor_response_deadline:
+        approval.status === 'pending_vendor'
+          ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+          : null,
       completed_at: null,
       partner_id: null,
       partner_markup_pct: null,
@@ -278,6 +292,24 @@ export default function ActivityBookingFlow() {
     if (error || !data) {
       setIsFailed(true);
       setSubmitError(error?.message ?? 'Could not submit booking.');
+      return;
+    }
+
+    if (approval.status === 'pending_approval') {
+      await notifyFirstApprovers(corporateId, approval.requiredLevels, {
+        bookingId: data.id,
+        title: 'New activity booking awaiting your approval',
+        body: `${resolvedListing.title ?? activity.title} — ₹${totalAmount.toLocaleString('en-IN')}.`,
+      });
+      navigate(`/booking-approval-request?bookingId=${encodeURIComponent(data.id)}`, {
+        replace: true,
+        state: {
+          category: 'activity',
+          venueName: resolvedListing.title ?? activity.title,
+          totalAmount,
+          bookingId: data.id,
+        },
+      });
       return;
     }
 

@@ -6,6 +6,8 @@ import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
 import { isBookingHandoffPayload, type BookingHandoffPayload } from '@/app/types/bookingHandoff';
 import { useBookingDraft } from '@/app/lib/bookingDraft';
+import { useAuth } from '@/lib/auth';
+import { submitBookingDraftToSupabase } from '@/app/lib/submitBookingDraftToSupabase';
 
 function formatInr(n: number): string {
   return `Rs ${Math.max(0, Math.round(n)).toLocaleString('en-IN')}`;
@@ -14,10 +16,12 @@ function formatInr(n: number): string {
 export default function BookingSummaryPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { bookingDraft, setDraftPartial, setContactField } = useBookingDraft();
+  const { bookingDraft, setDraftPartial, setContactField, clearDraft } = useBookingDraft();
+  const { profile, corporateId } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [submitSuccess, setSubmitSuccess] = useState(false)
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -77,11 +81,60 @@ export default function BookingSummaryPage() {
     if (!bookingDraft.listing) return;
     if (!validate()) return;
     setSubmitting(true);
-    await new Promise((r) => window.setTimeout(r, 1500));
-    setSubmitSuccess(true)
+    setSubmitError('');
+
+    const contactNote = [
+      `Contact: ${fullName.trim()} (${email.trim()}, ${phone.trim()})`,
+      `Company: ${company.trim()}`,
+      specialInstructions.trim() ? `Notes: ${specialInstructions.trim()}` : null,
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    let supabaseBookingId: string | null = null;
+    if (corporateId && profile?.id) {
+      const result = await submitBookingDraftToSupabase(
+        {
+          ...bookingDraft,
+          contact: {
+            full_name: fullName.trim(),
+            work_email: email.trim(),
+            phone: phone.trim(),
+            company_name: company.trim(),
+            special_instructions: specialInstructions.trim(),
+          },
+        },
+        { corporateId, userId: profile.id, contactNote },
+      );
+      if (result.error && !result.usedDemo) {
+        setSubmitError(result.error);
+        setSubmitting(false);
+        return;
+      }
+      supabaseBookingId = result.bookingId;
+      if (result.bookingId && result.requiresApproval) {
+        setSubmitting(false);
+        navigate(
+          `/booking-approval-request?bookingId=${encodeURIComponent(result.bookingId)}`,
+          {
+            state: {
+              category: 'activity',
+              venueName: bookingDraft.listing?.title,
+              totalAmount: bookingDraft.calculated.grand_total,
+              bookingId: result.bookingId,
+            },
+          },
+        );
+        return;
+      }
+    }
+
+    setSubmitSuccess(true);
     await new Promise((r) => window.setTimeout(r, 400));
-    const now = new Date()
-    const ref = `#MGZ-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${Math.floor(1000 + Math.random() * 9000)}`
+    const now = new Date();
+    const ref =
+      supabaseBookingId?.slice(0, 8).toUpperCase() ??
+      `#MGZ-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${Math.floor(1000 + Math.random() * 9000)}`;
     setDraftPartial({
       contact: {
         full_name: fullName.trim(),
@@ -94,10 +147,15 @@ export default function BookingSummaryPage() {
       booking_reference: ref,
       status: 'submitted',
       submitted_at: now.toISOString(),
-    })
-    navigate('/booking-confirmation');
+    });
+    navigate(
+      supabaseBookingId
+        ? `/booking-confirmation?bookingId=${encodeURIComponent(supabaseBookingId)}`
+        : '/booking-confirmation',
+      { state: supabaseBookingId ? { bookingId: supabaseBookingId } : undefined },
+    );
     setSubmitting(false);
-    setSubmitSuccess(false)
+    setSubmitSuccess(false);
   };
 
   if (!bookingDraft.listing) {
@@ -148,6 +206,11 @@ export default function BookingSummaryPage() {
               Back
             </button>
 
+            {submitError ? (
+              <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {submitError}
+              </p>
+            ) : null}
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
               <div className="order-2 space-y-6 lg:order-1">
                 <div>

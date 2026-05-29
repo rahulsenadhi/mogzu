@@ -78,7 +78,6 @@ import AdminPendingListingsPage from "@/app/pages/admin/AdminPendingListingsPage
 import AdminTeamPage from "@/app/pages/admin/AdminTeamPage";
 import AdminTeamPermissionsPage from "@/app/pages/admin/AdminTeamPermissionsPage";
 import AdminTeamActivityPage from "@/app/pages/admin/AdminTeamActivityPage";
-import AdminQuickSharePage from "@/app/pages/admin/AdminQuickSharePage";
 import AdminQuickShareDetailPage from "@/app/pages/admin/AdminQuickShareDetailPage";
 import QuickShareViewerPage from "@/app/components/QuickShareViewerPage";
 import AcceptInvitePage from "@/app/components/AcceptInvitePage";
@@ -147,9 +146,8 @@ import AdminSsoPage from "@/app/components/AdminSsoPage";
 import AdminPublicListingsPage from "@/app/components/AdminPublicListingsPage";
 import PublicLandingPage from "@/app/components/PublicLandingPage";
 import PublicSecurityPage from "@/app/components/PublicSecurityPage";
-import SalesPipelinePage from "@/app/components/SalesPipelinePage";
 import PublicBlogIndexPage from "@/app/components/PublicBlogIndexPage";
-import AdminLeadsPage from "@/app/components/AdminLeadsPage";
+import LeadOperationsHub from "@/app/components/leads/LeadOperationsHub";
 import AdminAuditPage from "@/app/components/AdminAuditPage";
 import AdminContractsPage from "@/app/components/AdminContractsPage";
 import AdminContractFormPage from "@/app/components/AdminContractFormPage";
@@ -213,7 +211,6 @@ import VendorAddProductPage from "@/app/components/VendorAddProductPage";
 import VendorOrderDetailsPage from "@/app/components/VendorOrderDetailsPage";
 import VendorCommunicationPage from "@/app/components/VendorCommunicationPage";
 import VendorUserManagementPage from "@/app/components/VendorUserManagementPage";
-import VendorPromotionsPage from "@/app/components/VendorPromotionsPage";
 import VendorAdCampaignPage from "@/app/components/VendorAdCampaignPage";
 import VendorPromotionOfferPage from "@/app/components/VendorPromotionOfferPage";
 import VendorReviewsPage from "@/app/components/VendorReviewsPage";
@@ -497,7 +494,7 @@ export const router = createBrowserRouter([
       { path: "team", element: <AdminTeamPage /> },
       { path: "team/:userId/permissions", element: <AdminTeamPermissionsPage /> },
       { path: "team/:userId/activity", element: <AdminTeamActivityPage /> },
-      { path: "quick-share", element: <AdminQuickSharePage /> },
+      { path: "quick-share", element: <Navigate to="/admin/leads?tab=catalogue" replace /> },
       { path: "quick-share/:id", element: <AdminQuickShareDetailPage /> },
       { path: "mogzu-orders", element: <AdminMogzuOrdersPage /> },
       { path: "commissions", element: <AdminCommissionsPage /> },
@@ -514,7 +511,7 @@ export const router = createBrowserRouter([
       { path: "ai-policy", element: <AdminAiPolicyPage /> },
       { path: "sso", element: <AdminSsoPage /> },
       { path: "listings/public", element: <AdminPublicListingsPage /> },
-      { path: "leads", element: <AdminLeadsPage /> },
+      { path: "leads", element: <LeadOperationsHub /> },
       { path: "compliance/audit", element: <AdminAuditPage /> },
       { path: "contracts", element: <AdminContractsPage /> },
       { path: "contracts/new", element: <AdminContractFormPage /> },
@@ -864,7 +861,6 @@ export const router = createBrowserRouter([
     element: vend(<VendorBookingRequestsPage />),
     errorElement: <ErrorPage />,
   },
-  ,
   {
     path: "/bookings/:id/pay",
     element: corp(<BookingPaymentPage />),
@@ -940,8 +936,6 @@ export const router = createBrowserRouter([
     element: vend(<VendorSupportPage />),
     errorElement: <ErrorPage />,
   },
-  ,
-  ,
   {
     path: "/corporate/celebrations",
     element: corp(<CorporateCelebrationsPage />),
@@ -967,8 +961,6 @@ export const router = createBrowserRouter([
     element: corp(<StaySearchPage />, 'dSpace'),
     errorElement: <ErrorPage />,
   },
-  ,
-  ,
   {
     path: "/corporate/bulk-gifting",
     element: corp(<BulkGiftingPage />),
@@ -984,7 +976,6 @@ export const router = createBrowserRouter([
     element: corp(<ReviewSubmitPage />),
     errorElement: <ErrorPage />,
   },
-  ,
   {
     path: "/vendor/analytics",
     element: vend(<VendorAnalyticsPage />),
@@ -995,10 +986,6 @@ export const router = createBrowserRouter([
     element: vend(<VendorPromotionsRealPage />),
     errorElement: <ErrorPage />,
   },
-  ,
-  ,
-  ,
-  ,
   {
     path: "/explore",
     element: corp(<ExplorePage />),
@@ -1009,8 +996,6 @@ export const router = createBrowserRouter([
     element: corp(<ExplorePage />),
     errorElement: <ErrorPage />,
   },
-  ,
-  ,
   {
     path: "/p/:slug",
     element: <PublicLandingPage />,
@@ -1033,32 +1018,19 @@ export const router = createBrowserRouter([
   },
   {
     path: "/sales/pipeline",
-    element: adminPage(<SalesPipelinePage />),
+    element: <Navigate to="/admin/leads?tab=pipeline" replace />,
     errorElement: <ErrorPage />,
   },
-  ,
-  ,
-  ,
-  ,
-  ,
-  ,
-  ,
-  ,
-  ,
-  ,
   {
     path: "/vendor-apply",
     element: <PublicVendorApplyPage />,
     errorElement: <ErrorPage />,
   },
-  ,
-  ,
   {
     path: "/corporate/ai-autonomy",
     element: corp(<CorporateAiAutonomyPage />),
     errorElement: <ErrorPage />,
   },
-  ,
   {
     path: "/corporate/event-templates",
     element: corp(<CorporateEventTemplatesPage />),
@@ -1431,7 +1403,7 @@ export const router = createBrowserRouter([
   },
   {
     path: "/vendor/promotions",
-    element: vend(<VendorPromotionsPage />),
+    element: <Navigate to="/vendor/promotions-live" replace />,
     errorElement: <ErrorPage />,
   },
   {
@@ -1454,20 +1426,11 @@ export const router = createBrowserRouter([
     element: vend(<VendorCalendarPage />),
     errorElement: <ErrorPage />,
   },
-  ,
-  ,
-  ,
-  ,
-  ,
-  ,
   {
     path: "/vendor/performance",
     element: vend(<VendorPerformancePage />),
     errorElement: <ErrorPage />,
   },
-  ,
-  ,
-  ,
   {
     path: "/vendor-passport",
     element: <VendorPassportPage />,

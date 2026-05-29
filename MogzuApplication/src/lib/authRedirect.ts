@@ -1,7 +1,7 @@
 import type { UserProfile, UserRole } from './database.types'
 import { getCorporateOnboardingPath, isCorporateOnboardingComplete } from '@/app/lib/corporateOnboarding'
 
-function isCorporateRole(role: UserRole | null): boolean {
+export function isCorporatePrimaryRole(role: UserRole | null): boolean {
   return role === 'l1_employee' || role === 'l2_manager' || role === 'l3_admin'
 }
 
@@ -23,13 +23,46 @@ export function getPostLoginPath(role: UserRole | null, profile?: UserProfile | 
   if (role === 'field_agent') return '/agent/dashboard'
   if (role === 'vendor') return '/vendor/dashboard'
   if (role === 'partner') return '/partner/dashboard'
-  if (isCorporateRole(role)) {
+  if (isCorporatePrimaryRole(role)) {
     const onboarding = getCorporateOnboardingPath(profile)
     if (onboarding) return onboarding
     if (!isCorporateOnboardingComplete(profile)) return '/signup/corporate/company-details'
     return '/dashboard'
   }
   return '/dashboard'
+}
+
+/**
+ * Post-login destination for `/login` (corporate entry).
+ * Uses profile.role (DB primary) so a stale sessionStorage admin override does not
+ * hijack routing for corporate users who also have admin in available_roles[].
+ */
+export function getCorporateLoginRedirectPath(
+  profile: UserProfile | null | undefined,
+  fallbackRole: UserRole | null,
+): string {
+  const primary = profile?.role ?? fallbackRole
+  if (isCorporatePrimaryRole(primary)) {
+    const onboarding = getCorporateOnboardingPath(profile)
+    if (onboarding) return onboarding
+    if (!isCorporateOnboardingComplete(profile)) return '/signup/corporate/company-details'
+    return '/dashboard'
+  }
+  return getPostLoginPath(primary, profile)
+}
+
+/** Ignore admin/vendor return paths when signing in from corporate `/login`. */
+export function sanitizeCorporateReturnPath(from?: string): string | undefined {
+  if (!from) return undefined
+  if (
+    from.startsWith('/admin') ||
+    from.startsWith('/vendor') ||
+    from.startsWith('/agent') ||
+    from.startsWith('/partner')
+  ) {
+    return undefined
+  }
+  return from
 }
 
 /** Canonical redirect URL for Supabase email confirm, OAuth, and password reset. */

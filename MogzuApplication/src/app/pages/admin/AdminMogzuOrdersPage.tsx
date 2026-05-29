@@ -1,8 +1,10 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router';
 import { AdminPageTitleRow } from '@/app/components/admin/AdminPageChrome';
+import { DevMockDataBanner } from '@/app/components/global/DevMockDataBanner';
 import type { MogzuOrder } from '@/app/lib/mogzuDomain';
 import { loadMogzuOrders } from '@/app/lib/mogzuDomain';
+import { listLeads, type PublicLead } from '@/lib/publicLeads';
 
 function statusClass(s: MogzuOrder['status']): string {
   if (s === 'completed') return 'bg-emerald-50 text-emerald-800 border border-emerald-100';
@@ -11,13 +13,70 @@ function statusClass(s: MogzuOrder['status']): string {
   return 'bg-slate-100 text-slate-700 border border-slate-200';
 }
 
+function leadToOrder(lead: PublicLead): MogzuOrder {
+  const listingType: MogzuOrder['listing_type'] =
+    lead.source_slug === 'partner_listing' ? 'partner' : 'mogzu_direct';
+  const status: MogzuOrder['status'] =
+    lead.status === 'converted'
+      ? 'completed'
+      : lead.status === 'closed' || lead.status === 'spam'
+        ? 'cancelled'
+        : 'received';
+  return {
+    id: `lead-${lead.id}`,
+    enquiry_id: lead.id,
+    corporate_user_id: lead.client_email,
+    listing_id: lead.listing_id ?? '—',
+    listing_type: listingType,
+    status,
+    total_amount: 0,
+    event_date: '',
+    requirements: lead.requirement_summary ?? `${lead.client_name} enquiry`,
+    created_at: lead.created_at,
+    updated_at: lead.updated_at,
+  };
+}
+
 export default function AdminMogzuOrdersPage() {
   const location = useLocation();
-  const rows = useMemo(() => loadMogzuOrders(), [location.key]);
+  const [liveLeads, setLiveLeads] = useState<PublicLead[]>([]);
+  const [leadsLoaded, setLeadsLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void listLeads().then(({ data }) => {
+      if (cancelled) return;
+      setLiveLeads(data ?? []);
+      setLeadsLoaded(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [location.key]);
+
+  const rows = useMemo(() => {
+    const local = loadMogzuOrders();
+    const fromLeads = liveLeads.map(leadToOrder);
+    const seen = new Set<string>();
+    const merged: MogzuOrder[] = [];
+    for (const row of [...fromLeads, ...local]) {
+      const key = row.enquiry_id || row.id;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(row);
+    }
+    return merged.sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
+  }, [liveLeads, location.key]);
+
+  const usingDemoOnly = leadsLoaded && liveLeads.length === 0;
 
   return (
     <div className="space-y-4">
       <AdminPageTitleRow title="Mogzu orders" totalLabel={`${rows.length} orders`} />
+      {usingDemoOnly ? <DevMockDataBanner /> : null}
+      {!leadsLoaded ? <p className="text-sm text-slate-500">Loading enquiries…</p> : null}
 
       <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
         {rows.length === 0 ? (

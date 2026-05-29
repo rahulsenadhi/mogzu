@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Heart, MapPin, Users, Star, BedDouble, Home, Building2, TreePine, Search } from 'lucide-react';
+import { MapPin, Users, Star, BedDouble, Home, Building2, TreePine, Search } from 'lucide-react';
+import { WishlistHeart } from '@/app/components/global/WishlistHeart';
 import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';

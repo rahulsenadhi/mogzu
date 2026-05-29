@@ -5,6 +5,7 @@ import { MOGZU_DOMAIN_STORAGE_EVENT, SHORTLIST_PROPOSALS_KEY } from '@/app/lib/m
 import type { ShortlistProposal } from '@/app/lib/mogzuDomain';
 import { loadShortlistProposals, saveShortlistProposals } from '@/app/lib/mogzuDomain';
 import { ensureOrderFromShortlistSelection } from '@/app/lib/mogzuShortlistHelpers';
+import { MogzuLegacyDemoBanner } from '@/app/components/ui/MogzuLegacyDemoBanner';
 
 export default function ShortlistCorporatePage() {
   const navigate = useNavigate();
@@ -102,6 +103,7 @@ export default function ShortlistCorporatePage() {
       </header>
 
       <main className="mx-auto max-w-3xl px-4 py-8 space-y-6">
+        <MogzuLegacyDemoBanner />
         {!proposal && error ? (
           <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-900">{error}</div>
         ) : !proposal ? (

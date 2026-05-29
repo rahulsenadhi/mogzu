@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { Share2, Star, ChevronRight, Info, FileText, CheckCircle2, XCircle } from 'lucide-react';
 import { WishlistHeart } from './global/WishlistHeart';
+import { DevMockDataBanner } from '@/app/components/global/DevMockDataBanner';
 import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { PricingBlock, PricingMode } from './ui/PricingBlock';
+import { resolveGiftingListing } from '@/app/lib/activityListingResolver';
 
 interface ResponseStatusBannerProps {
   status: 'awaiting' | 'best_offer' | 'accepted' | 'declined';
@@ -167,8 +169,37 @@ const mockProducts = [
 
 export default function CelebrationDetailPage() {
   const navigate = useNavigate();
-  const { id } = useParams();
-  const product = mockProducts.find(p => p.id === Number(id)) || mockProducts[0];
+  const { id: routeId } = useParams();
+  const product = mockProducts.find(p => p.id === Number(routeId)) || mockProducts[0];
+
+  const [liveListingId, setLiveListingId] = useState<string | undefined>();
+  const [liveVendorId, setLiveVendorId] = useState<string | undefined>();
+  const [usingDemoCatalog, setUsingDemoCatalog] = useState(true);
+
+  useEffect(() => {
+    if (!routeId) {
+      setLiveListingId(undefined);
+      setLiveVendorId(undefined);
+      setUsingDemoCatalog(true);
+      return;
+    }
+    let cancelled = false;
+    void resolveGiftingListing(routeId).then((row) => {
+      if (cancelled) return;
+      if (row?.id && row.vendor_id) {
+        setLiveListingId(row.id);
+        setLiveVendorId(row.vendor_id);
+        setUsingDemoCatalog(false);
+        return;
+      }
+      setLiveListingId(undefined);
+      setLiveVendorId(undefined);
+      setUsingDemoCatalog(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [routeId]);
 
   const [selectedVariant, setSelectedVariant] = useState(product.variants[0]);
   const [selectedColor, setSelectedColor] = useState(product.colors[0]);
@@ -199,7 +230,11 @@ export default function CelebrationDetailPage() {
 
   const handleProceedToBooking = () => {
     const bookingData = {
-      product,
+      product: {
+        name: product.name,
+        image: product.image,
+        occasion: product.occasion,
+      },
       variant: selectedVariant,
       color: selectedColor,
       branding: selectedBranding,
@@ -208,9 +243,12 @@ export default function CelebrationDetailPage() {
       greetingCard: selectedCard,
       quantity,
       logo: logoFile,
-      totalPrice: calculatePrice()
+      totalPrice: calculatePrice(),
+      ...(liveListingId && liveVendorId
+        ? { listingId: liveListingId, vendorId: liveVendorId, module: 'gifting' as const }
+        : {}),
     };
-    
+
     localStorage.setItem('celebrationBooking', JSON.stringify(bookingData));
     navigate('/celebration-booking-flow');
   };
@@ -262,6 +300,7 @@ export default function CelebrationDetailPage() {
         {/* Page Content */}
         <MogzuCorporateScrollSurface>
           <div className="max-w-7xl mx-auto px-6 py-6">
+            {usingDemoCatalog ? <DevMockDataBanner /> : null}
             {/* Breadcrumb */}
             <div className="flex flex-wrap items-center gap-2 text-sm mb-6 min-w-0">
               <button type="button" onClick={() => navigate('/dashboard')} className="text-[#4379ee] hover:underline shrink-0">

@@ -9,6 +9,7 @@ import {
   upsertVendorPromoAd,
   type VendorPromoAd,
 } from '@/app/lib/vendorPromotionAdsStorage';
+import { MogzuLegacyDemoBanner } from '@/app/components/ui/MogzuLegacyDemoBanner';
 
 type CallCta = 'view' | 'quote' | 'connect';
 
@@ -62,7 +63,7 @@ export default function VendorPromotionOfferPage() {
     description.length > 120 ? `${description.slice(0, 120)}…` : description;
 
   const handleBack = () => {
-    if (adIdParam) navigate('/vendor/promotions');
+    if (adIdParam) navigate('/vendor/promotions-live');
     else navigate('/vendor/promotions/ad-campaign');
   };
 
@@ -101,7 +102,7 @@ export default function VendorPromotionOfferPage() {
       imageDataUrl,
     };
     upsertVendorPromoAd(ad);
-    navigate('/vendor/promotions');
+    navigate('/vendor/promotions-live');
   };
 
   const previewImage = bannerPreview || imgMeetingThumb;
@@ -157,6 +158,7 @@ export default function VendorPromotionOfferPage() {
                 {uiNotice}
               </p>
             ) : null}
+            <MogzuLegacyDemoBanner className="mx-auto mb-4 max-w-3xl" />
             <div className="mx-auto max-w-3xl rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
               <h1 className="mb-6 text-lg font-semibold text-slate-900">Offer on specific product</h1>
 

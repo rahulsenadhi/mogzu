@@ -5,15 +5,21 @@ import imgGoogleIcon from 'figma:asset/623e1bc74569caceb0c89f1e0be048c9a6e5221f.
 import { MogzuLogo } from '@/app/components/branding/MogzuLogo';
 import { RoleSwitcher } from '@/app/components/global/RoleSwitcher';
 import { RoleBanner } from '@/app/components/global/RoleBanner';
-import { useAuth } from '@/lib/auth';
+import { isAdminRole, isVendorRole, useAuth } from '@/lib/auth';
 import { authActions } from '@/lib/authActions';
-import { getPostLoginPath } from '@/lib/authRedirect';
+import {
+  getCorporateLoginRedirectPath,
+  isCorporatePrimaryRole,
+  sanitizeCorporateReturnPath,
+} from '@/lib/authRedirect';
 import { resolveSsoForEmail } from '@/lib/ssoConfig';
+import { useDemoRole } from '@/app/lib/demoRole';
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { signIn, isAuthenticated, role, isLoading, profile } = useAuth();
+  const { signIn, signOut, isAuthenticated, role, isLoading, profile, clearRoleOverride } = useAuth();
+  const { setActiveRole: setDemoRole } = useDemoRole();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -38,12 +44,37 @@ export default function LoginPage() {
   }, [location.search]);
 
   useEffect(() => {
+    // Corporate login entry — drop stale admin role override from a prior session.
+    clearRoleOverride()
+    if (import.meta.env.DEV) {
+      setDemoRole('corporate')
+    }
+    // Dev demo persona (localStorage) skips Supabase and auto-redirects to /admin.
+    if (import.meta.env.DEV && profile?.id?.startsWith('demo-')) {
+      void signOut()
+    }
+  }, [clearRoleOverride, setDemoRole, profile?.id, signOut]);
+
+  useEffect(() => {
     if (isLoading || !isAuthenticated) return;
     // Wait until auth/profile resolved before redirecting away from login
-    if (!role) return;
-    const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
-    navigate(from ?? getPostLoginPath(role, profile), { replace: true });
+    if (!profile?.role && !role) return;
+
+    const primary = profile?.role ?? role;
+    // Only auto-leave /login for corporate users — admin/vendor stay here with a banner.
+    if (!isCorporatePrimaryRole(primary)) return;
+
+    const from = sanitizeCorporateReturnPath(
+      (location.state as { from?: { pathname?: string } } | null)?.from?.pathname,
+    );
+    navigate(from ?? getCorporateLoginRedirectPath(profile, role), { replace: true });
   }, [isLoading, isAuthenticated, role, profile, navigate, location.state]);
+
+  const signedInNonCorporate =
+    !isLoading &&
+    isAuthenticated &&
+    !!profile &&
+    !isCorporatePrimaryRole(profile.role);
 
   useEffect(() => {
     if (view !== 'otp' || otpSecondsLeft <= 0) return;
@@ -201,7 +232,7 @@ export default function LoginPage() {
             <RoleSwitcher />
           </div>
         </header>
-        <RoleBanner onSwitchToCorporate={() => {}} />
+        <RoleBanner onSwitchToCorporate={() => setDemoRole('corporate')} />
       </div>
       {/* Left Side - Animated Background */}
       <div className="hidden lg:block absolute left-0 top-0 lg:w-[55%] xl:w-[55%] h-full">
@@ -288,6 +319,43 @@ export default function LoginPage() {
               <p className="text-[11px] text-[#0e1e3f]">
                 Session timed out. Please login again.
               </p>
+            </div>
+          )}
+
+          {signedInNonCorporate && (
+            <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3">
+              <p className="text-[12px] font-medium text-amber-900">
+                You are already signed in as{' '}
+                {isAdminRole(profile.role)
+                  ? 'a Mogzu administrator'
+                  : isVendorRole(profile.role)
+                    ? 'a vendor'
+                    : 'another role'}
+                .
+              </p>
+              <p className="mt-1 text-[11px] text-amber-800">
+                This page is for corporate users. Sign out to use a different account, or continue to
+                your dashboard.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isAdminRole(profile.role)) navigate('/admin', { replace: true })
+                    else if (isVendorRole(profile.role)) navigate('/vendor/dashboard', { replace: true })
+                  }}
+                  className="h-8 rounded-full bg-[#2563eb] px-4 text-[11px] font-medium text-white"
+                >
+                  Continue to dashboard
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void signOut()}
+                  className="h-8 rounded-full border border-amber-300 bg-white px-4 text-[11px] font-medium text-amber-900"
+                >
+                  Sign out
+                </button>
+              </div>
             </div>
           )}
 

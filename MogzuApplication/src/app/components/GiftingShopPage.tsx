@@ -20,6 +20,17 @@ import { stationeryProducts, getStationeryByCategory } from '../data/stationeryP
 import { techProducts, getTechByCategory } from '../data/techProducts';
 import { wellnessProducts, getWellnessByCategory } from '../data/wellnessProducts';
 import RelatedProducts from './RelatedProducts';
+import { WishlistHeart } from './global/WishlistHeart';
+import { MogzuLegacyDemoBanner } from './ui/MogzuLegacyDemoBanner';
+import {
+  dedupeGiftProducts,
+  fetchLiveGiftingCatalogue,
+  groupLiveGiftingListings,
+} from '@/app/lib/giftingPublicCatalogue';
+import type { PublicListingCard } from '@/lib/publicCatalogue';
+
+const GIFTING_COMPARE_IDS_KEY = 'mogzu_compare_ids';
+const LISTING_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 import {
   approvedGiftListingToApparelProduct,
   approvedGiftListingToPartnerBagProduct,
@@ -55,6 +66,24 @@ export default function GiftingShopPage() {
   const [gridUiNotice, setGridUiNotice] = useState<string | null>(null);
   const [corpListingTick, setCorpListingTick] = useState(0);
   const [cardImageIndexById, setCardImageIndexById] = useState<Record<string, number>>({});
+
+  const handleGiftingCompare = (listingId: string | undefined, productName: string) => {
+    if (!listingId || !LISTING_UUID_RE.test(listingId)) {
+      setGridUiNotice(
+        `Compare is available for admin-approved partner listings. "${productName}" uses the demo catalogue.`,
+      );
+      return;
+    }
+    const raw = sessionStorage.getItem(GIFTING_COMPARE_IDS_KEY) ?? '';
+    const ids = raw.split(',').filter(Boolean);
+    const next = [listingId, ...ids.filter((id) => id !== listingId)].slice(0, 4);
+    sessionStorage.setItem(GIFTING_COMPARE_IDS_KEY, next.join(','));
+    if (next.length >= 2) {
+      navigate(`/compare?ids=${next.join(',')}`);
+      return;
+    }
+    setGridUiNotice(`Added to compare (${next.length}/4). Select another approved listing to open compare.`);
+  };
 
   useEffect(() => {
     const bump = () => setCorpListingTick((n) => n + 1);
@@ -109,6 +138,46 @@ export default function GiftingShopPage() {
         .filter((l) => inferPartnerGiftCategoryAndSubcategory(l).category === 'health')
         .map(approvedGiftListingToPartnerWellnessProduct),
     [partnerGiftListingsFromAdmin],
+  );
+
+  const [liveGiftCards, setLiveGiftCards] = useState<PublicListingCard[]>([]);
+  const [liveGiftLoadError, setLiveGiftLoadError] = useState('');
+  const [liveGiftUsingDemo, setLiveGiftUsingDemo] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchLiveGiftingCatalogue().then(({ data, error }) => {
+      if (cancelled) return;
+      setLiveGiftCards(data);
+      setLiveGiftLoadError(error ?? '');
+      setLiveGiftUsingDemo(data.some((c) => c.id.startsWith('demo-')));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const liveGifting = useMemo(() => groupLiveGiftingListings(liveGiftCards), [liveGiftCards]);
+
+  const catalogApparel = useMemo(
+    () => dedupeGiftProducts(liveGifting.apparel, partnerApparelFromAdmin, apparelProducts),
+    [liveGifting.apparel, partnerApparelFromAdmin],
+  );
+  const catalogBags = useMemo(
+    () => dedupeGiftProducts(liveGifting.bags, partnerBagsFromAdmin, bagsProducts),
+    [liveGifting.bags, partnerBagsFromAdmin],
+  );
+  const catalogTech = useMemo(
+    () => dedupeGiftProducts(liveGifting.tech, partnerTechFromAdmin, techProducts),
+    [liveGifting.tech, partnerTechFromAdmin],
+  );
+  const catalogStationery = useMemo(
+    () => dedupeGiftProducts(liveGifting.stationery, partnerStationeryFromAdmin, stationeryProducts),
+    [liveGifting.stationery, partnerStationeryFromAdmin],
+  );
+  const catalogWellness = useMemo(
+    () => dedupeGiftProducts(liveGifting.health, partnerWellnessFromAdmin, wellnessProducts),
+    [liveGifting.health, partnerWellnessFromAdmin],
   );
 
   const getProductSlideImages = (product: unknown): string[] => {
@@ -637,7 +706,7 @@ export default function GiftingShopPage() {
 
   const apparelBrandingOptions = Array.from(
     new Set(
-      [...partnerApparelFromAdmin, ...apparelProducts]
+      catalogApparel
         .flatMap((product) => product.branding || [])
         .filter(Boolean),
     ),
@@ -1769,7 +1838,7 @@ export default function GiftingShopPage() {
   }
 
   const filteredProducts = selectedCategory === 'health'
-    ? [...partnerWellnessFromAdmin, ...wellnessProducts].filter(product => {
+    ? catalogWellness.filter(product => {
         // Filter by selected wellness subcategory
         if (selectedWellnessSubcategory !== 'all' && product.subcategory !== selectedWellnessSubcategory) {
           return false;
@@ -1854,7 +1923,7 @@ export default function GiftingShopPage() {
         return true;
       })
     : selectedCategory === 'tech'
-    ? [...partnerTechFromAdmin, ...techProducts].filter(product => {
+    ? catalogTech.filter(product => {
         // Filter by selected tech subcategory
         if (selectedTechSubcategory !== 'all' && product.subcategory !== selectedTechSubcategory) {
           return false;
@@ -1977,7 +2046,7 @@ export default function GiftingShopPage() {
         return true;
       })
     : selectedCategory === 'stationary'
-    ? [...partnerStationeryFromAdmin, ...stationeryProducts].filter(product => {
+    ? catalogStationery.filter(product => {
         // Filter by selected stationery subcategory
         if (selectedStationerySubcategory !== 'all' && product.subcategory !== selectedStationerySubcategory) {
           return false;
@@ -2072,7 +2141,7 @@ export default function GiftingShopPage() {
         return true;
       })
     : selectedCategory === 'bags' 
-    ? [...partnerBagsFromAdmin, ...bagsProducts].filter(bag => {
+    ? catalogBags.filter(bag => {
         // Bag Type filter
         const activeBagTypes = Object.entries(filters.bagTypes)
           .filter(([_, isActive]) => isActive)
@@ -2162,7 +2231,7 @@ export default function GiftingShopPage() {
 
         return true;
       })
-    : [...partnerApparelFromAdmin, ...apparelProducts].filter(product => {
+    : catalogApparel.filter(product => {
         // Category filter
         const activeCategories = Object.entries(filters.categories)
           .filter(([_, isActive]) => isActive)
@@ -2360,11 +2429,11 @@ export default function GiftingShopPage() {
 
   const postFilterProducts = useMemo(() => {
     const partnerIds = new Set<string>([
-      ...partnerApparelFromAdmin.map((p) => String(p.id)),
-      ...partnerBagsFromAdmin.map((p) => String(p.id)),
-      ...partnerStationeryFromAdmin.map((p) => String(p.id)),
-      ...partnerTechFromAdmin.map((p) => String(p.id)),
-      ...partnerWellnessFromAdmin.map((p) => String(p.id)),
+      ...catalogApparel.map((p) => String(p.id)),
+      ...catalogBags.map((p) => String(p.id)),
+      ...catalogStationery.map((p) => String(p.id)),
+      ...catalogTech.map((p) => String(p.id)),
+      ...catalogWellness.map((p) => String(p.id)),
     ]);
 
     const resolveCanonicalCategory = (product: DisplayProduct): string => {
@@ -3984,6 +4053,30 @@ export default function GiftingShopPage() {
 
             {/* Right - Products Grid */}
             <div className="flex-1">
+              {liveGiftLoadError ? (
+                <MogzuLegacyDemoBanner
+                  className="mb-4"
+                  title="Live catalogue unavailable"
+                  detail={`Showing demo and approved listings. ${liveGiftLoadError}`}
+                />
+              ) : liveGiftUsingDemo && liveGiftCards.length > 0 ? (
+                <MogzuLegacyDemoBanner
+                  className="mb-4"
+                  title="Demo gifting catalogue"
+                  detail="No active public gifting listings in Supabase yet — sample tiles are shown alongside your approved partner picks."
+                />
+              ) : liveGifting.apparel.length +
+                  liveGifting.bags.length +
+                  liveGifting.tech.length +
+                  liveGifting.stationery.length +
+                  liveGifting.health.length >
+                0 ? (
+                <p className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs text-emerald-800">
+                  {liveGiftCards.length} live Mogzu gifting listing
+                  {liveGiftCards.length !== 1 ? 's' : ''} merged with demo catalogue — wishlist and compare work on
+                  live UUIDs.
+                </p>
+              ) : null}
               {gridUiNotice ? (
                 <p className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
                   {gridUiNotice}
@@ -4217,26 +4310,32 @@ export default function GiftingShopPage() {
                         </>
                       )}
                       
-                      {/* Wishlist Button */}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setGridUiNotice(`Wishlist for "${product.name}" will be available in a future release.`)
-                        }
-                        className="absolute top-2.5 right-2.5 w-8 h-8 bg-white/95 rounded-full flex items-center justify-center hover:bg-white hover:-translate-y-0.5 active:scale-95 transition-all shadow border border-[#e2e8f0]"
-                      >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2">
-                          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                        </svg>
-                      </button>
+                      {product.mogzuListingId ? (
+                        <WishlistHeart
+                          listingId={product.mogzuListingId}
+                          className="absolute top-2.5 right-2.5 z-[3]"
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setGridUiNotice(
+                              `Save to wishlist is available after a partner listing is approved for "${product.name}".`,
+                            )
+                          }
+                          className="absolute top-2.5 right-2.5 z-[3] w-8 h-8 bg-white/95 rounded-full flex items-center justify-center hover:bg-white hover:-translate-y-0.5 active:scale-95 transition-all shadow border border-[#e2e8f0]"
+                          aria-label="Wishlist unavailable for demo product"
+                        >
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2">
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                          </svg>
+                        </button>
+                      )}
 
-                      {/* Compare Button */}
                       <button
                         type="button"
-                        onClick={() =>
-                          setGridUiNotice(`Compare for "${product.name}" will be available in a future release.`)
-                        }
-                        className="absolute top-2.5 left-2.5 h-7 px-2.5 bg-white/95 backdrop-blur-sm rounded-full text-[10px] font-semibold text-[#334155] hover:bg-white hover:-translate-y-0.5 active:scale-95 transition-all shadow border border-[#e2e8f0] inline-flex items-center"
+                        onClick={() => handleGiftingCompare(product.mogzuListingId, product.name)}
+                        className="absolute top-2.5 left-2.5 z-[3] h-7 px-2.5 bg-white/95 backdrop-blur-sm rounded-full text-[10px] font-semibold text-[#334155] hover:bg-white hover:-translate-y-0.5 active:scale-95 transition-all shadow border border-[#e2e8f0] inline-flex items-center"
                       >
                         Compare
                       </button>
@@ -4319,7 +4418,10 @@ export default function GiftingShopPage() {
                           };
                           const urlCategory = categoryMap[selectedCategory] || 'apparel';
                           navigate(`/product-booking?category=${urlCategory}&id=${product.id}`, {
-                            state: { product },
+                            state: {
+                              product,
+                              listingId: product.mogzuListingId,
+                            },
                           });
                         }}
                         className="px-4 py-2 bg-[linear-gradient(135deg,#2563eb,#3b82f6)] text-white text-xs font-semibold rounded-lg hover:-translate-y-0.5 active:scale-[0.98] transition-all shadow-[0_10px_20px_rgba(37,99,235,0.24)]"

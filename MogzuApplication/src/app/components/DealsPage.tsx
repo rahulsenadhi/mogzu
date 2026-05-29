@@ -4,87 +4,14 @@ import { AlertCircle, Bookmark, BookmarkCheck, Clock3, Flame, Search, SlidersHor
 import { SharedHeader } from '@/app/components/layouts/SharedHeader'
 import { SharedSidebar } from '@/app/components/layouts/SharedSidebar'
 import { MogzuCorporateScrollSurface } from '@/app/components/layouts/MogzuCorporateScrollSurface'
-
-type DealCategory = 'All' | 'D Space' | 'Events' | 'Gifting'
-
-type Deal = {
-  id: number
-  category: Exclude<DealCategory, 'All'>
-  title: string
-  provider: string
-  description: string
-  discount: string
-  imageUrl: string
-  validUntil: string
-  claimedCount: number
-  highlighted?: boolean
-}
-
-// DEMO DATA — swap for Supabase query when real data exists
-const DEMO_DATA_DEALS: Deal[] = [
-  {
-    id: 1,
-    category: 'D Space',
-    title: '50% off monthly coworking',
-    provider: 'WeWork',
-    description: 'Get half off your first month of any hot desk membership when you book for at least three months.',
-    discount: '50% OFF',
-    imageUrl:
-      'https://images.unsplash.com/photo-1497366754035-f200968a6e72?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBvZmZpY2UlMjBzcGFjZXxlbnwxfHx8fDE3NzMyMjc4NDJ8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    validUntil: '31 Dec 2026',
-    claimedCount: 182,
-    highlighted: true,
-  },
-  {
-    id: 2,
-    category: 'Gifting',
-    title: 'Bulk corporate hampers',
-    provider: 'GiftBasket Co.',
-    description: 'Order 20 or more premium corporate hampers and receive an automatic 25% discount.',
-    discount: '25% OFF',
-    imageUrl:
-      'https://images.unsplash.com/photo-1508899203029-1c9eb493c9bd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxnaWZ0JTIwYmFza2V0fGVufDF8fHx8MTc3MzE0NzU1N3ww&ixlib=rb-4.1.0&q=80&w=1080',
-    validUntil: '30 Nov 2026',
-    claimedCount: 96,
-  },
-  {
-    id: 3,
-    category: 'Events',
-    title: 'Free AV setup for summits',
-    provider: 'Stage Masters',
-    description: 'Book a full-day corporate event and get complete audio-visual setup included.',
-    discount: 'FREE AV',
-    imageUrl:
-      'https://images.unsplash.com/photo-1768508664411-9bef1b361224?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjb3Jwb3JhdGUlMjBldmVudCUyMGdhdGhlcmluZ3xlbnwxfHx8fDE3NzMyMjk3NjZ8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    validUntil: '15 Oct 2026',
-    claimedCount: 64,
-    highlighted: true,
-  },
-  {
-    id: 4,
-    category: 'D Space',
-    title: 'Book 3 days, get 1 free',
-    provider: 'Regus Meeting Rooms',
-    description: 'Book any premium meeting room for three consecutive days and get the fourth day free.',
-    discount: '1 DAY FREE',
-    imageUrl:
-      'https://images.unsplash.com/photo-1497366754035-f200968a6e72?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBvZmZpY2UlMjBzcGFjZXxlbnwxfHx8fDE3NzMyMjc4NDJ8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    validUntil: '15 Dec 2026',
-    claimedCount: 121,
-  },
-  {
-    id: 5,
-    category: 'Gifting',
-    title: 'Festive welcome kits combo',
-    provider: 'Mogzu Store',
-    description: 'Bundle of notebooks, drinkware and premium snack packs for onboarding cohorts.',
-    discount: 'SAVE 30%',
-    imageUrl:
-      'https://images.unsplash.com/photo-1629196911514-cfd8d628a0c7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjb3Jwb3JhdGUlMjBnaWZ0JTIwa2l0fGVufDF8fHx8MTc4MTM4NzA0N3ww&ixlib=rb-4.1.0&q=80&w=1080',
-    validUntil: '10 Jan 2027',
-    claimedCount: 44,
-  },
-]
+import { DevMockDataBanner } from '@/app/components/global/DevMockDataBanner'
+import { db } from '@/lib/db'
+import {
+  DEMO_CATALOG_DEALS,
+  mapPromotionRowToDeal,
+  type CatalogDeal,
+  type DealCategory,
+} from '@/app/lib/promotionOffers'
 
 const categories: DealCategory[] = ['All', 'D Space', 'Events', 'Gifting']
 
@@ -100,20 +27,40 @@ export default function DealsPage() {
   const [savedOnly, setSavedOnly] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isError, setIsError] = useState(false)
-  const [savedDeals, setSavedDeals] = useState<number[]>([])
-  const [claimedDeals, setClaimedDeals] = useState<number[]>([])
-  const [recentClaimId, setRecentClaimId] = useState<number | null>(null)
+  const [savedDeals, setSavedDeals] = useState<string[]>([])
+  const [claimedDeals, setClaimedDeals] = useState<string[]>([])
+  const [recentClaimId, setRecentClaimId] = useState<string | null>(null)
+  const [liveDeals, setLiveDeals] = useState<CatalogDeal[]>([])
+  const [usingDemo, setUsingDemo] = useState(false)
 
   useEffect(() => {
-    setIsLoading(true)
-    const timer = window.setTimeout(() => {
+    let cancelled = false
+    const load = async () => {
+      setIsLoading(true)
+      setIsError(false)
+      const { data, error } = await db.promotions.listActive()
+      if (cancelled) return
+      if (error) {
+        setIsError(true)
+        setLiveDeals([])
+        setUsingDemo(true)
+      } else if ((data ?? []).length === 0) {
+        setLiveDeals([])
+        setUsingDemo(true)
+      } else {
+        setLiveDeals((data ?? []).map((row) => mapPromotionRowToDeal(row as never)))
+        setUsingDemo(false)
+      }
       setIsLoading(false)
-    }, 450)
-    return () => window.clearTimeout(timer)
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {
-    const claimedDealId = (location.state as { claimedDealId?: number } | null)?.claimedDealId
+    const claimedDealId = (location.state as { claimedDealId?: string } | null)?.claimedDealId
     if (!claimedDealId) return
 
     setClaimedDeals((current) => (current.includes(claimedDealId) ? current : [...current, claimedDealId]))
@@ -124,9 +71,11 @@ export default function DealsPage() {
     }, 3500)
   }, [location.state])
 
+  const catalogDeals = usingDemo ? DEMO_CATALOG_DEALS : liveDeals
+
   const filteredDeals = useMemo(() => {
     const normalizedQuery = searchTerm.trim().toLowerCase()
-    let list = [...DEMO_DATA_DEALS]
+    let list = [...catalogDeals]
 
     if (activeCategory !== 'All') {
       list = list.filter((deal) => deal.category === activeCategory)
@@ -157,22 +106,22 @@ export default function DealsPage() {
 
     list.sort((a, b) => Number(Boolean(b.highlighted)) - Number(Boolean(a.highlighted)))
     return list
-  }, [activeCategory, savedDeals, savedOnly, searchTerm, sortMode])
+  }, [activeCategory, catalogDeals, savedDeals, savedOnly, searchTerm, sortMode])
 
   const totalSavingsPotential = useMemo(() => {
-    return DEMO_DATA_DEALS.reduce((acc, deal) => {
+    return catalogDeals.reduce((acc, deal) => {
       const numeric = Number.parseInt(deal.discount.replace(/\D/g, ''), 10)
       return Number.isNaN(numeric) ? acc : acc + numeric
     }, 0)
-  }, [])
+  }, [catalogDeals])
 
-  const toggleSaved = (dealId: number) => {
+  const toggleSaved = (dealId: string) => {
     setSavedDeals((current) => (current.includes(dealId) ? current.filter((id) => id !== dealId) : [...current, dealId]))
   }
 
   const isQueryFiltered = Boolean(searchTerm.trim()) || activeCategory !== 'All' || savedOnly
   const stats = [
-    { label: 'Active deals', value: DEMO_DATA_DEALS.length, icon: Tag },
+    { label: 'Active deals', value: catalogDeals.length, icon: Tag },
     { label: 'Saved', value: savedDeals.length, icon: BookmarkCheck },
     { label: 'Potential discount', value: `${totalSavingsPotential}%+`, icon: Sparkles },
   ]
@@ -233,6 +182,10 @@ export default function DealsPage() {
                 </article>
               ))}
             </section>
+
+            {usingDemo && !isLoading ? (
+              <DevMockDataBanner message="No active vendor promotions in Supabase — showing demo deals. Vendors can publish offers from Promotions." />
+            ) : null}
 
             {recentClaimId ? (
               <section className="rounded-2xl border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-xs font-medium text-emerald-800 shadow-sm">

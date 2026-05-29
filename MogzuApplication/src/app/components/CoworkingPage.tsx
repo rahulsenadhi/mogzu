@@ -1,10 +1,14 @@
-import { useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
-import { Search, MapPin, Users, ChevronDown, Star, AlertCircle, Grid3x3, Flame, BriefcaseBusiness, Building2, Coffee, Laptop } from 'lucide-react';
+import { Search, MapPin, Users, ChevronDown, Star, AlertCircle, Grid3x3, Flame, BriefcaseBusiness, Building2, Coffee, Laptop, Loader2 } from 'lucide-react';
 import { WishlistHeart } from './global/WishlistHeart';
+import { DevMockDataBanner } from './global/DevMockDataBanner';
+import { db } from '@/lib/db';
+import { storageService } from '@/lib/storage';
+import type { Listing, ListingImage } from '@/lib/database.types';
 import svgPaths from '@/imports/svg-camfkj9vq4';
 import svgPathsSpaceX from '@/imports/svg-5pj2l0pukf';
 import imgAvatar from 'figma:asset/e67667939a12621af070c82a05583b9248a7c28e.png';
@@ -201,6 +205,54 @@ const mockCoworkingSpaces: CoworkingSpace[] = [
   }
 ];
 
+function listingToCoworkingSpace(l: Listing & { listing_images?: ListingImage[] }): CoworkingSpace {
+  const meta = (l.metadata ?? {}) as Record<string, unknown>;
+  const rawAmenities = meta.amenities;
+  const amenities = Array.isArray(rawAmenities)
+    ? rawAmenities.filter((a): a is string => typeof a === 'string')
+    : ['WiFi', 'Meeting Rooms'];
+  const rawType = typeof meta.spaceType === 'string' ? meta.spaceType : 'Hot Desk';
+  const type: CoworkingSpace['type'] =
+    rawType === 'Dedicated Desk' || rawType === 'Private Office' || rawType === 'Meeting Room'
+      ? rawType
+      : 'Hot Desk';
+  const cover = (l.listing_images ?? []).sort((a, b) => a.display_order - b.display_order)[0];
+  const image = cover
+    ? storageService.spaceImages.getUrl(cover.storage_path)
+    : `${l.title} coworking ${l.location_city ?? 'workspace'}`;
+  const priceUnit =
+    l.price_unit === 'per_day'
+      ? 'day'
+      : l.price_unit === 'per_hour'
+        ? 'hour'
+        : 'month';
+  const capacity =
+    l.min_capacity != null && l.max_capacity != null
+      ? `${l.min_capacity}-${l.max_capacity}`
+      : l.max_capacity != null
+        ? `Up to ${l.max_capacity}`
+        : '1-50';
+  return {
+    id: l.id,
+    name: l.title,
+    location: l.location_address ?? l.location_city ?? '',
+    city: l.location_city ?? 'Mumbai',
+    rating: typeof meta.rating === 'number' ? meta.rating : 4.5,
+    reviews: typeof meta.ratingCount === 'number' ? meta.ratingCount : 0,
+    image,
+    capacity,
+    price: l.base_price ?? 8000,
+    priceUnit,
+    amenities,
+    type,
+    featured: Boolean(meta.featured),
+    availableFrom: typeof meta.availableFrom === 'string' ? meta.availableFrom : 'Immediate',
+    tags: amenities.map((a) => a.toLowerCase()),
+    promoted: Boolean(meta.promoted),
+    offer: typeof meta.offer === 'string' ? meta.offer : undefined,
+  };
+}
+
 export default function CoworkingPage() {
   const navigate = useNavigate();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -212,7 +264,36 @@ export default function CoworkingPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isError, setIsError] = useState(false);
   const [cardImageIndexById, setCardImageIndexById] = useState<Record<string, number>>({});
+  const [supabaseSpaces, setSupabaseSpaces] = useState<CoworkingSpace[]>([]);
+  const [spacesLoading, setSpacesLoading] = useState(true);
+  const [spacesError, setSpacesError] = useState<string | null>(null);
   const categoryScrollRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setSpacesLoading(true);
+      setSpacesError(null);
+      const { data, error } = await db.listings.listByModule('spacex_coworking', 'active');
+      if (cancelled) return;
+      if (error) {
+        setSpacesError(error.message);
+        setSupabaseSpaces([]);
+      } else {
+        setSupabaseSpaces((data ?? []).map(listingToCoworkingSpace));
+      }
+      setSpacesLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const coworkingSpaces = useMemo(
+    () => (supabaseSpaces.length > 0 ? supabaseSpaces : mockCoworkingSpaces),
+    [supabaseSpaces],
+  );
+  const usingDemoSpaces = supabaseSpaces.length === 0 && !spacesLoading && !spacesError;
 
   const cities = ['All Cities', 'Mumbai', 'Delhi', 'Bangalore', 'Gurgaon', 'Pune', 'Kolkata'];
   const types = ['All Types', 'Hot Desk', 'Dedicated Desk', 'Private Office', 'Meeting Room'];
@@ -236,7 +317,7 @@ export default function CoworkingPage() {
   };
 
 
-  const filteredSpaces = mockCoworkingSpaces.filter(space => {
+  const filteredSpaces = coworkingSpaces.filter(space => {
     if (selectedCity !== 'All Cities' && space.city !== selectedCity) return false;
     if (selectedType !== 'All Types' && space.type !== selectedType) return false;
     if (selectedCategory !== 'all') {
@@ -650,6 +731,8 @@ export default function CoworkingPage() {
                   </select>
                 </div>
 
+                {usingDemoSpaces ? <DevMockDataBanner /> : null}
+
                 {/* Results Header */}
                 <div className="mb-3">
                   <h2 className="text-[16px] font-semibold text-[#0e1e3f]">
@@ -662,7 +745,11 @@ export default function CoworkingPage() {
 
                 {/* Coworking Spaces Grid */}
                 <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 xl:gap-5">
-              {isError ? (
+              {spacesLoading ? (
+                <div className="col-span-full flex items-center justify-center py-16">
+                  <Loader2 className="size-6 animate-spin text-slate-400" />
+                </div>
+              ) : isError || spacesError ? (
                 <div className="col-span-full flex flex-col items-center justify-center rounded-2xl border border-white/60 bg-white/65 py-16 text-center backdrop-blur-md">
                   <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-red-50">
                     <AlertCircle className="h-10 w-10 text-destructive" />
@@ -683,7 +770,9 @@ export default function CoworkingPage() {
               ) : filteredSpaces.length > 0 ? (
                 filteredSpaces.map((space) => {
                   const cardId = String(space.id)
-                  const primaryImage = `https://source.unsplash.com/800x600/?${encodeURIComponent(space.image || 'coworking office')}`
+                  const primaryImage = space.image.startsWith('http')
+                    ? space.image
+                    : `https://source.unsplash.com/800x600/?${encodeURIComponent(space.image || 'coworking office')}`
                   const slideImages = getListingSlideImages(
                     primaryImage,
                     buildUnsplashKeywordImage(`${space.type} coworking ${space.city}`),

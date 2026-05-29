@@ -1,5 +1,6 @@
 export interface StationeryProduct {
   id: number;
+  mogzuListingId?: string;
   name: string;
   subcategory: 'notebooks' | 'diaries' | 'pens' | 'organizers' | 'calendars' | 'stickynotes' | 'kits' | 'leatherdiaries' | 'metalpens' | 'writingsets' | 'deskaccessories';
   brand: string;

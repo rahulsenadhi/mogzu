@@ -5,6 +5,7 @@ import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
 import { ChevronLeft, Star, MapPin, Users, Coffee, GlassWater, Projector, Armchair, Table2, Presentation, PenTool, NotebookPen, Mic, Speaker } from 'lucide-react';
 import imgImage25005 from 'figma:asset/f6108faddc403caf1eea34c754f31b43ab0fb55b.png';
+import { MogzuLegacyDemoBanner } from '@/app/components/ui/MogzuLegacyDemoBanner';
 import { buildClassicBookingBaseState, computeGrandTotal, type ClassicBookingAddon } from '@/app/lib/classicBookingFlow';
 
 export default function BookingAddOns() {
@@ -39,14 +40,6 @@ export default function BookingAddOns() {
 
   const coffeeRate = 50;
   const waterRate = 20;
-
-  const equipmentTotal = content.addons.reduce((total, addon) => {
-    const equip = equipment[addon.key];
-    return total + (equip?.selected ? addon.price * (equip.quantity || 1) : 0);
-  }, 0);
-
-  const addOnsTotal = (coffeeAndTea ? coffeeRate * coffeeQuantity : 0) + (drinkingWater ? waterRate * waterQuantity : 0);
-  const grandTotal = computeGrandTotal(basePrice, serviceFee, addOnsTotal + equipmentTotal);
 
   const handleAddMore = () => {
     const selectedEquipmentKeys = Object.entries(equipment)
@@ -229,6 +222,15 @@ export default function BookingAddOns() {
   const summaryCapacity = flowBase.capacityRange || content.capacity;
   const summaryRating = flowBase.rating || '4.8';
 
+  const equipmentTotal = content.addons.reduce((total, addon) => {
+    const equip = equipment[addon.key];
+    return total + (equip?.selected ? addon.price * (equip.quantity || 1) : 0);
+  }, 0);
+
+  const addOnsTotal =
+    (coffeeAndTea ? coffeeRate * coffeeQuantity : 0) + (drinkingWater ? waterRate * waterQuantity : 0);
+  const grandTotal = computeGrandTotal(basePrice, serviceFee, addOnsTotal + equipmentTotal);
+
   return (
     <div className="flex h-screen overflow-hidden bg-[#FFFDF9]">
       {/* Left Sidebar */}
@@ -245,6 +247,11 @@ export default function BookingAddOns() {
         {/* Content Area */}
         <MogzuCorporateScrollSurface>
           <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6">
+            <MogzuLegacyDemoBanner
+              className="mb-4"
+              title="Classic booking flow"
+              detail="Legacy DSpace checkout (request → add-ons → review → payment). Prefer /book/space/:id for live Supabase bookings."
+            />
             {/* Back Button and Title */}
             <div className="mb-4 lg:mb-6">
               <button 
