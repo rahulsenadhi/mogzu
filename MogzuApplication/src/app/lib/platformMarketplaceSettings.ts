@@ -1,7 +1,11 @@
 /**
- * Platform-wide marketplace visibility for corporate users (demo: localStorage).
- * Admin toggles modules and simulates vendor counts vs listing thresholds.
+ * Platform-wide marketplace visibility for corporate users.
+ * Supabase-backed (singleton `platform_marketplace_settings` row) with a
+ * synchronous in-memory + localStorage cache so render-path / route-guard
+ * consumers keep working without async. Admin toggles modules and thresholds.
  */
+
+import { db } from '@/lib/db';
 
 export const PLATFORM_MARKETPLACE_STORAGE_KEY = 'mogzu_platform_marketplace_v1';
 
@@ -99,25 +103,68 @@ function mergeWithDefaults(raw: Partial<PlatformMarketplaceSettings> | null): Pl
   return { modules, subGates };
 }
 
-export function getPlatformMarketplaceSettings(): PlatformMarketplaceSettings {
+/** Synchronous in-memory cache (seeded from localStorage, refreshed from DB on boot). */
+let cache: PlatformMarketplaceSettings | null = null;
+
+function readLocal(): PlatformMarketplaceSettings {
   try {
     const raw = localStorage.getItem(PLATFORM_MARKETPLACE_STORAGE_KEY);
     if (!raw) return getDefaultPlatformMarketplaceSettings();
-    const parsed = JSON.parse(raw) as Partial<PlatformMarketplaceSettings>;
-    return mergeWithDefaults(parsed);
+    return mergeWithDefaults(JSON.parse(raw) as Partial<PlatformMarketplaceSettings>);
   } catch {
     return getDefaultPlatformMarketplaceSettings();
   }
 }
 
-export function setPlatformMarketplaceSettings(next: PlatformMarketplaceSettings) {
-  const merged = mergeWithDefaults(next);
+function writeLocal(merged: PlatformMarketplaceSettings) {
   try {
     localStorage.setItem(PLATFORM_MARKETPLACE_STORAGE_KEY, JSON.stringify(merged));
   } catch {
     /* ignore */
   }
+}
+
+/** Synchronous read — returns the cache, seeding it from localStorage on first call. */
+export function getPlatformMarketplaceSettings(): PlatformMarketplaceSettings {
+  if (!cache) cache = readLocal();
+  return cache;
+}
+
+/**
+ * Load DB truth into the cache once (call on app boot). Falls back to the
+ * existing local/default cache when the table is empty or unavailable, then
+ * dispatches the change event so sync consumers re-render with fresh truth.
+ */
+export async function loadPlatformMarketplaceSettings(): Promise<void> {
+  try {
+    const { data, error } = await db.platformSettings.get();
+    if (error || !data) return;
+    const dbSettings = (data as { settings?: unknown }).settings;
+    if (
+      !dbSettings ||
+      typeof dbSettings !== 'object' ||
+      Object.keys(dbSettings as object).length === 0
+    ) {
+      return; // empty seed row → keep local/defaults
+    }
+    const merged = mergeWithDefaults(dbSettings as Partial<PlatformMarketplaceSettings>);
+    cache = merged;
+    writeLocal(merged);
+    window.dispatchEvent(new CustomEvent(PLATFORM_MARKETPLACE_CHANGED_EVENT, { detail: merged }));
+  } catch {
+    /* network/RLS error → keep local cache */
+  }
+}
+
+export function setPlatformMarketplaceSettings(next: PlatformMarketplaceSettings) {
+  const merged = mergeWithDefaults(next);
+  cache = merged;
+  writeLocal(merged);
   window.dispatchEvent(new CustomEvent(PLATFORM_MARKETPLACE_CHANGED_EVENT, { detail: merged }));
+  // Write-through to Supabase (mogzu_admin only; RLS rejects others silently).
+  void db.platformSettings.set(merged).catch(() => {
+    /* keep local value on DB error */
+  });
 }
 
 /** Module is “live” for full browse/listing UX */

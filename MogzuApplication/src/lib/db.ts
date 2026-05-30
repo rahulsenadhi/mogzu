@@ -2667,6 +2667,22 @@ export const mogzuDirect = {
     }),
 }
 
+// Story 9.1 — platform marketplace module toggles (singleton row id=1).
+const platformSettings = {
+  get: async () =>
+    supabase
+      .from('platform_marketplace_settings')
+      .select('settings')
+      .eq('id', 1)
+      .maybeSingle(),
+
+  set: async (settings: unknown) =>
+    supabase
+      .from('platform_marketplace_settings')
+      .update({ settings, updated_at: new Date().toISOString() })
+      .eq('id', 1),
+}
+
 // ─── Exported db namespace ────────────────────────────────────────────────────
 
 export const db = {
@@ -2717,4 +2733,5 @@ export const db = {
   bookingProof,
   quickShares,
   mogzuDirect,
+  platformSettings,
 }
