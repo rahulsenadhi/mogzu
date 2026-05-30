@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Switch } from '@/app/components/ui/switch';
 import { AdminPageTitleRow } from '@/app/components/admin/AdminPageChrome';
 import { CORP } from '@/app/lib/adminTheme';
+import { db } from '@/lib/db';
 import type { MogzuDirectListing, MogzuListingModule } from '@/app/lib/mogzuDomain';
 import {
   loadMogzuDirectCatalogueForAdmin,
@@ -48,6 +49,22 @@ export default function MogzuDirectPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<ModuleTab>('all');
   const [rows, setRows] = useState<MogzuDirectListing[]>(() => loadMogzuDirectCatalogueForAdmin());
+  const [bookingCounts, setBookingCounts] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const ids = rows.map((r) => r.id);
+    if (ids.length === 0) {
+      setBookingCounts({});
+      return;
+    }
+    let cancelled = false;
+    void db.bookings.countByListingIds(ids).then((counts) => {
+      if (!cancelled) setBookingCounts(counts);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [rows]);
 
   useEffect(() => {
     void refreshMogzuDirectCatalogueAsync().then((fresh) => setRows(fresh));
@@ -344,9 +361,7 @@ export default function MogzuDirectPage() {
                 {filtered.map((row) => {
                   const thumb = row.images[0];
                   const alias = row.mogzu_direct_alias ?? row.title;
-                  const hash = row.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-                  const views = 100 + (hash % 5000);
-                  const bookings = 5 + (hash % 200);
+                  const bookings = bookingCounts[row.id] ?? 0;
                   const pt = (row as { pricing_type?: string }).pricing_type ?? row.pricing_mode;
                   return (
                     <tr key={row.id} className="border-b border-slate-100 hover:bg-slate-50">
@@ -394,7 +409,7 @@ export default function MogzuDirectPage() {
                           aria-label="Featured"
                         />
                       </td>
-                      <td className="py-3 pr-3 text-slate-600">{views}</td>
+                      <td className="py-3 pr-3 text-slate-400" title="View tracking not yet available">—</td>
                       <td className="py-3 pr-3 text-slate-600">{bookings}</td>
                       <td className="py-3 pr-4">
                         <div className="flex justify-end flex-wrap gap-1">

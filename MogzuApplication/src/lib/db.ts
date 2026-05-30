@@ -405,6 +405,26 @@ export const bookings = {
       .eq('vendor_id', vendorId)
       .order('created_at', { ascending: false }),
 
+  /** Real booking counts keyed by listing_id (e.g. Mogzu Direct admin KPIs). */
+  countByListingIds: async (listingIds: string[]): Promise<Record<string, number>> => {
+    // Only real UUID listing ids are valid bookings.listing_id values; demo/
+    // cache rows can carry non-UUID ids, which would make Postgres reject the
+    // whole `.in()` query (22P02) — filter them out first.
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    const ids = listingIds.filter((id) => uuidRe.test(id))
+    if (ids.length === 0) return {}
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('listing_id')
+      .in('listing_id', ids)
+    if (error || !data) return {}
+    const counts: Record<string, number> = {}
+    for (const row of data as { listing_id: string | null }[]) {
+      if (row.listing_id) counts[row.listing_id] = (counts[row.listing_id] ?? 0) + 1
+    }
+    return counts
+  },
+
   listPendingApproval: async (corporateId: string) =>
     supabase
       .from('bookings')
