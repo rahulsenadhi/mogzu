@@ -21,6 +21,10 @@ import { EventsDiscoveryNav } from './events/EventsDiscoveryNav'
 import svgPathsSpaceX from '@/imports/svg-5pj2l0pukf'
 import { EVENT_ACTIVITY_LISTINGS, EVENT_SERVICES } from '@/app/lib/eventsServicesData'
 import { getMergedCatalogue } from '@/utils/catalogueUtils'
+import { db } from '@/lib/db'
+import { DevMockDataBanner } from './global/DevMockDataBanner'
+import { listingToEventsCatalogueItem } from '@/utils/eventsListingCatalogue'
+import type { CatalogueItem } from '@/utils/catalogueTypes'
 
 type HomeCard = {
   id: string
@@ -117,65 +121,124 @@ export default function EventsHomePage() {
     [eventCatalogue],
   )
 
-  const heroSlides = useMemo(
-    () =>
-      EVENT_SERVICES.slice(0, 3).map((service, idx) => ({
-        title:
-          idx === 0
-            ? 'Discover high-impact event experiences for your teams'
-            : idx === 1
-              ? 'Book trusted event services across cities with transparent options'
-              : 'Plan, compare, and execute corporate events from one place',
-        chip: service.category,
-        subtitle: `${service.name} by ${service.vendorName} in ${service.city} with ${service.rating.toFixed(1)} rating.`,
-        cta: idx === 0 ? 'Explore Event Activity →' : idx === 1 ? 'Explore Event Service →' : 'Explore Events →',
-        route: idx === 0 ? '/event-activity' : idx === 1 ? '/event-services' : '/events/home',
-        image: service.images[0] || '',
-      })),
-    [],
-  )
+  // Real events catalogue from Supabase; falls back to demo data when empty.
+  const [supabaseEvents, setSupabaseEvents] = useState<CatalogueItem[]>([])
+  const [eventsLoading, setEventsLoading] = useState(true)
 
-  const planningCards: PlanningCard[] = useMemo(
-    () =>
-      EVENT_SERVICES.slice(0, 5).map((service, index) => {
-        const nextDate = service.availabilityDates[0] || 'Date on request'
-        return {
-          id: service.id,
-          title: service.name,
-          detail: `${service.city} · Next availability: ${nextDate}`,
-          route: '/events/new',
-        }
-      }),
-    [],
-  )
+  useEffect(() => {
+    let cancelled = false
+    void db.listings
+      .listByModule('events', 'active')
+      .then(({ data }) => {
+        if (cancelled) return
+        setSupabaseEvents((data ?? []).map(listingToEventsCatalogueItem))
+        setEventsLoading(false)
+      })
+      .catch(() => {
+        if (!cancelled) setEventsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
-  const featuredCards: HomeCard[] = useMemo(
-    () =>
-      EVENT_SERVICES.slice(0, 4).map((service) => ({
-        id: service.id,
-        title: service.name,
-        image: service.images[0] || '',
-        priceLabel: service.price ? `₹${service.price.toLocaleString('en-IN')}` : 'On request',
+  const usingDemoEvents = !eventsLoading && supabaseEvents.length === 0
+  const HERO_TITLES = [
+    'Discover high-impact event experiences for your teams',
+    'Book trusted event services across cities with transparent options',
+    'Plan, compare, and execute corporate events from one place',
+  ]
+  const HERO_CTAS = ['Explore Event Activity →', 'Explore Event Service →', 'Explore Events →']
+  const HERO_ROUTES = ['/event-activity', '/event-services', '/events/home']
+
+  const heroSlides = useMemo(() => {
+    if (supabaseEvents.length > 0) {
+      return supabaseEvents.slice(0, 3).map((item, idx) => ({
+        title: HERO_TITLES[idx] ?? HERO_TITLES[0],
+        chip: item.category,
+        subtitle: [
+          item.name,
+          item.vendor_name ? `by ${item.vendor_name}` : null,
+          item.city ? `in ${item.city}` : null,
+          item.rating != null ? `· ${item.rating.toFixed(1)}★` : null,
+        ]
+          .filter(Boolean)
+          .join(' '),
+        cta: HERO_CTAS[idx] ?? HERO_CTAS[2],
+        route: HERO_ROUTES[idx] ?? HERO_ROUTES[2],
+        image: item.photos[0] ?? '',
+      }))
+    }
+    return EVENT_SERVICES.slice(0, 3).map((service, idx) => ({
+      title: HERO_TITLES[idx] ?? HERO_TITLES[0],
+      chip: service.category,
+      subtitle: `${service.name} by ${service.vendorName} in ${service.city} with ${service.rating.toFixed(1)} rating.`,
+      cta: HERO_CTAS[idx] ?? HERO_CTAS[2],
+      route: HERO_ROUTES[idx] ?? HERO_ROUTES[2],
+      image: service.images[0] || '',
+    }))
+  }, [supabaseEvents])
+
+  const planningCards: PlanningCard[] = useMemo(() => {
+    if (supabaseEvents.length > 0) {
+      return supabaseEvents.slice(0, 5).map((item) => ({
+        id: item.id,
+        title: item.name,
+        detail: item.city ?? 'Available on request',
         route: '/events/new',
-        tabType: service.category,
-        videoUrl: videoListings.find((x) => x.category === service.category && x.videos && x.videos.length > 0)?.videos?.[0],
-      })),
-    [videoListings],
-  )
+      }))
+    }
+    return EVENT_SERVICES.slice(0, 5).map((service) => ({
+      id: service.id,
+      title: service.name,
+      detail: `${service.city} · Next availability: ${service.availabilityDates[0] || 'Date on request'}`,
+      route: '/events/new',
+    }))
+  }, [supabaseEvents])
 
-  const trendingCards: HomeCard[] = useMemo(
-    () =>
-      EVENT_ACTIVITY_LISTINGS.slice(0, 4).map((activity) => ({
-        id: String(activity.id),
-        title: activity.name,
-        image: activity.image,
-        priceLabel: activity.price ? `₹${activity.price.toLocaleString('en-IN')}` : 'On request',
+  const featuredCards: HomeCard[] = useMemo(() => {
+    if (supabaseEvents.length > 0) {
+      return supabaseEvents.slice(0, 4).map((item) => ({
+        id: item.id,
+        title: item.name,
+        image: item.photos[0] ?? '',
+        priceLabel: item.price_label ?? 'On request',
+        route: '/events/new',
+        tabType: item.category,
+      }))
+    }
+    return EVENT_SERVICES.slice(0, 4).map((service) => ({
+      id: service.id,
+      title: service.name,
+      image: service.images[0] || '',
+      priceLabel: service.price ? `₹${service.price.toLocaleString('en-IN')}` : 'On request',
+      route: '/events/new',
+      tabType: service.category,
+      videoUrl: videoListings.find((x) => x.category === service.category && x.videos && x.videos.length > 0)?.videos?.[0],
+    }))
+  }, [supabaseEvents, videoListings])
+
+  const trendingCards: HomeCard[] = useMemo(() => {
+    if (supabaseEvents.length > 0) {
+      return supabaseEvents.slice(4, 8).map((item) => ({
+        id: item.id,
+        title: item.name,
+        image: item.photos[0] ?? '',
+        priceLabel: item.price_label ?? 'On request',
         route: '/event-activity',
-        tabType: activity.category,
-        videoUrl: videoListings.find((x) => x.name.toLowerCase().includes(activity.name.toLowerCase().split(' ')[0]))?.videos?.[0],
-      })),
-    [videoListings],
-  )
+        tabType: item.category,
+      }))
+    }
+    return EVENT_ACTIVITY_LISTINGS.slice(0, 4).map((activity) => ({
+      id: String(activity.id),
+      title: activity.name,
+      image: activity.image,
+      priceLabel: activity.price ? `₹${activity.price.toLocaleString('en-IN')}` : 'On request',
+      route: '/event-activity',
+      tabType: activity.category,
+      videoUrl: videoListings.find((x) => x.name.toLowerCase().includes(activity.name.toLowerCase().split(' ')[0]))?.videos?.[0],
+    }))
+  }, [supabaseEvents, videoListings])
 
   useEffect(() => {
     if (isHeroHovered || heroSlides.length <= 1) return
@@ -269,6 +332,7 @@ export default function EventsHomePage() {
           </div>
 
           <div className="mx-auto w-full max-w-[1280px] px-5 md:px-8 lg:px-12 py-6 space-y-7">
+            {usingDemoEvents ? <DevMockDataBanner /> : null}
             <div className="group relative min-h-[200px] overflow-hidden rounded-3xl border border-white/60 bg-white/45 shadow-[0_18px_40px_rgba(37,99,235,0.18)] backdrop-blur-xl" onMouseEnter={() => setIsHeroHovered(true)} onMouseLeave={() => setIsHeroHovered(false)}>
               {heroSlides.map((b, idx) => (
                 <div key={b.title} className={`absolute inset-0 transition-opacity duration-400 ${slide === idx ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
