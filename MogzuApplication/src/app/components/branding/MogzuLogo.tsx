@@ -2,6 +2,8 @@
  * Wordmark: colorful PNG from `public/branding/mogzu-wordmark.png`.
  * Mark: single-letter “m” monogram (no figma:asset).
  */
+import { useWhiteLabel } from '@/app/lib/whiteLabelTheme';
+
 const WORDMARK_SRC = '/branding/mogzu-wordmark.png';
 const MARK_SRC = '/branding/mogzu-mark-m.png';
 
@@ -51,6 +53,24 @@ export function MogzuLogo({
   wordmarkAlign = 'center',
   imgClassName = '',
 }: MogzuLogoProps) {
+  const { isWhiteLabel, logoUrl, partner } = useWhiteLabel();
+
+  // White-label partner logo replaces the Mogzu mark/wordmark when configured.
+  if (isWhiteLabel && logoUrl) {
+    const wrapper = `inline-flex items-center justify-center shrink-0 ${className}`.trim();
+    return (
+      <span className={wrapper}>
+        <img
+          src={logoUrl}
+          alt={partner?.business_name ?? 'Partner'}
+          className={`h-full w-auto max-w-full object-contain ${imgClassName}`.trim()}
+          draggable={false}
+          decoding="async"
+        />
+      </span>
+    );
+  }
+
   if (variant === 'mark') {
     return <MogzuMarkMonogram className={className} />;
   }
