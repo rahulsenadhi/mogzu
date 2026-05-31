@@ -83,6 +83,15 @@ export function NotificationBell() {
     load()
   }
 
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open])
+
   if (!profile) return null
 
   return (
@@ -91,7 +100,9 @@ export function NotificationBell() {
         type="button"
         onClick={() => setOpen((o) => !o)}
         className="relative rounded-lg p-2 text-slate-500 transition-colors hover:bg-gray-100"
-        aria-label="Notifications"
+        aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
+        aria-expanded={open}
+        aria-haspopup="menu"
       >
         <Bell className="h-5 w-5" />
         {unread > 0 && (

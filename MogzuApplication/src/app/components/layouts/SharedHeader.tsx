@@ -11,6 +11,7 @@ import { RoleTopNavItems } from '@/app/components/global/RoleTopNavItems';
 import { HeyGenieLauncher } from '@/app/components/global/HeyGenieLauncher';
 import { LocalePicker } from '@/app/components/global/LocalePicker';
 import { useDemoRole } from '@/app/lib/demoRole';
+import { useAuth } from '@/lib/auth';
 
 export type SharedHeaderBrandPlacement = 'always' | 'mobileOnly';
 
@@ -38,9 +39,16 @@ export function SharedHeader({
 }: SharedHeaderProps) {
   const navigate = useNavigate();
   const { activeRole, setActiveRole } = useDemoRole();
+  const { user, profile } = useAuth();
   const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+
+  const displayName = profile?.full_name?.trim() || 'Account';
+  const displayEmail = user?.email ?? '';
+  const roleLabel = profile?.role
+    ? profile.role.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+    : 'Member';
 
   useEffect(() => {
     if (!userMenuOpen) return;
@@ -49,8 +57,18 @@ export function SharedHeader({
         setUserMenuOpen(false);
       }
     };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setUserMenuOpen(false);
+        document.getElementById('shared-header-user-button')?.focus();
+      }
+    };
     document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
   }, [userMenuOpen]);
 
   useEffect(() => {
@@ -173,8 +191,8 @@ export function SharedHeader({
               <User className="w-4 h-4" strokeWidth={2} />
             </div>
             <div className="flex flex-col items-start justify-center">
-              <span className="text-[13px] font-semibold text-[#0e1e3f] font-['Inter'] leading-none mb-1">James Brown</span>
-              <span className="text-[10px] font-medium text-gray-500 uppercase tracking-[0.3px] font-['Inter'] leading-none">Corporate Admin</span>
+              <span className="text-[13px] font-semibold text-[#0e1e3f] font-['Inter'] leading-none mb-1">{displayName}</span>
+              <span className="text-[10px] font-medium text-gray-500 uppercase tracking-[0.3px] font-['Inter'] leading-none">{roleLabel}</span>
             </div>
             <svg
               width="14"
@@ -205,8 +223,8 @@ export function SharedHeader({
                   <User className="w-5 h-5" strokeWidth={2} />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-sm font-bold text-[#0e1e3f]">James Brown</span>
-                  <span className="text-[11px] text-slate-500 font-medium">james.brown@mogzu.com</span>
+                  <span className="text-sm font-bold text-[#0e1e3f]">{displayName}</span>
+                  <span className="text-[11px] text-slate-500 font-medium">{displayEmail}</span>
                 </div>
               </div>
               <button
