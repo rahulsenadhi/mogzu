@@ -166,6 +166,7 @@ const eventActivities: Array<{
 type EventActivityView = {
   id: number;
   listingUuid: string | null;
+  pricing_type?: 'transparent' | 'offer_price' | 'request_for_price';
   title: string;
   description: string;
   location: string;
@@ -201,6 +202,12 @@ function listingToEventActivityView(l: EventsListingDetail): EventActivityView {
   return {
     id: uuidToNumber(l.id),
     listingUuid: l.id,
+    pricing_type:
+      l.pricing_type === 'offer'
+        ? 'offer_price'
+        : l.pricing_type === 'request_for_price'
+          ? 'request_for_price'
+          : 'transparent',
     title: l.title,
     description: l.description ?? 'Corporate team activity with flexible booking options.',
     location: l.location_city ?? l.location_address ?? 'Mumbai',
@@ -369,13 +376,8 @@ export default function EventDetailPage() {
   const listingId = activity?.listingUuid ?? (activity ? String(activity.id) : '');
   const pricingType =
     navState?.pricing_type ??
-    (activity
-      ? activity.id % 3 === 0
-        ? 'request_for_price'
-        : activity.id % 2 === 0
-          ? 'transparent'
-          : 'offer_price'
-      : 'transparent');
+    activity?.pricing_type ??
+    'transparent';
   const allGallery = activity
     ? [activity.image, ...(activity.galleryImages ?? [])]
     : [];

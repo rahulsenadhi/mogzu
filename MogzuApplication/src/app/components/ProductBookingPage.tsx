@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, type CSSProperties } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { Search, ChevronDown, ChevronLeft, Bell, HelpCircle, ShoppingCart, Star, Phone, Mail, Upload, Book, Package, Info, FileText, CheckCircle2, XCircle } from 'lucide-react';
 import { SharedHeader } from './layouts/SharedHeader';
@@ -163,6 +163,64 @@ interface ProductDetails {
     countryOfOrigin: string;
   };
   additionalInfo: string[];
+}
+
+/**
+ * Concrete CSS positions for the branding logo preview overlay, keyed by
+ * `${category}:${logoPosition}`. Inline styles are used (not dynamic Tailwind
+ * classes) because Tailwind purges classes built inside template strings, which
+ * meant the overlay never repositioned when logoPosition/logoSize changed.
+ * Values mirror the placements the previous class tree intended.
+ */
+const LOGO_OVERLAY_POSITION_STYLES: Record<string, CSSProperties> = {
+  // Apparel
+  'apparel:center-chest': { top: '33%', left: '50%', transform: 'translate(-50%, -50%)' },
+  'apparel:left-chest': { top: '25%', left: '25%', transform: 'translateX(-50%)' },
+  'apparel:sleeve': { top: '25%', right: '25%', transform: 'translateX(50%)' },
+  // Bags
+  'bags:front': { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' },
+  'bags:side': { top: '33%', right: '25%' },
+  'bags:strap': { top: '25%', left: '50%', transform: 'translateX(-50%)' },
+  'bags:interior': { bottom: '25%', left: '50%', transform: 'translateX(-50%)' },
+  // Tech
+  'tech:back': { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' },
+  'tech:lid': { top: '33%', left: '50%', transform: 'translateX(-50%)' },
+  'tech:side': { top: '50%', right: '25%' },
+  // Wellness & Stationery (category-agnostic keys, matched by position only)
+  'label': { top: '33%', left: '50%', transform: 'translateX(-50%)' },
+  'cover': { top: '33%', left: '50%', transform: 'translateX(-50%)' },
+  'box': { top: '50%', right: '25%' },
+  'spine': { top: '50%', right: '25%' },
+  'sleeve': { bottom: '33%', left: '50%', transform: 'translateX(-50%)' },
+  'inside': { bottom: '33%', left: '50%', transform: 'translateX(-50%)' },
+};
+
+const LOGO_OVERLAY_DEFAULT_POSITION: CSSProperties = {
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+};
+
+const LOGO_OVERLAY_SIZE_STYLES: Record<'small' | 'medium' | 'large', CSSProperties> = {
+  small: { width: '4rem', height: '4rem' },
+  medium: { width: '6rem', height: '6rem' },
+  large: { width: '8rem', height: '8rem' },
+};
+
+/**
+ * Resolves the concrete inline position style for the logo overlay from the
+ * current category + logoPosition. Tries the category-scoped key first, then a
+ * position-only key (wellness/stationery), then the centered default.
+ */
+function resolveLogoOverlayPositionStyle(
+  category: string,
+  logoPosition: string,
+): CSSProperties {
+  return (
+    LOGO_OVERLAY_POSITION_STYLES[`${category}:${logoPosition}`] ??
+    LOGO_OVERLAY_POSITION_STYLES[logoPosition] ??
+    LOGO_OVERLAY_DEFAULT_POSITION
+  );
 }
 
 export default function ProductBookingPage() {
@@ -461,6 +519,23 @@ export default function ProductBookingPage() {
     }
     return findVendorCatalogProductByQuery({ id: String(productId) });
   }, [vcatParam, vskuParam, stateVendorCatalogId, stateVendorSku, productId, vendorCatalogTick]);
+
+  // Derive the buyer-facing pricing mode from the resolved listing's real
+  // pricing model. offer → negotiable, opaque → on_request, transparent → fixed.
+  // Pure mock/demo products (numeric id, no linked vendor catalog row) default
+  // to fixed — NOT offer.
+  const pricingMode: PricingMode = useMemo(() => {
+    switch (vendorCatalogRow?.pricingModel) {
+      case 'offer':
+        return 'negotiable';
+      case 'opaque':
+        return 'on_request';
+      case 'transparent':
+        return 'fixed';
+      default:
+        return 'fixed';
+    }
+  }, [vendorCatalogRow]);
 
   const vendorBuyerDetail: ListingBuyerDetailBlock | null = vendorCatalogRow?.buyer_detail ?? null;
   const vendorDetailRich = Boolean(
@@ -1594,9 +1669,32 @@ export default function ProductBookingPage() {
 
                     <div className="flex flex-col gap-3 mb-6">
                       <PricingBlock
-                        mode="negotiable"
+                        mode={pricingMode}
                         price={`₹${product.price}`}
                         priceUnit="/piece"
+                        onRequestPrice={() => {
+                          setVendorNotice('Requesting price from the vendor…');
+                          const qty =
+                            categoryConfig.sizeOptions.length > 0
+                              ? Math.max(totalQuantity, product.minQty.tier1)
+                              : Math.max(bulkQuantity, product.minQty.tier1);
+                          appendCorpVendorEnquiry({
+                            corporateCompanyName: getCorporateCompanyDisplayName(),
+                            requirementSummary: `Price request for ${product.name} (${category}).`,
+                            requestedDate: 'Flexible (confirm with vendor)',
+                            durationLabel: 'Per order / shipment window',
+                            headcountOrQty: qty,
+                            offerAmountDisplay: null,
+                            productId: product.id,
+                            productName: product.name,
+                            source: 'product-booking-price-request',
+                          });
+                          window.setTimeout(() => {
+                            setVendorNotice(
+                              'Price request sent. Watch the response status below for updates.',
+                            );
+                          }, 1200);
+                        }}
                         onSubmitOffer={(offer, message) => {
                           const qty =
                             categoryConfig.sizeOptions.length > 0
@@ -2318,33 +2416,11 @@ export default function ProductBookingPage() {
                             {/* Logo Overlay */}
                             {logoPreview && (
                               <div
-                                className={`absolute ${
-                                  // Apparel positions
-                                  (category === 'apparel' && logoPosition === 'center-chest') ? 'top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2' :
-                                  (category === 'apparel' && logoPosition === 'left-chest') ? 'top-1/4 left-1/4 -translate-x-1/2' :
-                                  (category === 'apparel' && logoPosition === 'sleeve') ? 'top-1/4 right-1/4 translate-x-1/2' :
-                                  // Bags positions
-                                  (category === 'bags' && logoPosition === 'front') ? 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2' :
-                                  (category === 'bags' && logoPosition === 'side') ? 'top-1/3 right-1/4' :
-                                  (category === 'bags' && logoPosition === 'strap') ? 'top-1/4 left-1/2 -translate-x-1/2' :
-                                  (category === 'bags' && logoPosition === 'interior') ? 'bottom-1/4 left-1/2 -translate-x-1/2' :
-                                  // Tech positions
-                                  (category === 'tech' && logoPosition === 'back') ? 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2' :
-                                  (category === 'tech' && logoPosition === 'lid') ? 'top-1/3 left-1/2 -translate-x-1/2' :
-                                  (category === 'tech' && logoPosition === 'side') ? 'top-1/2 right-1/4' :
-                                  // Wellness & Stationery positions
-                                  (logoPosition === 'label' || logoPosition === 'cover') ? 'top-1/3 left-1/2 -translate-x-1/2' :
-                                  (logoPosition === 'box' || logoPosition === 'spine') ? 'top-1/2 right-1/4' :
-                                  (logoPosition === 'sleeve' || logoPosition === 'inside') ? 'bottom-1/3 left-1/2 -translate-x-1/2' :
-                                  // Default
-                                  'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2'
-                                } ${
-                                  logoSize === 'small'
-                                    ? 'w-16 h-16'
-                                    : logoSize === 'medium'
-                                    ? 'w-24 h-24'
-                                    : 'w-32 h-32'
-                                } bg-white/95 backdrop-blur-sm rounded-lg p-2 shadow-xl border-2 border-dashed border-blue-500 animate-pulse`}
+                                className="absolute bg-white/95 backdrop-blur-sm rounded-lg p-2 shadow-xl border-2 border-dashed border-blue-500 animate-pulse"
+                                style={{
+                                  ...resolveLogoOverlayPositionStyle(category, logoPosition),
+                                  ...LOGO_OVERLAY_SIZE_STYLES[logoSize],
+                                }}
                               >
                                 <img
                                   src={logoPreview}

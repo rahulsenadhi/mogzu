@@ -767,7 +767,7 @@ export default function BookingPayment() {
                                 <p className="text-xs text-rose-500 mt-1">{fieldErrors.cardName}</p>
                               )}
                             </div>
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-[1fr_7rem] gap-3">
                               <div>
                                 <label htmlFor="card-expiry" className="block text-sm text-gray-700 mb-1">Expiry date</label>
                                 <input
@@ -873,7 +873,7 @@ export default function BookingPayment() {
                         {/* Popular UPI Apps */}
                         <div>
                           <p className="text-sm font-medium text-gray-900 mb-2">Pay with UPI apps</p>
-                          <div className="grid grid-cols-4 gap-3">
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                             {['Google Pay', 'PhonePe', 'Paytm', 'BHIM'].map((app) => (
                               <button
                                 key={app}
@@ -1032,7 +1032,7 @@ export default function BookingPayment() {
                             value={routeApproverId}
                             onChange={(e) => setRouteApproverId(e.target.value)}
                             disabled={l3Approvers.length === 0}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md appearance-none focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm bg-white disabled:bg-gray-100"
+                            className="w-full pl-3 pr-9 py-2 border border-gray-300 rounded-md appearance-none focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm bg-white disabled:bg-gray-100"
                             aria-label="Route approval request to"
                           >
                             <option value="">

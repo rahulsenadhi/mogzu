@@ -294,6 +294,20 @@ export default function SpaceDetailPage() {
     setPricingSidebarNotice('');
   }, [vendorPricingMode]);
 
+  // Thread the real Supabase listing's pricing_type into the booking sidebar.
+  // Mock fallback keeps the 'fixed' default (transparent), never negotiable.
+  useEffect(() => {
+    if (!liveListing) return;
+    const mode: PricingMode =
+      liveListing.pricing_type === 'offer'
+        ? 'negotiable'
+        : liveListing.pricing_type === 'request_for_price'
+          ? 'on_request'
+          : 'fixed';
+    setVendorPricingMode(mode);
+    setDraftPricingMode(mode);
+  }, [liveListing]);
+
   useEffect(() => {
     const raw = localStorage.getItem('vendorSpaceListingConfig');
     if (!raw) return;

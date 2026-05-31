@@ -413,7 +413,7 @@ export default function RequestToBook() {
                         setPlanningFor(e.target.value);
                         setFieldErrors((prev) => ({ ...prev, planningFor: undefined }));
                       }}
-                      className="w-full px-3 py-2.5 border border-[#e5e7eb] rounded-lg text-sm text-[#0e1e3f] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 appearance-none bg-white"
+                      className="w-full pl-3 pr-9 py-2.5 border border-[#e5e7eb] rounded-lg text-sm text-[#0e1e3f] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 appearance-none bg-white"
                     >
                       <option value="">Select {category === 'conference' ? 'room' : category === 'corporate' ? 'space' : 'type'}</option>
                       {content.workspaceOptions.map(option => (
@@ -487,7 +487,7 @@ export default function RequestToBook() {
                     <select
                       value={selectedTeam}
                       onChange={(e) => setSelectedTeam(e.target.value)}
-                      className="w-full px-3 py-2.5 border border-[#e5e7eb] rounded-lg text-sm text-[#959595] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 appearance-none bg-white"
+                      className="w-full pl-3 pr-9 py-2.5 border border-[#e5e7eb] rounded-lg text-sm text-[#959595] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 appearance-none bg-white"
                     >
                       <option value="">select from team</option>
                       <option value="team1">Team 1</option>
@@ -507,7 +507,7 @@ export default function RequestToBook() {
                     <select
                       value={approver}
                       onChange={(e) => setApprover(e.target.value)}
-                      className="w-full px-3 py-2.5 border border-[#e5e7eb] rounded-lg text-sm text-[#959595] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 appearance-none bg-white"
+                      className="w-full pl-3 pr-9 py-2.5 border border-[#e5e7eb] rounded-lg text-sm text-[#959595] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 appearance-none bg-white"
                     >
                       <option value="">select team member</option>
                       <option value="manager1">Manager 1</option>

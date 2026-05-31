@@ -381,8 +381,8 @@ export default function CommunicationPage() {
 
       <div className="flex-1 min-w-0 flex flex-col">
         <header className="h-14 shrink-0 bg-white border-b border-slate-200 flex items-center gap-3 px-4 lg:px-6">
-          <div className="flex-1 flex justify-center">
-            <div className="relative w-full max-w-xl">
+          <div className="flex-1 min-w-0 flex justify-center">
+            <div className="relative w-full min-w-0 max-w-xl">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <input value={headerSearch} onChange={(e) => setHeaderSearch(e.target.value)} placeholder="Search" className="w-full h-10 rounded-full border border-slate-200 bg-slate-50 pl-9 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB]" />
             </div>
@@ -399,7 +399,7 @@ export default function CommunicationPage() {
         <div className="flex-1 p-4 lg:p-6 min-h-0">
           {!hasRealData && <DevMockDataBanner />}
           <div className="h-full min-h-0 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-            <div className="h-full min-h-0 grid grid-cols-1 lg:grid-cols-[28%_72%]">
+            <div className="h-full min-h-0 grid grid-cols-1 lg:grid-cols-[320px_1fr]">
               <section className="border-r border-slate-200 min-h-0 flex flex-col">
                 <div className="p-4 border-b border-slate-100">
                   <div className="mb-3 flex items-center justify-between">

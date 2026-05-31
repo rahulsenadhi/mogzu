@@ -174,12 +174,14 @@ export default function CelebrationDetailPage() {
 
   const [liveListingId, setLiveListingId] = useState<string | undefined>();
   const [liveVendorId, setLiveVendorId] = useState<string | undefined>();
+  const [livePricingType, setLivePricingType] = useState<'transparent' | 'offer' | 'request_for_price' | undefined>();
   const [usingDemoCatalog, setUsingDemoCatalog] = useState(true);
 
   useEffect(() => {
     if (!routeId) {
       setLiveListingId(undefined);
       setLiveVendorId(undefined);
+      setLivePricingType(undefined);
       setUsingDemoCatalog(true);
       return;
     }
@@ -189,11 +191,13 @@ export default function CelebrationDetailPage() {
       if (row?.id && row.vendor_id) {
         setLiveListingId(row.id);
         setLiveVendorId(row.vendor_id);
+        setLivePricingType(row.pricing_type);
         setUsingDemoCatalog(false);
         return;
       }
       setLiveListingId(undefined);
       setLiveVendorId(undefined);
+      setLivePricingType(undefined);
       setUsingDemoCatalog(true);
     });
     return () => {
@@ -574,7 +578,13 @@ export default function CelebrationDetailPage() {
                       
                       <div className="flex flex-col gap-3">
                         <PricingBlock
-                          mode="negotiable"
+                          mode={
+                            livePricingType === 'offer'
+                              ? 'negotiable'
+                              : livePricingType === 'request_for_price'
+                                ? 'on_request'
+                                : 'fixed'
+                          }
                           price={`₹${selectedVariant.price}`}
                           priceUnit=""
                           onSubmitOffer={(offer, message) => {

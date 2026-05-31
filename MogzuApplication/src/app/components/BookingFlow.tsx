@@ -619,7 +619,7 @@ export default function BookingFlow() {
               </button>
 
               {/* Progress Steps */}
-              <div className="flex items-center gap-1 bg-gradient-to-r from-gray-50 to-white px-4 py-3 rounded-xl border border-gray-200 shadow-sm">
+              <div className="flex items-center gap-1 bg-gradient-to-r from-gray-50 to-white px-4 py-3 rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
                 {steps.map((step, index) => (
                   <div key={step.number} className="flex items-center">
                     <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${
@@ -1015,7 +1015,7 @@ export default function BookingFlow() {
                                     <select
                                       value={recipient.size}
                                       onChange={(e) => updateRecipient(index, 'size', e.target.value)}
-                                      className="w-full px-3 py-2 border border-[#ececec] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 appearance-none"
+                                      className="w-full pl-3 pr-9 py-2 border border-[#ececec] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 appearance-none"
                                     >
                                       <option value="">Select size</option>
                                       <option value="S">S</option>
@@ -1130,7 +1130,7 @@ export default function BookingFlow() {
                           />
                         </div>
 
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                           <div>
                             <label className="text-sm text-[#0e1e3f] mb-2 block">
                               City<span className="text-[#ef4444]">*</span>
@@ -1153,7 +1153,7 @@ export default function BookingFlow() {
                               <select
                                 value={state}
                                 onChange={(e) => setState(e.target.value)}
-                                className="w-full px-4 py-2 border border-[#ececec] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 appearance-none"
+                                className="w-full pl-4 pr-10 py-2 border border-[#ececec] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 appearance-none"
                               >
                                 <option value="">Select state</option>
                                 <option value="maharashtra">Maharashtra</option>

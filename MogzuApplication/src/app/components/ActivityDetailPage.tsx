@@ -650,7 +650,7 @@ export default function ActivityDetailPage() {
                     
                     <div className="flex flex-col gap-3">
                       <PricingBlock
-                        mode="negotiable"
+                        mode="fixed"
                         price={activity.price}
                         priceUnit=""
                         onSubmitOffer={(offer, message) => {
