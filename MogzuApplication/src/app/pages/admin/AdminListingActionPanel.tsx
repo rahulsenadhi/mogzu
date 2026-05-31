@@ -96,7 +96,6 @@ export default function AdminListingActionPanel({
       updated_at: now,
     });
     toast.success('Listing approved and now live.');
-    console.log(`NOTIFICATION: Listing ${listing.id} approved, vendor notified`);
     setApproveOpen(false);
     setApproveChecks([false, false, false, false, false, false]);
   };
@@ -109,9 +108,7 @@ export default function AdminListingActionPanel({
       rejection_feedback: rejectFeedback,
       rejection_date: now,
     });
-    if (notifyReject) {
-      console.log(`NOTIFICATION: Listing ${listing.id} rejected — reason: ${rejectReason}, vendor notified`);
-    }
+    // notifyReject → vendor reject-notification email dispatched by the Resend worker (deferred).
     toast.success('Listing rejected. Vendor notified.');
     setRejectOpen(false);
     setRejectReason('');

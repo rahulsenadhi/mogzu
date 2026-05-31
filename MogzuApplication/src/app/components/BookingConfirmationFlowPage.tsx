@@ -59,45 +59,8 @@ export default function BookingConfirmationFlowPage() {
     }
     if (!bookingDraft.listing) return
 
-    console.log('📧 NOTIFICATION TO VENDOR:')
-    console.log(
-      '  Listing:',
-      String(
-        (bookingDraft.listing as { title?: string; name?: string }).title ??
-          (bookingDraft.listing as { name?: string }).name ??
-          '',
-      ),
-    )
-    console.log('  Booking Ref:', bookingDraft.booking_reference)
-    if (bookingDraft.pricing_type === 'request_for_price') {
-      console.log('  RFQ Ref:', bookingDraft.booking_reference)
-      console.log('  Group Size:', bookingDraft.group_size)
-      console.log('  Preferred Date:', bookingDraft.request_data?.preferred_date)
-      console.log('  Add-ons:', bookingDraft.selected_addons.map((a) => a.name).join(', '))
-      console.log('  Requirements:', bookingDraft.request_data?.requirements)
-      console.log(
-        '  Respond within:',
-        (bookingDraft.listing as { response_time_hours?: number }).response_time_hours ?? 24,
-        'hours',
-      )
-    } else {
-      console.log('  Date:', bookingDraft.selected_date)
-      console.log('  Slot:', bookingDraft.selected_slot)
-      console.log('  Group:', bookingDraft.group_size)
-      console.log('  Total:', bookingDraft.calculated.grand_total)
-      console.log('  Status: Pending vendor review')
-      if (bookingDraft.pricing_type === 'offer_price') {
-        console.log('  Offer Amount:', bookingDraft.offer_amount)
-        console.log(
-          '  Min Acceptable (admin only):',
-          (bookingDraft.listing as { min_acceptable_offer?: number }).min_acceptable_offer ?? null,
-        )
-      }
-    }
-    console.log('📧 NOTIFICATION TO CORPORATE:')
-    console.log('  Booking request submitted.')
-    console.log('  Reference:', bookingDraft.booking_reference)
-
+    // Vendor + corporate notifications are emitted server-side (Resend worker)
+    // off the persisted booking; no client-side dispatch here.
     const unified = buildUnifiedBookingFromDraft(bookingDraft)
     if (unified) appendUnifiedBooking(unified)
   }, [bookingDraft, bookingId, navigate])
