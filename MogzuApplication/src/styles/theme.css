@@ -470,6 +470,18 @@
       scroll-behavior: smooth;
     }
   }
+
+  /* Respect reduced-motion: near-disable animation/transition/scroll globally */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
   
   /* Fix for Safari input zoom on focus */
   @supports (-webkit-touch-callout: none) {

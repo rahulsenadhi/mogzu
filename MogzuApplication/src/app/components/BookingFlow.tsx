@@ -362,7 +362,10 @@ export default function BookingFlow() {
     { number: 6, label: 'Pay', status: currentStep === 6 ? 'active' : 'upcoming' },
   ];
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleNext = async () => {
+    if (isSubmitting) return;
     let isValid = false;
     
     switch (currentStep) {
@@ -384,6 +387,8 @@ export default function BookingFlow() {
       case 6:
         isValid = validateStep6();
         if (isValid) {
+          setIsSubmitting(true);
+          try {
           // Save booking data to localStorage
           const bookingData = {
             id: `GFT${Date.now().toString().slice(-6)}`,
@@ -534,6 +539,11 @@ export default function BookingFlow() {
 
           navigate(dbBookingId ? `/bookings/${dbBookingId}` : '/bookings');
           return;
+          } catch (err) {
+            console.warn('gifting booking submit failed:', err);
+            setIsSubmitting(false);
+            return;
+          }
         }
         break;
     }
@@ -1669,9 +1679,11 @@ export default function BookingFlow() {
                       </button>
                       <button
                         onClick={handleNext}
-                        className="px-5 py-2 bg-[#2563eb] text-white rounded-lg font-medium hover:bg-[#1d4ed8] transition-colors shadow-sm text-sm"
+                        disabled={isSubmitting}
+                        aria-busy={isSubmitting}
+                        className="px-5 py-2 bg-[#2563eb] text-white rounded-lg font-medium hover:bg-[#1d4ed8] transition-colors shadow-sm text-sm disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        Confirm & Pay
+                        {isSubmitting ? 'Processing…' : 'Confirm & Pay'}
                       </button>
                     </div>
                   </div>

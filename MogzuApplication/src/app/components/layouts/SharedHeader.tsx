@@ -89,7 +89,7 @@ export function SharedHeader({
       {onMobileMenuToggle && (
         <button
           type="button"
-          onClick={onMobileMenuToggle}
+          onClick={() => window.dispatchEvent(new CustomEvent('mogzu-mobile-nav-toggle'))}
           className="lg:hidden p-2 hover:bg-gray-100 rounded-lg shrink-0"
           aria-label="Open menu"
         >

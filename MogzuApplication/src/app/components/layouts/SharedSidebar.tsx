@@ -28,6 +28,24 @@ export function SharedSidebar({
   const location = useLocation();
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(2);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+  // Mobile drawer open state — decoupled from desktop `collapsed`. Driven by a
+  // window event the header hamburger dispatches; closes on backdrop tap + nav.
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    const toggle = () => setMobileOpen((o) => !o);
+    const close = () => setMobileOpen(false);
+    window.addEventListener('mogzu-mobile-nav-toggle', toggle);
+    window.addEventListener('mogzu-mobile-nav-close', close);
+    return () => {
+      window.removeEventListener('mogzu-mobile-nav-toggle', toggle);
+      window.removeEventListener('mogzu-mobile-nav-close', close);
+    };
+  }, []);
+
+  useEffect(() => {
+    setMobileOpen(false); // close drawer after navigation
+  }, [location.pathname]);
 
   useEffect(() => {
     const readCount = () => {
@@ -151,10 +169,20 @@ export function SharedSidebar({
   };
 
   return (
-    <aside
+    <>
+      {mobileOpen ? (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden
+        />
+      ) : null}
+      <aside
       className={`${
         collapsed ? 'w-[72px] bg-white' : 'w-[240px] bg-white'
-      } flex-shrink-0 border-r border-gray-200 transition-all duration-300 fixed lg:relative z-40 h-full`}
+      } flex-shrink-0 border-r border-gray-200 transition-transform lg:transition-all duration-300 fixed lg:relative z-40 h-full ${
+        mobileOpen ? 'translate-x-0' : '-translate-x-full'
+      } lg:translate-x-0`}
     >
       {/* Logo */}
       <div className="h-14 flex items-center justify-center border-b border-gray-200 bg-white">
@@ -182,6 +210,7 @@ export function SharedSidebar({
                   key={item.id}
                   onClick={() => handleNavClick(item)}
                   title={item.label}
+                  aria-label={item.label}
                   className={`w-full flex items-center justify-center px-0 py-2.5 rounded-xl text-xs font-medium transition-colors mb-2 ${
                     currentActive === item.id
                       ? 'bg-blue-600 text-white'
@@ -208,6 +237,7 @@ export function SharedSidebar({
                     }
                   }}
                   title={item.label}
+                  aria-label={item.label}
                   className={`w-full flex items-center justify-center px-0 py-2.5 rounded-xl text-xs font-medium transition-colors mb-2 ${
                     currentActive === item.id || (item.id === 'notification' && currentActive === 'corporate-notifications') || (item.id === 'favourites' && currentActive === 'favourites')
                       ? 'bg-blue-600 text-white'
@@ -230,6 +260,7 @@ export function SharedSidebar({
               <button
                 onClick={() => navigate('/deals')}
                 title="Deals"
+                aria-label="Deals"
                 className={`w-full flex items-center justify-center px-0 py-2.5 rounded-xl text-xs font-medium transition-colors mb-2 ${
                   currentActive === 'deals'
                     ? 'bg-blue-600 text-white'
@@ -247,6 +278,7 @@ export function SharedSidebar({
                   key={item.id}
                   onClick={() => handleNavClick(item)}
                   title={item.label}
+                  aria-label={item.label}
                   className={`w-full flex items-center justify-center px-0 py-2.5 rounded-xl text-xs font-medium transition-colors mb-2 ${
                     currentActive === item.id
                       ? 'bg-blue-600 text-white'
@@ -272,6 +304,7 @@ export function SharedSidebar({
                   key={item.id}
                   onClick={() => handleNavClick(item)}
                   title={item.label}
+                  aria-label={item.label}
                   className={`w-full flex items-center justify-center px-0 py-2.5 rounded-xl text-xs font-medium transition-colors mb-2 ${
                     currentActive === item.id
                       ? 'bg-blue-600 text-white'
@@ -413,6 +446,8 @@ export function SharedSidebar({
       {onToggleCollapse && (
         <button
           onClick={onToggleCollapse}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-expanded={!collapsed}
           className="hidden lg:flex absolute -right-3 top-[4.5rem] w-6 h-6 bg-white border border-gray-200 rounded-full items-center justify-center hover:bg-gray-50 shadow-md z-50 transition-transform hover:scale-110"
         >
           <svg
@@ -434,6 +469,7 @@ export function SharedSidebar({
           </svg>
         </button>
       )}
-    </aside>
+      </aside>
+    </>
   );
 }
