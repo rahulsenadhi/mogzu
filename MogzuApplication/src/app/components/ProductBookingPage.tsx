@@ -5,6 +5,7 @@ import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
 import { ImageWithFallback } from './figma/ImageWithFallback';
+import { MediaGallery, type GalleryVideo } from '@/app/components/global/MediaGallery';
 import { PricingBlock, PricingMode } from './ui/PricingBlock';
 import svgPaths from '@/imports/svg-a80j978jey';
 import svgPathsDashboard from '@/imports/svg-camfkj9vq4';
@@ -510,6 +511,16 @@ export default function ProductBookingPage() {
       };
     }
   }, [rawProduct, category]);
+
+  const productVideos: GalleryVideo[] = useMemo(() => {
+    const raw = (rawProduct as { videos?: unknown })?.videos;
+    if (Array.isArray(raw)) {
+      return raw
+        .filter((u): u is string => typeof u === 'string' && u.length > 0)
+        .map((url) => ({ url }));
+    }
+    return [];
+  }, [rawProduct]);
 
   const vendorCatalogRow = useMemo(() => {
     const idQ = vcatParam || stateVendorCatalogId;
@@ -1236,29 +1247,14 @@ export default function ProductBookingPage() {
           {/* Product Details */}
           <div className="max-w-7xl mx-auto px-6 py-4">
             <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6 mb-6">
-              {/* Left - Product Images */}
+              {/* Left - Product images scroller + video */}
               <div>
-                <div className="bg-white rounded-lg overflow-hidden mb-3">
-                  <ImageWithFallback
-                    src={product.images[selectedImage]}
-                    alt={product.name}
-                    className="w-full h-72 object-cover"
-                  />
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {product.images.map((image, index) => (
-                    <button
-                      key={index}
-                      type="button"
-                      onClick={() => setSelectedImage(index)}
-                      className={`rounded-lg overflow-hidden transition-all ${
-                        selectedImage === index ? 'ring-2 ring-[#2563eb]' : ''
-                      }`}
-                    >
-                      <ImageWithFallback src={image} alt={`${product.name} thumbnail ${index + 1}`} className="w-full h-20 object-cover" />
-                    </button>
-                  ))}
-                </div>
+                <MediaGallery
+                  images={product.images}
+                  videos={productVideos}
+                  alt={product.name}
+                  onActiveImageChange={setSelectedImage}
+                />
               </div>
 
               {/* Right - Product Info */}
