@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import svgPaths from '@/imports/svg-camfkj9vq4';
 import { MogzuLogo } from '@/app/components/branding/MogzuLogo';
 
@@ -7,7 +7,7 @@ interface NavItem {
   id: string;
   label: string;
   icon: string;
-  path?: string;
+  path: string;
 }
 
 interface SharedSidebarProps {
@@ -24,7 +24,6 @@ export function SharedSidebar({
   onToggleCollapse,
   activeNav,
 }: SharedSidebarProps) {
-  const navigate = useNavigate();
   const location = useLocation();
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(2);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
@@ -162,12 +161,6 @@ export function SharedSidebar({
 
   const currentActive = getActiveNav();
 
-  const handleNavClick = (item: NavItem) => {
-    if (item.path) {
-      navigate(item.path);
-    }
-  };
-
   return (
     <>
       {mobileOpen ? (
@@ -206,9 +199,10 @@ export function SharedSidebar({
           <>
             <div className="mb-2">
               {navItems.slice(0, 1).map((item) => (
-                <button
+                <Link
                   key={item.id}
-                  onClick={() => handleNavClick(item)}
+                  to={item.path}
+                  aria-current={currentActive === item.id ? 'page' : undefined}
                   title={item.label}
                   aria-label={item.label}
                   className={`w-full flex items-center justify-center px-0 py-2.5 rounded-xl text-xs font-medium transition-colors mb-2 ${
@@ -220,22 +214,19 @@ export function SharedSidebar({
                   <svg width="20" height="20" viewBox="0 0 28 28" fill="none">
                     <path d={svgPaths[item.icon]} fill="currentColor" />
                   </svg>
-                </button>
+                </Link>
               ))}
             </div>
             <div className="mb-2">
               {navItems.slice(1, 6).map((item) => (
-                <button
+                <Link
                   key={item.id}
-                  onClick={() => {
-                    if (item.id === 'notification' || item.label.toLowerCase() === 'notification') {
-                      handleNavClick({ ...item, id: 'corporate-notifications', path: '/corporate/notifications' });
-                    } else if (item.id === 'favourites') {
-                      handleNavClick({ ...item, path: '/favourites' });
-                    } else {
-                      handleNavClick(item);
-                    }
-                  }}
+                  to={item.path}
+                  aria-current={
+                    currentActive === item.id || (item.id === 'notification' && currentActive === 'corporate-notifications') || (item.id === 'favourites' && currentActive === 'favourites')
+                      ? 'page'
+                      : undefined
+                  }
                   title={item.label}
                   aria-label={item.label}
                   className={`w-full flex items-center justify-center px-0 py-2.5 rounded-xl text-xs font-medium transition-colors mb-2 ${
@@ -254,11 +245,12 @@ export function SharedSidebar({
                       </span>
                     )}
                   </div>
-                </button>
+                </Link>
               ))}
-              
-              <button
-                onClick={() => navigate('/deals')}
+
+              <Link
+                to="/deals"
+                aria-current={currentActive === 'deals' ? 'page' : undefined}
                 title="Deals"
                 aria-label="Deals"
                 className={`w-full flex items-center justify-center px-0 py-2.5 rounded-xl text-xs font-medium transition-colors mb-2 ${
@@ -271,12 +263,13 @@ export function SharedSidebar({
                   <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
                   <line x1="7" y1="7" x2="7.01" y2="7"></line>
                 </svg>
-              </button>
+              </Link>
 
               {navItems.slice(6, 7).map((item) => (
-                <button
+                <Link
                   key={item.id}
-                  onClick={() => handleNavClick(item)}
+                  to={item.path}
+                  aria-current={currentActive === item.id ? 'page' : undefined}
                   title={item.label}
                   aria-label={item.label}
                   className={`w-full flex items-center justify-center px-0 py-2.5 rounded-xl text-xs font-medium transition-colors mb-2 ${
@@ -295,14 +288,15 @@ export function SharedSidebar({
                       </span>
                     )}
                   </div>
-                </button>
+                </Link>
               ))}
             </div>
             <div>
               {navItems.slice(7).map((item) => (
-                <button
+                <Link
                   key={item.id}
-                  onClick={() => handleNavClick(item)}
+                  to={item.path}
+                  aria-current={currentActive === item.id ? 'page' : undefined}
                   title={item.label}
                   aria-label={item.label}
                   className={`w-full flex items-center justify-center px-0 py-2.5 rounded-xl text-xs font-medium transition-colors mb-2 ${
@@ -314,7 +308,7 @@ export function SharedSidebar({
                   <svg width="20" height="20" viewBox="0 0 28 28" fill="none">
                     <path d={svgPaths[item.icon]} fill="currentColor" />
                   </svg>
-                </button>
+                </Link>
               ))}
             </div>
           </>
@@ -323,9 +317,10 @@ export function SharedSidebar({
           <>
             <div className="mb-4">
               {navItems.slice(0, 1).map((item) => (
-                <button
+                <Link
                   key={item.id}
-                  onClick={() => handleNavClick(item)}
+                  to={item.path}
+                  aria-current={currentActive === item.id ? 'page' : undefined}
                   className={`w-full flex items-center gap-3 pl-2.5 pr-3 py-2.5 rounded-xl border-l-[3px] text-sm font-medium transition-colors mb-0.5 ${
                     currentActive === item.id
                       ? 'bg-[rgba(37,99,235,0.08)] text-[#1D4ED8] border-l-[#2563EB]'
@@ -336,7 +331,7 @@ export function SharedSidebar({
                     <path d={svgPaths[item.icon]} fill="currentColor" />
                   </svg>
                   <span>{item.label}</span>
-                </button>
+                </Link>
               ))}
             </div>
             <div className="mb-3 mt-4">
@@ -344,17 +339,14 @@ export function SharedSidebar({
                 Manage
               </p>
               {navItems.slice(1, 6).map((item) => (
-                <button
+                <Link
                   key={item.id}
-                  onClick={() => {
-                    if (item.id === 'notification' || item.label.toLowerCase() === 'notification') {
-                      handleNavClick({ ...item, id: 'corporate-notifications', path: '/corporate/notifications' });
-                    } else if (item.id === 'favourites') {
-                      handleNavClick({ ...item, path: '/favourites' });
-                    } else {
-                      handleNavClick(item);
-                    }
-                  }}
+                  to={item.path}
+                  aria-current={
+                    currentActive === item.id || (item.id === 'notification' && currentActive === 'notification') || (item.id === 'favourites' && currentActive === 'favourites')
+                      ? 'page'
+                      : undefined
+                  }
                   className={`relative w-full flex items-center gap-3 pl-2.5 pr-3 py-2.5 rounded-xl border-l-[3px] text-sm font-medium transition-colors mb-0.5 ${
                     currentActive === item.id || (item.id === 'notification' && currentActive === 'notification') || (item.id === 'favourites' && currentActive === 'favourites')
                       ? 'bg-[rgba(37,99,235,0.08)] text-[#1D4ED8] border-l-[#2563EB]'
@@ -372,11 +364,12 @@ export function SharedSidebar({
                     )}
                   </div>
                   <span className="whitespace-nowrap flex-1 text-left">{item.label}</span>
-                </button>
+                </Link>
               ))}
 
-              <button
-                onClick={() => navigate('/deals')}
+              <Link
+                to="/deals"
+                aria-current={currentActive === 'deals' ? 'page' : undefined}
                 className={`w-full flex items-center gap-3 pl-2.5 pr-3 py-2.5 rounded-xl border-l-[3px] text-sm font-medium transition-colors mb-0.5 ${
                   currentActive === 'deals'
                     ? 'bg-[rgba(37,99,235,0.08)] text-[#1D4ED8] border-l-[#2563EB]'
@@ -390,12 +383,13 @@ export function SharedSidebar({
                 <span className="whitespace-nowrap flex-1 text-left">
                   Deals
                 </span>
-              </button>
+              </Link>
 
               {navItems.slice(6, 7).map((item) => (
-                <button
+                <Link
                   key={item.id}
-                  onClick={() => handleNavClick(item)}
+                  to={item.path}
+                  aria-current={currentActive === item.id ? 'page' : undefined}
                   className={`w-full flex items-center gap-3 pl-2.5 pr-3 py-2.5 rounded-xl border-l-[3px] text-sm font-medium transition-colors mb-0.5 ${
                     currentActive === item.id
                       ? 'bg-[rgba(37,99,235,0.08)] text-[#1D4ED8] border-l-[#2563EB]'
@@ -413,7 +407,7 @@ export function SharedSidebar({
                     )}
                   </div>
                   <span>{item.label}</span>
-                </button>
+                </Link>
               ))}
             </div>
 
@@ -422,9 +416,10 @@ export function SharedSidebar({
                 Account
               </p>
               {navItems.slice(7).map((item) => (
-                <button
+                <Link
                   key={item.id}
-                  onClick={() => handleNavClick(item)}
+                  to={item.path}
+                  aria-current={currentActive === item.id ? 'page' : undefined}
                   className={`w-full flex items-center gap-3 pl-2.5 pr-3 py-2.5 rounded-xl border-l-[3px] text-sm font-medium transition-colors mb-0.5 ${
                     currentActive === item.id
                       ? 'bg-[rgba(37,99,235,0.08)] text-[#1D4ED8] border-l-[#2563EB]'
@@ -435,7 +430,7 @@ export function SharedSidebar({
                     <path d={svgPaths[item.icon]} fill="currentColor" />
                   </svg>
                   <span>{item.label}</span>
-                </button>
+                </Link>
               ))}
             </div>
           </>

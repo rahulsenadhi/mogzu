@@ -414,7 +414,7 @@ export default function AdminDashboardPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [issueTab, setIssueTab] = useState<'pending' | 'resolved'>('pending');
-  const [revenuePeriod, setRevenuePeriod] = useState('This year');
+  const [revenuePeriod, setRevenuePeriod] = useState<'This year' | 'Last 6 months'>('This year');
 
   const [stats, setStats] = useState<AdminStats>(EMPTY_STATS);
   const [loading, setLoading] = useState(true);
@@ -461,8 +461,11 @@ export default function AdminDashboardPage() {
   // Use real data when available, else demo fallback
   const revenueChartData = useMemo(() => {
     const hasReal = stats.revenueByMonth.some((m) => m.value > 0);
-    return hasReal ? stats.revenueByMonth : DEMO_REVENUE_BY_MONTH;
-  }, [stats.revenueByMonth]);
+    const series = hasReal ? stats.revenueByMonth : DEMO_REVENUE_BY_MONTH;
+    // Data is a rolling 12-month series: "This year" shows all buckets,
+    // "Last 6 months" shows the trailing 6.
+    return revenuePeriod === 'Last 6 months' ? series.slice(-6) : series;
+  }, [stats.revenueByMonth, revenuePeriod]);
 
   const commissionData = useMemo(() => {
     const hasReal = stats.commissionTotalSales > 0 || stats.commissionPending > 0 || stats.commissionCompleted > 0;
@@ -625,11 +628,10 @@ export default function AdminDashboardPage() {
             <h2 className="text-base font-semibold text-slate-900">Revenue</h2>
             <select
               value={revenuePeriod}
-              onChange={(e) => setRevenuePeriod(e.target.value)}
+              onChange={(e) => setRevenuePeriod(e.target.value as 'This year' | 'Last 6 months')}
               className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB]"
             >
               <option>This year</option>
-              <option>Last year</option>
               <option>Last 6 months</option>
             </select>
           </div>

@@ -680,8 +680,7 @@ export default function BookingFlow() {
                       </label>
                       <div className="flex gap-2">
                         <div className="flex items-center gap-2 px-3 border border-[#ececec] rounded-lg bg-white">
-                          <span className="text-lg">🇮🇳</span>
-                          <span className="text-sm text-[#878e9e]">+91</span>
+                          <span className="text-sm font-medium text-[#0e1e3f]">+91</span>
                           <ChevronDown className="w-4 h-4 text-[#878e9e]" />
                         </div>
                         <input
@@ -796,8 +795,9 @@ export default function BookingFlow() {
                               )
                             ))}
                           </div>
-                          <p className="text-xs text-[#16a34a] mt-2 font-medium">
-                            ✓ Total: {productQty} units (MOQ: {moq})
+                          <p className="text-xs text-[#16a34a] mt-2 font-medium flex items-center gap-1">
+                            <Check className="w-3.5 h-3.5 shrink-0" />
+                            Total: {productQty} units (MOQ: {moq})
                           </p>
                         </div>
 
@@ -850,7 +850,10 @@ export default function BookingFlow() {
                             <img src={uploadedLogo} alt="Logo" className="w-12 h-12 object-contain rounded border border-gray-200" />
                             <div className="flex-1">
                               <p className="text-xs font-semibold text-[#0e1e3f]">{logoFileName}</p>
-                              <p className="text-xs text-[#16a34a] mt-0.5">✓ Uploaded successfully</p>
+                              <p className="text-xs text-[#16a34a] mt-0.5 flex items-center gap-1">
+                                <Check className="w-3.5 h-3.5 shrink-0" />
+                                Uploaded successfully
+                              </p>
                             </div>
                           </div>
 
@@ -869,7 +872,10 @@ export default function BookingFlow() {
 
                           {requestSample && (
                             <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
-                              <p className="text-xs text-amber-900 font-medium">✓ Sample requested before bulk order</p>
+                              <p className="text-xs text-amber-900 font-medium flex items-center gap-1">
+                                <Check className="w-3.5 h-3.5 shrink-0" />
+                                Sample requested before bulk order
+                              </p>
                             </div>
                           )}
                         </div>

@@ -1161,9 +1161,9 @@ export default function ActivitiesPage() {
                               e.stopPropagation()
                               goToPrevCardImage(cardId, slideImages.length)
                             }}
-                            className="absolute left-2.5 top-1/2 z-[2] h-7 w-7 -translate-y-1/2 rounded-full border border-[#dbe3f2] bg-white/90 text-sm font-bold text-[#334155] shadow-sm transition-colors hover:bg-white"
+                            className="absolute left-2.5 top-1/2 z-[2] h-7 w-7 -translate-y-1/2 rounded-full border border-[#dbe3f2] bg-white/90 text-[#334155] shadow-sm transition-colors hover:bg-white"
                           >
-                            ‹
+                            <ChevronLeft className="mx-auto size-4" aria-hidden />
                           </button>
                           <button
                             type="button"
@@ -1172,9 +1172,9 @@ export default function ActivitiesPage() {
                               e.stopPropagation()
                               goToNextCardImage(cardId, slideImages.length)
                             }}
-                            className="absolute right-2.5 top-1/2 z-[2] h-7 w-7 -translate-y-1/2 rounded-full border border-[#dbe3f2] bg-white/90 text-sm font-bold text-[#334155] shadow-sm transition-colors hover:bg-white"
+                            className="absolute right-2.5 top-1/2 z-[2] h-7 w-7 -translate-y-1/2 rounded-full border border-[#dbe3f2] bg-white/90 text-[#334155] shadow-sm transition-colors hover:bg-white"
                           >
-                            ›
+                            <ChevronRight className="mx-auto size-4" aria-hidden />
                           </button>
                           <div className="absolute bottom-2.5 left-1/2 z-[2] inline-flex -translate-x-1/2 items-center gap-1 rounded-full bg-black/35 px-2 py-1">
                             {slideImages.slice(0, 5).map((_, dotIdx) => (

@@ -77,6 +77,75 @@ export default function BookingPayment() {
   const [messageToolbarNotice, setMessageToolbarNotice] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [selectedUpiApp, setSelectedUpiApp] = useState('');
+
+  // Inline payment-field validation (card + PO/OTP paths).
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardName, setCardName] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCvv, setCardCvv] = useState('');
+  const [poNumber, setPoNumber] = useState('');
+  const [otpDigits, setOtpDigits] = useState(['', '', '', '']);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const validateField = (name: string): string => {
+    switch (name) {
+      case 'cardNumber': {
+        const digits = cardNumber.replace(/\s/g, '');
+        if (!digits) return 'Card number is required.';
+        if (!/^\d+$/.test(digits)) return 'Card number must contain digits only.';
+        if (digits.length < 13 || digits.length > 19) return 'Card number must be 13–19 digits.';
+        return '';
+      }
+      case 'cardName':
+        return cardName.trim() ? '' : 'Name on card is required.';
+      case 'cardExpiry': {
+        if (!cardExpiry.trim()) return 'Expiry date is required.';
+        return /^(0[1-9]|1[0-2])\/\d{2}$/.test(cardExpiry.trim()) ? '' : 'Use MM/YY format.';
+      }
+      case 'cardCvv': {
+        if (!cardCvv.trim()) return 'CVV is required.';
+        return /^\d{3,4}$/.test(cardCvv.trim()) ? '' : 'CVV must be 3–4 digits.';
+      }
+      case 'poNumber':
+        return poNumber.trim() ? '' : 'PO/WO number is required.';
+      case 'otp': {
+        const otp = otpDigits.join('');
+        if (!otp) return 'OTP is required.';
+        return /^\d{4,6}$/.test(otp) ? '' : 'OTP must be 4–6 digits.';
+      }
+      default:
+        return '';
+    }
+  };
+
+  const handleFieldBlur = (name: string) => {
+    setFieldErrors((prev) => ({ ...prev, [name]: validateField(name) }));
+  };
+
+  // Validates only the fields that render for the active payment method.
+  // Returns ordered list of field names still invalid (first = focus target).
+  const validatePaymentFields = (): string[] => {
+    const names =
+      paymentMethod === 'card'
+        ? ['cardNumber', 'cardName', 'cardExpiry', 'cardCvv']
+        : paymentMethod === 'po'
+          ? ['poNumber', 'otp']
+          : [];
+    const nextErrors: Record<string, string> = {};
+    const invalid: string[] = [];
+    for (const name of names) {
+      const error = validateField(name);
+      nextErrors[name] = error;
+      if (error) invalid.push(name);
+    }
+    setFieldErrors((prev) => ({ ...prev, ...nextErrors }));
+    return invalid;
+  };
+
+  const focusInvalidField = (name: string) => {
+    const el = document.querySelector<HTMLElement>(`[data-field="${name}"]`);
+    el?.focus();
+  };
   // Provide category-specific content
   const getPaymentContent = () => {
     switch (category) {
@@ -524,12 +593,23 @@ export default function BookingPayment() {
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">PO/WO Number <span className="text-red-500">*</span></label>
+                          <label htmlFor="po-number" className="block text-sm font-medium text-gray-700 mb-1">PO/WO Number <span className="text-red-500">*</span></label>
                           <input
+                            id="po-number"
+                            data-field="poNumber"
                             type="text"
                             placeholder="Enter PO/WO Number"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                            value={poNumber}
+                            onChange={(e) => setPoNumber(e.target.value)}
+                            onBlur={() => handleFieldBlur('poNumber')}
+                            aria-invalid={!!fieldErrors.poNumber}
+                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
+                              fieldErrors.poNumber ? 'border-rose-400' : 'border-gray-300'
+                            }`}
                           />
+                          {fieldErrors.poNumber && (
+                            <p className="text-xs text-rose-500 mt-1">{fieldErrors.poNumber}</p>
+                          )}
                         </div>
 
                         {/* File Upload Area */}
@@ -573,8 +653,26 @@ export default function BookingPayment() {
                           <label className="block text-sm font-medium text-gray-700 mb-1">OTP Confirmation <span className="text-red-500">*</span></label>
                           <div className="flex gap-3">
                             <div className="flex gap-2">
-                              {[1, 2, 3, 4].map((i) => (
-                                <input key={i} type="text" maxLength={1} className="w-10 h-10 text-center border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg font-medium" />
+                              {[0, 1, 2, 3].map((i) => (
+                                <input
+                                  key={i}
+                                  data-field={i === 0 ? 'otp' : undefined}
+                                  type="text"
+                                  inputMode="numeric"
+                                  maxLength={1}
+                                  aria-label={`OTP digit ${i + 1}`}
+                                  aria-invalid={!!fieldErrors.otp}
+                                  value={otpDigits[i]}
+                                  onChange={(e) => {
+                                    const next = [...otpDigits];
+                                    next[i] = e.target.value.replace(/\D/g, '').slice(0, 1);
+                                    setOtpDigits(next);
+                                  }}
+                                  onBlur={() => handleFieldBlur('otp')}
+                                  className={`w-10 h-10 text-center border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg font-medium ${
+                                    fieldErrors.otp ? 'border-rose-400' : 'border-gray-300'
+                                  }`}
+                                />
                               ))}
                             </div>
                             <button
@@ -591,6 +689,9 @@ export default function BookingPayment() {
                           </p>
                           {otpSent && (
                             <p className="text-[11px] text-green-600 mt-1">OTP sent successfully.</p>
+                          )}
+                          {fieldErrors.otp && (
+                            <p className="text-xs text-rose-500 mt-1">{fieldErrors.otp}</p>
                           )}
                         </div>
 
@@ -627,40 +728,87 @@ export default function BookingPayment() {
                           <h3 className="text-base font-semibold text-gray-900 mb-4">Card details</h3>
                           <div className="space-y-3">
                             <div>
-                              <label className="block text-sm text-gray-700 mb-1">Card Number</label>
+                              <label htmlFor="card-number" className="block text-sm text-gray-700 mb-1">Card Number</label>
                               <input
+                                id="card-number"
+                                data-field="cardNumber"
                                 type="text"
+                                inputMode="numeric"
                                 placeholder="1234 5678 9012 3456"
                                 maxLength={19}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                value={cardNumber}
+                                onChange={(e) => setCardNumber(e.target.value)}
+                                onBlur={() => handleFieldBlur('cardNumber')}
+                                aria-invalid={!!fieldErrors.cardNumber}
+                                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                  fieldErrors.cardNumber ? 'border-rose-400' : 'border-gray-300'
+                                }`}
                               />
+                              {fieldErrors.cardNumber && (
+                                <p className="text-xs text-rose-500 mt-1">{fieldErrors.cardNumber}</p>
+                              )}
                             </div>
                             <div>
-                              <label className="block text-sm text-gray-700 mb-1">Name on card</label>
+                              <label htmlFor="card-name" className="block text-sm text-gray-700 mb-1">Name on card</label>
                               <input
+                                id="card-name"
+                                data-field="cardName"
                                 type="text"
                                 placeholder="John Doe"
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                value={cardName}
+                                onChange={(e) => setCardName(e.target.value)}
+                                onBlur={() => handleFieldBlur('cardName')}
+                                aria-invalid={!!fieldErrors.cardName}
+                                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                  fieldErrors.cardName ? 'border-rose-400' : 'border-gray-300'
+                                }`}
                               />
+                              {fieldErrors.cardName && (
+                                <p className="text-xs text-rose-500 mt-1">{fieldErrors.cardName}</p>
+                              )}
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                               <div>
-                                <label className="block text-sm text-gray-700 mb-1">Expiry date</label>
+                                <label htmlFor="card-expiry" className="block text-sm text-gray-700 mb-1">Expiry date</label>
                                 <input
+                                  id="card-expiry"
+                                  data-field="cardExpiry"
                                   type="text"
+                                  inputMode="numeric"
                                   placeholder="MM/YY"
                                   maxLength={5}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  value={cardExpiry}
+                                  onChange={(e) => setCardExpiry(e.target.value)}
+                                  onBlur={() => handleFieldBlur('cardExpiry')}
+                                  aria-invalid={!!fieldErrors.cardExpiry}
+                                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                    fieldErrors.cardExpiry ? 'border-rose-400' : 'border-gray-300'
+                                  }`}
                                 />
+                                {fieldErrors.cardExpiry && (
+                                  <p className="text-xs text-rose-500 mt-1">{fieldErrors.cardExpiry}</p>
+                                )}
                               </div>
                               <div>
-                                <label className="block text-sm text-gray-700 mb-1">CVV</label>
+                                <label htmlFor="card-cvv" className="block text-sm text-gray-700 mb-1">CVV</label>
                                 <input
+                                  id="card-cvv"
+                                  data-field="cardCvv"
                                   type="text"
+                                  inputMode="numeric"
                                   placeholder="123"
-                                  maxLength={3}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  maxLength={4}
+                                  value={cardCvv}
+                                  onChange={(e) => setCardCvv(e.target.value)}
+                                  onBlur={() => handleFieldBlur('cardCvv')}
+                                  aria-invalid={!!fieldErrors.cardCvv}
+                                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                    fieldErrors.cardCvv ? 'border-rose-400' : 'border-gray-300'
+                                  }`}
                                 />
+                                {fieldErrors.cardCvv && (
+                                  <p className="text-xs text-rose-500 mt-1">{fieldErrors.cardCvv}</p>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -1243,6 +1391,12 @@ export default function BookingPayment() {
                   onClick={() => {
                     void (async () => {
                       if (isProcessing) {
+                        return;
+                      }
+
+                      const invalidFields = validatePaymentFields();
+                      if (invalidFields.length > 0) {
+                        focusInvalidField(invalidFields[0]);
                         return;
                       }
 
