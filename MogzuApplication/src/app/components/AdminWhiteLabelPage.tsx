@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { Loader2, ShieldAlert } from 'lucide-react'
 import { AdminPageTitleRow } from '@/app/components/admin/AdminPageChrome'
+import { ADMIN_MODULE } from '@/app/components/admin/adminModuleStyles'
 import { MOGZU_GLASS_PANEL } from '@/app/components/ui/mogzuGlassStyles'
 import {
   MOGZU_CTA_GRADIENT,
@@ -76,6 +77,8 @@ export default function AdminWhiteLabelPage() {
   const [revShare, setRevShare] = useState(15)
   const [flatFee, setFlatFee] = useState(0)
   const [perSeat, setPerSeat] = useState(0)
+  const [saving, setSaving] = useState(false)
+  const [busyId, setBusyId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -129,6 +132,7 @@ export default function AdminWhiteLabelPage() {
       return
     }
     const finalSlug = slug.trim() || slugify(businessName)
+    setSaving(true)
     const { error: err } = await upsertPartner({
       business_name: businessName.trim(),
       slug: finalSlug,
@@ -138,6 +142,7 @@ export default function AdminWhiteLabelPage() {
       flat_fee_monthly: model === 'flat_infra_fee' ? flatFee : null,
       per_seat_fee: model === 'per_corporate_seat' ? perSeat : null,
     })
+    setSaving(false)
     if (err) setError(err)
     else {
       setBusinessName('')
@@ -196,12 +201,15 @@ export default function AdminWhiteLabelPage() {
         <h2 className="text-base font-semibold text-[#0e1e3f]">Register / update partner</h2>
         <form onSubmit={onCreate} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="text-sm">
-            <span className="mb-1 block font-medium text-slate-700">Business name</span>
+            <span className="mb-1 block font-medium text-slate-700">
+              Business name <span className="text-rose-600">*</span>
+            </span>
             <input
               type="text"
+              required
               value={businessName}
               onChange={(e) => setBusinessName(e.target.value)}
-              className="w-full rounded-xl border border-white/70 bg-white/60 px-3 py-2 text-sm backdrop-blur-sm"
+              className={ADMIN_MODULE.input}
             />
           </label>
           <label className="text-sm">
@@ -211,16 +219,19 @@ export default function AdminWhiteLabelPage() {
               value={slug}
               onChange={(e) => setSlug(slugify(e.target.value))}
               placeholder={slugify(businessName) || 'auto-from-name'}
-              className="w-full rounded-xl border border-white/70 bg-white/60 px-3 py-2 font-mono text-sm backdrop-blur-sm"
+              className={`${ADMIN_MODULE.input} font-mono`}
             />
           </label>
           <label className="text-sm">
-            <span className="mb-1 block font-medium text-slate-700">Contact email</span>
+            <span className="mb-1 block font-medium text-slate-700">
+              Contact email <span className="text-rose-600">*</span>
+            </span>
             <input
               type="email"
+              required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-xl border border-white/70 bg-white/60 px-3 py-2 text-sm backdrop-blur-sm"
+              className={ADMIN_MODULE.input}
             />
           </label>
           <label className="text-sm">
@@ -228,7 +239,7 @@ export default function AdminWhiteLabelPage() {
             <select
               value={model}
               onChange={(e) => setModel(e.target.value as CommercialModel)}
-              className="w-full rounded-xl border border-white/70 bg-white/60 px-3 py-2 text-sm backdrop-blur-sm"
+              className={ADMIN_MODULE.input}
             >
               {COMMERCIAL_MODELS.map((m) => (
                 <option key={m} value={m}>
@@ -246,7 +257,7 @@ export default function AdminWhiteLabelPage() {
                 max={100}
                 value={revShare}
                 onChange={(e) => setRevShare(parseFloat(e.target.value) || 0)}
-                className="w-full rounded-xl border border-white/70 bg-white/60 px-3 py-2 text-sm backdrop-blur-sm"
+                className={`${ADMIN_MODULE.input} tabular-nums`}
               />
             </label>
           )}
@@ -258,7 +269,7 @@ export default function AdminWhiteLabelPage() {
                 min={0}
                 value={flatFee}
                 onChange={(e) => setFlatFee(parseFloat(e.target.value) || 0)}
-                className="w-full rounded-xl border border-white/70 bg-white/60 px-3 py-2 text-sm backdrop-blur-sm"
+                className={`${ADMIN_MODULE.input} tabular-nums`}
               />
             </label>
           )}
@@ -270,13 +281,18 @@ export default function AdminWhiteLabelPage() {
                 min={0}
                 value={perSeat}
                 onChange={(e) => setPerSeat(parseFloat(e.target.value) || 0)}
-                className="w-full rounded-xl border border-white/70 bg-white/60 px-3 py-2 text-sm backdrop-blur-sm"
+                className={`${ADMIN_MODULE.input} tabular-nums`}
               />
             </label>
           )}
           <div className="sm:col-span-2">
-            <button type="submit" className={MOGZU_CTA_GRADIENT}>
-              Save partner
+            <button
+              type="submit"
+              disabled={saving}
+              className={`${MOGZU_CTA_GRADIENT} inline-flex items-center justify-center gap-2 disabled:opacity-60`}
+            >
+              {saving && <Loader2 className="size-4 animate-spin" />}
+              {saving ? 'Saving…' : 'Save partner'}
             </button>
           </div>
         </form>
@@ -288,6 +304,7 @@ export default function AdminWhiteLabelPage() {
         </div>
       ) : (
         <section className={`${MOGZU_GLASS_PANEL} overflow-hidden`}>
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/60 bg-white/40 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-500">
@@ -305,7 +322,7 @@ export default function AdminWhiteLabelPage() {
                   <td className="px-4 py-3 font-semibold text-[#0e1e3f]">{p.business_name}</td>
                   <td className="px-4 py-3 font-mono text-xs">{p.slug}</td>
                   <td className="px-4 py-3 text-xs">{p.commercial_model}</td>
-                  <td className="px-4 py-3 text-right text-xs">
+                  <td className="px-4 py-3 text-right text-xs tabular-nums">
                     {p.commercial_model === 'revenue_share' && `${p.revenue_share_pct ?? 0}%`}
                     {p.commercial_model === 'flat_infra_fee' &&
                       `₹${(p.flat_fee_monthly ?? 0).toLocaleString('en-IN')}/m`}
@@ -327,12 +344,16 @@ export default function AdminWhiteLabelPage() {
                     <div className="inline-flex gap-1">
                       <Link
                         to={`/admin/white-label/${p.id}`}
-                        className="rounded-lg border border-white/70 bg-white/60 px-2 py-1 text-xs text-slate-700 backdrop-blur-sm hover:border-[#93c5fd]"
+                        aria-disabled={busyId === p.id}
+                        className={`rounded-lg border border-white/70 bg-white/60 px-2 py-1 text-xs text-slate-700 backdrop-blur-sm hover:border-[#93c5fd] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#93c5fd]/60 ${
+                          busyId === p.id ? 'pointer-events-none opacity-50' : ''
+                        }`}
                       >
                         Branding
                       </Link>
                       <button
                         type="button"
+                        disabled={busyId === p.id}
                         onClick={async () => {
                           if (usingDemo) {
                             setRows((prev) =>
@@ -342,13 +363,16 @@ export default function AdminWhiteLabelPage() {
                             )
                             return
                           }
+                          setBusyId(p.id)
                           const { error: err } = await setActive(p.id, !p.is_active)
+                          setBusyId(null)
                           if (err) setError(err)
                           else void load()
                         }}
-                        className="rounded-lg border border-white/70 bg-white/60 px-2 py-1 text-xs text-slate-700 backdrop-blur-sm hover:border-[#93c5fd]"
+                        className="inline-flex items-center gap-1 rounded-lg border border-white/70 bg-white/60 px-2 py-1 text-xs text-slate-700 backdrop-blur-sm transition hover:border-[#93c5fd] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#93c5fd]/60 disabled:opacity-60"
                       >
-                        {p.is_active ? 'Pause' : 'Resume'}
+                        {busyId === p.id && <Loader2 className="size-3 animate-spin" />}
+                        {busyId === p.id ? '…' : p.is_active ? 'Pause' : 'Resume'}
                       </button>
                     </div>
                   </td>
@@ -363,6 +387,7 @@ export default function AdminWhiteLabelPage() {
               )}
             </tbody>
           </table>
+          </div>
         </section>
       )}
 

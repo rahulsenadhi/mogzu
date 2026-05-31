@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { Eye, Pencil, Plus, Trash2, GraduationCap } from 'lucide-react';
+import { Eye, Pencil, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Switch } from '@/app/components/ui/switch';
 import { AdminPageTitleRow } from '@/app/components/admin/AdminPageChrome';
+import { ADMIN_MODULE } from '@/app/components/admin/adminModuleStyles';
 import { CORP } from '@/app/lib/adminTheme';
 import { db } from '@/lib/db';
 import type { MogzuDirectListing, MogzuListingModule } from '@/app/lib/mogzuDomain';
@@ -89,6 +90,15 @@ export default function MogzuDirectPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!confirmDeleteId) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setConfirmDeleteId(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [confirmDeleteId]);
 
   const kpis = useMemo(() => {
     const total = rows.length;
@@ -218,23 +228,23 @@ export default function MogzuDirectPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-xs font-medium text-slate-500">Total MD Listings</p>
-          <p className="text-2xl font-bold text-slate-900">{kpis.total}</p>
+          <p className="text-2xl font-bold text-slate-900 tabular-nums">{kpis.total}</p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-xs font-medium text-slate-500">Active</p>
-          <span className="inline-flex mt-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-100 px-2.5 py-0.5 text-sm font-bold">
+          <span className="inline-flex mt-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-100 px-2.5 py-0.5 text-sm font-bold tabular-nums">
             {kpis.active}
           </span>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-xs font-medium text-slate-500">Paused</p>
-          <span className="inline-flex mt-1 rounded-full bg-amber-50 text-amber-900 border border-amber-100 px-2.5 py-0.5 text-sm font-bold">
+          <span className="inline-flex mt-1 rounded-full bg-amber-50 text-amber-900 border border-amber-100 px-2.5 py-0.5 text-sm font-bold tabular-nums">
             {kpis.paused}
           </span>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-xs font-medium text-slate-500">Draft</p>
-          <span className="inline-flex mt-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 px-2.5 py-0.5 text-sm font-bold">
+          <span className="inline-flex mt-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 px-2.5 py-0.5 text-sm font-bold tabular-nums">
             {kpis.draft}
           </span>
         </div>
@@ -259,16 +269,16 @@ export default function MogzuDirectPage() {
         ))}
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-        <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search by title/vendor" className="h-10 rounded-xl border border-slate-200 px-3 text-sm" />
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)} className="h-10 rounded-xl border border-slate-200 px-3 text-sm">
+        <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search by title/vendor" className={ADMIN_MODULE.input} />
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)} className={ADMIN_MODULE.input}>
           <option value="all">Status: All</option>
           <option value="active">Active</option>
           <option value="paused">Paused</option>
           <option value="draft">Draft</option>
           <option value="archived">Archived</option>
         </select>
-        <button type="button" onClick={exportCsv} className="h-10 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</button>
-        <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="h-10 rounded-xl border border-slate-200 px-3 text-sm">
+        <button type="button" onClick={exportCsv} className="h-11 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#93c5fd]/60">Export CSV</button>
+        <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className={ADMIN_MODULE.input}>
           <option value="all">Category: All</option>
           <option value="Live Music & Bands">Live Music & Bands</option>
           <option value="DJ & Electronic">DJ & Electronic</option>
@@ -277,9 +287,9 @@ export default function MogzuDirectPage() {
           <option value="Conference & Boardroom">Conference & Boardroom</option>
           <option value="Event Hall & Banquet">Event Hall & Banquet</option>
         </select>
-        <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value as CatalogueSourceFilter)} className="h-10 rounded-xl border border-slate-200 px-3 text-sm">
+        <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value as CatalogueSourceFilter)} className={ADMIN_MODULE.input}>
           <option value="all">Source: All</option>
-          <option value="mogzu">Source: ✦ By Mogzu</option>
+          <option value="mogzu">Source: By Mogzu</option>
           <option value="vendor">Source: Vendor Partners</option>
         </select>
         <button
@@ -294,16 +304,16 @@ export default function MogzuDirectPage() {
             setCapacityFilter('');
             setOccasionFilter('all');
           }}
-          className="h-10 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          className="h-11 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#93c5fd]/60"
         >
           Clear all filters
         </button>
-        <input type="number" min={0} value={budgetMin} onChange={(e) => setBudgetMin(e.target.value)} placeholder="Budget min (₹)" className="h-10 rounded-xl border border-slate-200 px-3 text-sm" />
-        <input type="number" min={0} value={budgetMax} onChange={(e) => setBudgetMax(e.target.value)} placeholder="Budget max (₹)" className="h-10 rounded-xl border border-slate-200 px-3 text-sm" />
-        <input value={cityFilter} onChange={(e) => setCityFilter(e.target.value)} placeholder="City / location" className="h-10 rounded-xl border border-slate-200 px-3 text-sm" />
-        <input type="date" value={availabilityDate} onChange={(e) => setAvailabilityDate(e.target.value)} className="h-10 rounded-xl border border-slate-200 px-3 text-sm" />
-        <input value={capacityFilter} onChange={(e) => setCapacityFilter(e.target.value)} placeholder="Capacity / headcount" className="h-10 rounded-xl border border-slate-200 px-3 text-sm" />
-        <select value={occasionFilter} onChange={(e) => setOccasionFilter(e.target.value)} className="h-10 rounded-xl border border-slate-200 px-3 text-sm">
+        <input type="number" min={0} value={budgetMin} onChange={(e) => setBudgetMin(e.target.value)} placeholder="Budget min (₹)" className={`${ADMIN_MODULE.input} tabular-nums`} />
+        <input type="number" min={0} value={budgetMax} onChange={(e) => setBudgetMax(e.target.value)} placeholder="Budget max (₹)" className={`${ADMIN_MODULE.input} tabular-nums`} />
+        <input value={cityFilter} onChange={(e) => setCityFilter(e.target.value)} placeholder="City / location" className={ADMIN_MODULE.input} />
+        <input type="date" value={availabilityDate} onChange={(e) => setAvailabilityDate(e.target.value)} className={ADMIN_MODULE.input} />
+        <input value={capacityFilter} onChange={(e) => setCapacityFilter(e.target.value)} placeholder="Capacity / headcount" className={ADMIN_MODULE.input} />
+        <select value={occasionFilter} onChange={(e) => setOccasionFilter(e.target.value)} className={ADMIN_MODULE.input}>
           <option value="all">Occasion: All</option>
           <option value="Employee Onboarding">Employee Onboarding</option>
           <option value="Festive Gifting">Festive Gifting</option>
@@ -314,7 +324,7 @@ export default function MogzuDirectPage() {
       </div>
       <p className="text-xs text-slate-500">Showing {filtered.length} result{filtered.length === 1 ? '' : 's'}</p>
 
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
+      <div className={`bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden ${selectedIds.length > 0 ? 'mb-24' : ''}`}>
         {filtered.length === 0 ? (
           <div className="px-6 py-14 text-center">
             <h2 className="text-lg font-semibold" style={{ color: CORP.titleNavy }}>
@@ -338,6 +348,7 @@ export default function MogzuDirectPage() {
                   <th className="py-3 pl-4">
                     <input
                       type="checkbox"
+                      aria-label="Select all listings"
                       checked={filtered.length > 0 && filtered.every((x) => selectedIds.includes(x.id))}
                       onChange={() =>
                         setSelectedIds(
@@ -368,6 +379,7 @@ export default function MogzuDirectPage() {
                       <td className="py-3 pl-4">
                         <input
                           type="checkbox"
+                          aria-label={`Select ${alias}`}
                           checked={selectedIds.includes(row.id)}
                           onChange={() =>
                             setSelectedIds((prev) =>
@@ -386,12 +398,7 @@ export default function MogzuDirectPage() {
                         </div>
                       </td>
                       <td className="py-3 pr-3 font-medium text-slate-900 max-w-[180px] truncate">{alias}</td>
-                      <td className="py-3 pr-3 text-slate-600">
-                        <span className="inline-flex items-center gap-1">
-                          <GraduationCap className="size-4 text-[#2563EB] shrink-0" />
-                          {row.category}
-                        </span>
-                      </td>
+                      <td className="py-3 pr-3 text-slate-600">{row.category}</td>
                       <td className="py-3 pr-3">
                         <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-800">
                           {String(pt)}
@@ -409,8 +416,8 @@ export default function MogzuDirectPage() {
                           aria-label="Featured"
                         />
                       </td>
-                      <td className="py-3 pr-3 text-slate-400" title="View tracking not yet available">—</td>
-                      <td className="py-3 pr-3 text-slate-600">{bookings}</td>
+                      <td className="py-3 pr-3 text-slate-400 tabular-nums" title="View tracking not yet available">—</td>
+                      <td className="py-3 pr-3 text-slate-600 tabular-nums">{bookings}</td>
                       <td className="py-3 pr-4">
                         <div className="flex justify-end flex-wrap gap-1">
                           <button
@@ -440,7 +447,7 @@ export default function MogzuDirectPage() {
                             type="button"
                             className="rounded-lg border border-rose-200 p-1.5 text-rose-600 hover:bg-rose-50"
                             onClick={() => setConfirmDeleteId(row.id)}
-                            aria-label="Delete"
+                            aria-label={`Delete ${alias}`}
                           >
                             <Trash2 className="size-4" />
                           </button>
@@ -455,9 +462,15 @@ export default function MogzuDirectPage() {
         )}
       </div>
       {confirmDeleteId ? (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl space-y-3">
-            <h3 className="text-lg font-semibold text-slate-900">Delete this listing?</h3>
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setConfirmDeleteId(null)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="md-delete-title"
+            className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="md-delete-title" className="text-lg font-semibold text-slate-900">Delete this listing?</h3>
             <p className="text-sm text-slate-600">This will remove it from the Mogzu Direct catalogue.</p>
             <div className="flex justify-end gap-2">
               <button
@@ -479,10 +492,19 @@ export default function MogzuDirectPage() {
         </div>
       ) : null}
       {selectedIds.length > 0 ? (
-        <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-slate-200 bg-white px-4 py-3 shadow-lg">
+        <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-slate-200 bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-lg">
           <div className="mx-auto max-w-[1200px] flex items-center gap-2">
             <p className="mr-auto text-sm text-slate-700">{selectedIds.length} listing(s) selected</p>
-            <button type="button" onClick={() => selectedIds.forEach((id) => toggleStatus(id))} className="rounded-full border border-slate-200 px-4 py-2 text-sm">Toggle Status</button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!window.confirm(`Toggle status for ${selectedIds.length} listing(s)? This updates each selected listing's active/paused state.`)) return;
+                selectedIds.forEach((id) => toggleStatus(id));
+              }}
+              className="rounded-full border border-slate-200 px-4 py-2 text-sm"
+            >
+              Toggle Status
+            </button>
             <button type="button" onClick={() => setSelectedIds([])} className="rounded-full px-4 py-2 text-sm text-slate-600">Clear Selection</button>
           </div>
         </div>

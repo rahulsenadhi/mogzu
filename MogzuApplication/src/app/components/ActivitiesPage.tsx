@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { SharedHeader } from '@/app/components/layouts/SharedHeader';
 import { SharedSidebar } from '@/app/components/layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from '@/app/components/layouts/MogzuCorporateScrollSurface';
-import { ChevronDown, ChevronRight, Search, Users, MapPin, Grid3x3, Gamepad2, Mountain, Trophy, UsersRound, Palette, Sparkles, UtensilsCrossed, MonitorPlay, Plane, Crown, AlertCircle, type LucideIcon } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Search, Users, MapPin, Grid3x3, Gamepad2, Mountain, Trophy, UsersRound, Palette, Sparkles, UtensilsCrossed, MonitorPlay, Plane, Crown, AlertCircle, type LucideIcon } from 'lucide-react';
 import { WishlistHeart } from './global/WishlistHeart';
 import svgPaths from '@/imports/svg-xho44kfymu';
 import svgPathsSpaceX from '@/imports/svg-5pj2l0pukf';
@@ -780,7 +780,7 @@ export default function ActivitiesPage() {
                 className="h-8 w-8 shrink-0 rounded-full border border-slate-300/40 bg-white/70 text-[#475569] backdrop-blur-sm transition-colors hover:border-[#93c5fd] hover:text-[#0e1e3f]"
                 aria-label="Scroll categories left"
               >
-                <span className="text-sm">‹</span>
+                <ChevronLeft className="mx-auto size-4" aria-hidden />
               </button>
               <div
                 ref={categoryScrollRef}
@@ -827,7 +827,7 @@ export default function ActivitiesPage() {
                 className="h-8 w-8 shrink-0 rounded-full border border-slate-300/40 bg-white/70 text-[#475569] backdrop-blur-sm transition-colors hover:border-[#93c5fd] hover:text-[#0e1e3f]"
                 aria-label="Scroll categories right"
               >
-                <span className="text-sm">›</span>
+                <ChevronRight className="mx-auto size-4" aria-hidden />
               </button>
             </div>
           </div>
@@ -1095,9 +1095,14 @@ export default function ActivitiesPage() {
               {/* Activities Grid */}
               <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 xl:gap-5">
                 {activitiesLoading ? (
-                  <div className="col-span-full rounded-2xl border border-white/60 bg-white/65 py-16 text-center text-sm text-[#475569] backdrop-blur-md">
-                    Loading activities…
-                  </div>
+                  Array.from({ length: 6 }).map((_, idx) => (
+                    <div key={`activity-skeleton-${idx}`} className="overflow-hidden rounded-2xl border border-white/60 bg-white/65 p-3 backdrop-blur-md">
+                      <div className="h-44 rounded-lg corp-shimmer sm:h-48" />
+                      <div className="mt-3 h-4 w-[70%] rounded-full corp-shimmer" />
+                      <div className="mt-2 h-3 w-[50%] rounded-full corp-shimmer" />
+                      <div className="mt-3 h-3.5 w-[40%] rounded-full corp-shimmer" />
+                    </div>
+                  ))
                 ) : activitiesError ? (
                   <div className="col-span-full flex flex-col items-center justify-center rounded-2xl border border-rose-100 bg-rose-50 py-12 text-center">
                     <p className="text-sm font-medium text-rose-700">Couldn't load activities</p>

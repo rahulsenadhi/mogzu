@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router';
 import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
 import { MogzuCorporateScrollSurface } from './layouts/MogzuCorporateScrollSurface';
-import { Search, ChevronDown, AlertCircle, Home, PlayCircle } from 'lucide-react';
+import { Search, ChevronDown, AlertCircle, Home, PlayCircle, X, Check } from 'lucide-react';
 import svgPaths from '@/imports/svg-oytnjawqa3';
 import { QA_IMAGES } from '../lib/qaImagery';
 import EventServiceContent from './EventServiceContent';
@@ -414,12 +414,15 @@ export default function EventsPage() {
                   <div className="space-y-2">
                     {EVENT_CATEGORY_OPTIONS.map((filter) => (
                       <label key={filter} className="flex items-start gap-2 cursor-pointer group">
-                        <input
-                          type="checkbox"
-                          checked={selectedEventCategories.includes(filter)}
-                          onChange={() => toggleEventCategory(filter)}
-                          className="mt-0.5 appearance-none size-[18px] rounded-[4px] border-[1.5px] border-slate-300 bg-white checked:bg-[#2563eb] checked:border-[#2563eb] relative"
-                        />
+                        <span className="relative mt-0.5 inline-flex size-[18px] shrink-0">
+                          <input
+                            type="checkbox"
+                            checked={selectedEventCategories.includes(filter)}
+                            onChange={() => toggleEventCategory(filter)}
+                            className="peer appearance-none size-[18px] rounded-[4px] border-[1.5px] border-slate-300 bg-white checked:bg-[#2563eb] checked:border-[#2563eb]"
+                          />
+                          <Check className="pointer-events-none absolute inset-0 m-auto hidden size-3 text-white peer-checked:block" strokeWidth={3} aria-hidden />
+                        </span>
                         <span className="text-[#475569] text-xs leading-tight group-hover:text-[#2563eb]">
                           {filter}
                         </span>
@@ -434,7 +437,7 @@ export default function EventsPage() {
                     className="w-full h-8 rounded-md border border-[#e0e0e0] px-2 text-xs text-[#475569]"
                   >
                     <option value="all">All</option>
-                    <option value="mogzu">✦ By Mogzu</option>
+                    <option value="mogzu">By Mogzu</option>
                     <option value="vendor">Vendor Partners</option>
                   </select>
                 ) : null}
@@ -685,7 +688,7 @@ export default function EventsPage() {
                           placeholder="Enter location"
                           value={searchLocation}
                           onChange={(e) => setSearchLocation(e.target.value)}
-                          className="w-full h-[38px] pl-3 pr-8 border border-[#e0e0e0] rounded-md text-sm text-[#878e9e] focus:outline-none focus:border-[#2563eb]"
+                          className="w-full h-[38px] pl-3 pr-8 border border-[#e0e0e0] rounded-md text-sm text-[#0e1e3f] placeholder:text-[#878e9e] focus:outline-none focus:border-[#2563eb]"
                         />
                         <svg className="absolute right-2 top-1/2 -translate-y-1/2 size-4" fill="none" viewBox="0 0 18 24">
                           <path d={svgPaths.p3996be70} fill="#878E9E" />
@@ -700,7 +703,7 @@ export default function EventsPage() {
                           placeholder="Guests Number"
                           value={searchGuests}
                           onChange={(e) => setSearchGuests(e.target.value.replace(/[^0-9]/g, ''))}
-                          className="w-full h-[38px] pl-3 pr-8 border border-[#e0e0e0] rounded-md text-sm text-[#878e9e] focus:outline-none focus:border-[#2563eb]"
+                          className="w-full h-[38px] pl-3 pr-8 border border-[#e0e0e0] rounded-md text-sm text-[#0e1e3f] placeholder:text-[#878e9e] focus:outline-none focus:border-[#2563eb]"
                         />
                         <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 size-4 text-[#878E9E]" />
                       </div>
@@ -713,7 +716,7 @@ export default function EventsPage() {
                           placeholder="Select date"
                           value={searchDate}
                           onChange={(e) => setSearchDate(e.target.value)}
-                          className="w-full h-[38px] pl-3 pr-8 border border-[#e0e0e0] rounded-md text-sm text-[#878e9e] focus:outline-none focus:border-[#2563eb]"
+                          className="w-full h-[38px] pl-3 pr-8 border border-[#e0e0e0] rounded-md text-sm text-[#0e1e3f] placeholder:text-[#878e9e] focus:outline-none focus:border-[#2563eb]"
                         />
                         <svg className="absolute right-2 top-1/2 -translate-y-1/2 size-4" fill="none" viewBox="0 0 30 30">
                           <path d={svgPaths.p1d095600} fill="#878E9E" />
@@ -742,7 +745,7 @@ export default function EventsPage() {
                     placeholder="Search by event name or category"
                     value={searchKeyword}
                     onChange={(e) => setSearchKeyword(e.target.value)}
-                    className="w-full h-[38px] px-3 border border-[#e0e0e0] rounded-md text-sm text-[#878e9e] focus:outline-none focus:border-[#2563eb]"
+                    className="w-full h-[38px] px-3 border border-[#e0e0e0] rounded-md text-sm text-[#0e1e3f] placeholder:text-[#878e9e] focus:outline-none focus:border-[#2563eb]"
                   />
                 </div>
 
@@ -765,7 +768,7 @@ export default function EventsPage() {
                         onClick={() => removeChip(chip.key)}
                         className="inline-flex items-center gap-1.5 h-7 px-3 bg-white border border-[#d1d5db] rounded-md text-[12px] text-[#475569] hover:bg-gray-50 transition-colors"
                       >
-                        {chip.label} <span className="text-slate-400">✕</span>
+                        {chip.label} <X className="size-3 text-slate-400" aria-hidden />
                       </button>
                     ))}
                   </div>
@@ -838,7 +841,7 @@ export default function EventsPage() {
                       <div className="relative h-52 overflow-hidden">
                         <img
                           src={activity.image}
-                          alt="Event"
+                          alt={activity.name}
                           className="w-full h-full object-cover transition-transform duration-[400ms] ease-out group-hover:scale-[1.04]"
                         />
                         {Array.isArray(activity.videos) && activity.videos.length > 0 ? (
@@ -904,36 +907,41 @@ export default function EventsPage() {
                         </div>
 
                         <div className="mt-auto space-y-2">
-                          <span
-                            className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${pricingBadge.className} relative`}
-                            onMouseEnter={() => {
-                              const key =
-                                normalizedPricingType === 'transparent'
-                                  ? 'mogzu_tooltip_transparent_shown'
-                                  : normalizedPricingType === 'offer_price'
-                                    ? 'mogzu_tooltip_offer_shown'
-                                    : 'mogzu_tooltip_rfp_shown';
-                              if (sessionStorage.getItem(key)) return;
-                              sessionStorage.setItem(key, '1');
-                              setPricingTooltip({
-                                id: listingId,
-                                text:
-                                  normalizedPricingType === 'transparent'
-                                    ? 'Full price shown upfront. Select date and book instantly.'
-                                    : normalizedPricingType === 'offer_price'
-                                      ? 'Suggest your price. Vendor reviews and confirms.'
-                                      : 'No fixed price. Request a custom quote.',
-                              });
-                              window.setTimeout(() => setPricingTooltip(null), 4000);
-                            }}
-                          >
-                            {pricingBadge.label}
-                            {pricingTooltip?.id === listingId ? (
-                              <span className="absolute bottom-[calc(100%+8px)] left-0 z-20 w-56 rounded-lg border border-slate-200 bg-white p-2 text-[12px] font-normal text-slate-700 shadow-lg">
-                                {pricingTooltip.text}
-                              </span>
-                            ) : null}
-                          </span>
+                          {(() => {
+                            const tooltipText =
+                              normalizedPricingType === 'transparent'
+                                ? 'Full price shown upfront. Select date and book instantly.'
+                                : normalizedPricingType === 'offer_price'
+                                  ? 'Suggest your price. Vendor reviews and confirms.'
+                                  : 'No fixed price. Request a custom quote.';
+                            const isTooltipOpen = pricingTooltip?.id === listingId;
+                            const showTooltip = () =>
+                              setPricingTooltip({ id: listingId, text: tooltipText });
+                            const hideTooltip = () => setPricingTooltip(null);
+                            return (
+                              <button
+                                type="button"
+                                aria-label={`${pricingBadge.label} pricing: ${tooltipText}`}
+                                aria-expanded={isTooltipOpen}
+                                className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${pricingBadge.className} relative cursor-help focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-1`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  isTooltipOpen ? hideTooltip() : showTooltip();
+                                }}
+                                onMouseEnter={showTooltip}
+                                onMouseLeave={hideTooltip}
+                                onFocus={showTooltip}
+                                onBlur={hideTooltip}
+                              >
+                                {pricingBadge.label}
+                                {isTooltipOpen ? (
+                                  <span className="absolute bottom-[calc(100%+8px)] left-0 z-20 w-56 rounded-lg border border-slate-200 bg-white p-2 text-[12px] font-normal text-slate-700 shadow-lg">
+                                    {pricingTooltip.text}
+                                  </span>
+                                ) : null}
+                              </button>
+                            );
+                          })()}
                           <div className="text-[#0e1e3f] text-[15px] font-semibold">
                             {getPricingSummaryLine(pricingListing)}
                           </div>

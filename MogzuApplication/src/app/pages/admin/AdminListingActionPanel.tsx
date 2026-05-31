@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Star } from 'lucide-react';
 import AdminListingStatusBadge from '@/app/components/admin/AdminListingStatusBadge';
 import { Checkbox } from '@/app/components/ui/checkbox';
 import { Switch } from '@/app/components/ui/switch';
-import { GhostCTAButton, SecondaryCTAButton, DestructiveCTAButton } from '@/app/components/ui/ListingButtons';
+import { GhostCTAButton, PrimaryCTAButton, SecondaryCTAButton, DestructiveCTAButton } from '@/app/components/ui/ListingButtons';
 import type { InternalAdminNote, MogzuDirectListing, PartnerListing } from '@/app/lib/mogzuDomain';
 import {
   updateMogzuDirectListingInStore,
@@ -66,8 +66,33 @@ export default function AdminListingActionPanel({
     resolved.kind === 'mogzu_direct' ? resolved.listing.mogzu_direct_alias ?? '' : '',
   );
 
+  const approveDialogRef = useRef<HTMLDivElement | null>(null);
+  const rejectDialogRef = useRef<HTMLDivElement | null>(null);
+
   const listing = resolved.listing;
   const uiStatus = useMemo(() => toUiStatus(resolved.kind, listing.status), [resolved.kind, listing.status]);
+
+  // Modal a11y: lock background scroll, focus dialog on open, close on Escape.
+  useEffect(() => {
+    if (!approveOpen && !rejectOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (approveOpen) setApproveOpen(false);
+        if (rejectOpen) setRejectOpen(false);
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    const focusTarget = approveOpen ? approveDialogRef.current : rejectDialogRef.current;
+    focusTarget?.focus();
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [approveOpen, rejectOpen]);
+
+  const rejectTooShort = rejectFeedback.trim().length < 30;
 
   const persistPartner = (p: PartnerListing) => {
     updatePartnerListingInStore(p);
@@ -201,20 +226,12 @@ export default function AdminListingActionPanel({
       <div className="space-y-2">
         {isPendingLike ? (
           <>
-            <button
-              type="button"
-              onClick={() => setApproveOpen(true)}
-              className="w-full rounded-xl py-3 text-sm font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8]"
-            >
+            <PrimaryCTAButton className="w-full" onClick={() => setApproveOpen(true)}>
               Approve Listing
-            </button>
-            <button
-              type="button"
-              onClick={() => setRejectOpen(true)}
-              className="w-full rounded-xl py-3 text-sm font-semibold border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100"
-            >
+            </PrimaryCTAButton>
+            <DestructiveCTAButton className="w-full" onClick={() => setRejectOpen(true)}>
               Reject Listing
-            </button>
+            </DestructiveCTAButton>
           </>
         ) : null}
         {listing.status === 'active' ? (
@@ -229,13 +246,9 @@ export default function AdminListingActionPanel({
         ) : null}
         {listing.status === 'paused' ? (
           <>
-            <button
-              type="button"
-              onClick={() => patch({ status: 'active' })}
-              className="w-full rounded-xl py-3 text-sm font-semibold text-white bg-[#2563EB]"
-            >
+            <PrimaryCTAButton className="w-full" onClick={() => patch({ status: 'active' })}>
               Reactivate
-            </button>
+            </PrimaryCTAButton>
             <GhostCTAButton className="w-full justify-center" onClick={() => patch({ status: 'archived' })}>
               Archive Listing
             </GhostCTAButton>
@@ -394,8 +407,19 @@ export default function AdminListingActionPanel({
       </div>
 
       {approveOpen ? (
-        <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl space-y-3 max-h-[90vh] overflow-y-auto">
+        <div
+          className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4"
+          onClick={() => setApproveOpen(false)}
+        >
+          <div
+            ref={approveDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Approve this listing"
+            tabIndex={-1}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl space-y-3 max-h-[90vh] overflow-y-auto focus:outline-none"
+          >
             <h3 className="text-lg font-semibold">Approve this listing?</h3>
             <p className="font-semibold text-slate-800">{listing.title}</p>
             {[
@@ -422,22 +446,31 @@ export default function AdminListingActionPanel({
             ))}
             <div className="flex justify-end gap-2 pt-2">
               <GhostCTAButton onClick={() => setApproveOpen(false)}>Cancel</GhostCTAButton>
-              <button
-                type="button"
+              <PrimaryCTAButton
                 disabled={!approveChecks.every(Boolean)}
                 onClick={handleApproveConfirm}
-                className="rounded-xl px-4 py-2 text-sm font-semibold text-white bg-[#2563EB] disabled:opacity-50"
               >
                 Confirm Approval
-              </button>
+              </PrimaryCTAButton>
             </div>
           </div>
         </div>
       ) : null}
 
       {rejectOpen ? (
-        <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl space-y-3">
+        <div
+          className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4"
+          onClick={() => setRejectOpen(false)}
+        >
+          <div
+            ref={rejectDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Reject this listing"
+            tabIndex={-1}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl space-y-3 focus:outline-none"
+          >
             <h3 className="text-lg font-semibold">Reject this listing</h3>
             <p className="font-semibold">{listing.title}</p>
             <label className="block text-sm font-medium">Rejection Reason</label>
@@ -464,7 +497,14 @@ export default function AdminListingActionPanel({
               placeholder="Provide specific feedback to help the vendor improve their listing..."
               className="w-full border rounded-lg px-3 py-2 text-sm"
             />
-            <p className="text-xs text-slate-500">{rejectFeedback.length} / 30 min</p>
+            <div className="flex items-center justify-between text-xs">
+              <span className={rejectTooShort ? 'text-rose-600' : 'text-slate-500'}>
+                {rejectFeedback.trim().length} / 30 min
+              </span>
+              {rejectTooShort ? (
+                <span className="text-rose-600">Minimum 30 characters</span>
+              ) : null}
+            </div>
             <label className="flex items-center gap-2 text-sm">
               <Checkbox checked={notifyReject} onCheckedChange={(c) => setNotifyReject(c === true)} />
               Send rejection notification to vendor
@@ -472,7 +512,7 @@ export default function AdminListingActionPanel({
             <div className="flex justify-end gap-2">
               <GhostCTAButton onClick={() => setRejectOpen(false)}>Cancel</GhostCTAButton>
               <DestructiveCTAButton
-                disabled={!rejectReason || rejectFeedback.trim().length < 30}
+                disabled={!rejectReason || rejectTooShort}
                 onClick={handleRejectConfirm}
               >
                 Confirm Rejection

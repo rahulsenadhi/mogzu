@@ -176,6 +176,7 @@ export default function AdminFinanceReconciliationPage() {
         </div>
       ) : (
         <section className={`${MOGZU_GLASS_PANEL} overflow-hidden`}>
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/60 bg-white/40 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-500">
@@ -196,13 +197,13 @@ export default function AdminFinanceReconciliationPage() {
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-600">{sub.plan?.name ?? '—'}</td>
                   <td className="px-4 py-3 text-xs capitalize text-slate-600">{sub.status}</td>
-                  <td className="px-4 py-3 font-mono text-[11px] text-slate-500">
+                  <td className="px-4 py-3 font-mono text-[11px] tabular-nums text-slate-500">
                     {sub.stripe_subscription_id ?? <span className="text-rose-400">—</span>}
                   </td>
-                  <td className="px-4 py-3 font-mono text-[11px] text-slate-500">
+                  <td className="px-4 py-3 font-mono text-[11px] tabular-nums text-slate-500">
                     {sub.razorpay_subscription_id ?? <span className="text-rose-400">—</span>}
                   </td>
-                  <td className="px-4 py-3 text-xs text-slate-500">
+                  <td className="px-4 py-3 text-xs tabular-nums text-slate-500">
                     {sub.last_payment_attempt_at
                       ? new Date(sub.last_payment_attempt_at).toISOString().slice(0, 10)
                       : '—'}
@@ -240,6 +241,7 @@ export default function AdminFinanceReconciliationPage() {
               )}
             </tbody>
           </table>
+          </div>
         </section>
       )}
     </div>

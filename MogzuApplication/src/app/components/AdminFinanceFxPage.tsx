@@ -242,6 +242,7 @@ export default function AdminFinanceFxPage() {
         </div>
       ) : (
         <section className={`${MOGZU_GLASS_PANEL} overflow-hidden`}>
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/60 bg-white/40 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-500">
@@ -272,24 +273,25 @@ export default function AdminFinanceFxPage() {
                         disabled={busy === r.code || r.code === 'INR'}
                         value={draft ?? Number(r.fx_rate)}
                         onChange={(e) => setDrafts((d) => ({ ...d, [r.code]: e.target.value }))}
-                        className="w-28 rounded-lg border border-white/70 bg-white/60 px-2 py-1 text-right font-mono text-xs backdrop-blur-sm"
+                        className="w-28 rounded-lg border border-white/70 bg-white/60 px-2 py-1 text-right font-mono text-xs tabular-nums backdrop-blur-sm"
                       />
                       {isDirty && (
                         <button
                           type="button"
                           disabled={busy === r.code}
                           onClick={() => void saveRate(r.code)}
+                          aria-label={`Save ${r.code} rate`}
                           className="ml-2 rounded-lg bg-[linear-gradient(135deg,#2563eb,#3b82f6)] px-2 py-1 text-xs font-semibold text-white shadow-sm"
                         >
                           Save
                         </button>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-right font-mono text-xs text-slate-500">
+                    <td className="px-4 py-3 text-right font-mono text-xs tabular-nums text-slate-500">
                       {interbank?.toFixed(2) ?? '—'}
                     </td>
                     <td
-                      className={`px-4 py-3 text-right font-mono text-xs ${
+                      className={`px-4 py-3 text-right font-mono text-xs tabular-nums ${
                         margin == null
                           ? 'text-slate-400'
                           : margin > 1
@@ -325,6 +327,7 @@ export default function AdminFinanceFxPage() {
               )}
             </tbody>
           </table>
+          </div>
         </section>
       )}
 

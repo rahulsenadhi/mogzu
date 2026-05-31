@@ -12,6 +12,7 @@ import {
   Monitor,
   PlayCircle,
   Shield,
+  Star,
   Utensils,
 } from 'lucide-react'
 import { SharedHeader } from './layouts/SharedHeader'
@@ -44,6 +45,21 @@ function SectionHeading({ title, rightAction }: { title: string; rightAction?: R
         {title}
       </h2>
       {rightAction}
+    </div>
+  )
+}
+
+function CardRowSkeleton({ count = 4 }: { count?: number }) {
+  return (
+    <div className="flex min-w-max gap-5 pr-1" aria-hidden>
+      {Array.from({ length: count }).map((_, idx) => (
+        <div key={`row-skeleton-${idx}`} className="w-[292px] shrink-0 overflow-hidden rounded-3xl border border-[#cfe0ff] bg-white p-3">
+          <div className="h-44 rounded-2xl corp-shimmer" />
+          <div className="mt-3 h-4 w-[70%] rounded-full corp-shimmer" />
+          <div className="mt-2 h-3 w-[50%] rounded-full corp-shimmer" />
+          <div className="mt-3 h-3.5 w-[40%] rounded-full corp-shimmer" />
+        </div>
+      ))}
     </div>
   )
 }
@@ -340,7 +356,7 @@ export default function EventsHomePage() {
                   <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(67,121,238,0.08)_0%,rgba(67,121,238,0)_65%)]" />
                   <div className="relative flex min-h-[200px]">
                     <div className="flex w-[55%] flex-col justify-center px-8 py-6">
-                      <div className="mb-3 inline-flex w-fit items-center rounded-full bg-[#ebf1ff] px-2.5 py-1 text-[12px] font-medium text-[#475569]">⭐ {b.chip}</div>
+                      <div className="mb-3 inline-flex w-fit items-center gap-1.5 rounded-full bg-[#ebf1ff] px-2.5 py-1 text-[12px] font-medium text-[#475569]"><Star className="size-3.5 fill-[#f5b50a] text-[#f5b50a]" aria-hidden /> {b.chip}</div>
                       <h3 className="line-clamp-2 text-[24px] font-bold leading-tight text-[#0e1e3f]">{b.title}</h3>
                       <p className="mb-5 mt-2 max-w-[380px] text-[14px] leading-[1.6] text-[#64748b]">{b.subtitle}</p>
                       <button type="button" onClick={() => navigate(b.route)} className="h-11 w-fit rounded-full bg-[linear-gradient(135deg,#2563eb,#3b82f6)] px-6 text-[14px] font-semibold text-white shadow-[0_10px_22px_rgba(37,99,235,0.28)] transition-all hover:-translate-y-0.5 active:scale-[0.98]">{b.cta}</button>
@@ -416,7 +432,9 @@ export default function EventsHomePage() {
 
             <section>
               <SectionHeading title="Featured events" rightAction={<button type="button" onClick={() => navigate('/events/new')} className="shrink-0 text-sm font-semibold text-[#2563eb] hover:underline">View all →</button>} />
-              {featuredCards.length > 0 ? (
+              {eventsLoading ? (
+                <div className="overflow-x-auto px-1 pb-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"><CardRowSkeleton /></div>
+              ) : featuredCards.length > 0 ? (
                 <div className="relative">
                   <button type="button" aria-label="Scroll featured left" onClick={() => scrollRow(featuredRef, 'left')} className="absolute -left-2 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-[#dbe3f2] bg-white/95 shadow-sm hover:shadow-md"><ChevronLeft className="h-4 w-4 text-[#2563eb]" /></button>
                   <button type="button" aria-label="Scroll featured right" onClick={() => scrollRow(featuredRef, 'right')} className="absolute -right-2 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-[#dbe3f2] bg-white/95 shadow-sm hover:shadow-md"><ChevronRight className="h-4 w-4 text-[#2563eb]" /></button>
@@ -448,7 +466,9 @@ export default function EventsHomePage() {
 
             <section>
               <SectionHeading title="Trending this week" rightAction={<button type="button" onClick={() => navigate('/event-activity')} className="shrink-0 text-sm font-semibold text-[#2563eb] hover:underline">View all →</button>} />
-              {trendingCards.length > 0 ? (
+              {eventsLoading ? (
+                <div className="overflow-x-auto px-1 pb-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"><CardRowSkeleton /></div>
+              ) : trendingCards.length > 0 ? (
                 <div className="relative">
                   <button type="button" aria-label="Scroll trending left" onClick={() => scrollRow(trendingRef, 'left')} className="absolute -left-2 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-[#dbe3f2] bg-white/95 shadow-sm hover:shadow-md"><ChevronLeft className="h-4 w-4 text-[#2563eb]" /></button>
                   <button type="button" aria-label="Scroll trending right" onClick={() => scrollRow(trendingRef, 'right')} className="absolute -right-2 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-[#dbe3f2] bg-white/95 shadow-sm hover:shadow-md"><ChevronRight className="h-4 w-4 text-[#2563eb]" /></button>
