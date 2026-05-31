@@ -8,10 +8,48 @@ Purpose: durable project memory for decisions, changes, incidents, and next acti
 - Keep entries short and factual
 - Link to files, PRs, issues, or commits when available
 
+## Project Status Snapshot (2026-05-27)
+
+**PRD / frontend completion:** **Not 100% done.** `FRONTEND_COMPLETION_PLAN.md` Section 2 routes are largely ✅ through **post-plan Batch 59** (batches 23–59 on top of original 15 plan batches). Phase 1–3 core journeys are substantially shipped; Phase 4/5 remain mixed (stubs + verify).
+
+**Recently shipped (agent sessions, batches 52–59):**
+- Lead ops: bulk assign, kanban drag, saved views (`/admin/leads`, pipeline tab)
+- Approval: DB columns `required_approval_levels` / `approved_approval_levels`; no new JSON in `purpose_note`; migration `20260527000001_*` strips legacy marker
+- Corporate notifications: L3-only publish, `broadcastSystem`, inbox filters, realtime subscription, edge `drain-notification-emails` (Resend; needs `CRON_SECRET` + N8N schedule)
+
+**Apply in Supabase (if not yet):** `20260524000002_staff_update_public_leads.sql`, `20260525000001_staff_read_lead_assignees.sql`, `20260526000001_booking_approval_levels.sql`, `20260527000001_strip_booking_approval_purpose_note.sql`
+
+**Still open (high level):**
+- N8N/cron: email drain endpoint exists but not scheduled; celebration seed/fire, vendor SLA auto-cancel, spend report email, etc.
+- Infra: live Razorpay checkout/webhooks (many flows use manual UTR or wallet stopgap)
+- Gaps from plan Section 3: vendor onboarding E2E, domain validation on signup, booker messages/dispute on legacy booking detail, vendor settings placeholder, promotion redemption in pricing, ListingReviewsPanel on all detail pages, heart on all cards
+- Large workspace diff **uncommitted** (batches 23–59+); verify `(verify)` rows in plan with browser smoke
+
+**Canonical docs:** `FRONTEND_COMPLETION_PLAN.md`, `FIXES.md` (batch changelog at top)
+
 ## Decision Log (ADR-lite)
 Use this for important technical decisions.
 
 Latest entries:
+- Date: 2026-05-27
+- Decision: Booking approval chain lives in `bookings.required_approval_levels` / `approved_approval_levels`; `purpose_note` is user-facing text only
+- Context: Batch 55+ stopped embedding `---mogzu-approval---` JSON in `purpose_note`; `getBookingApprovalMeta` reads columns first, falls back to legacy note for old rows
+- Options considered: (1) Keep dual-write to note + columns, (2) Columns only + one-time SQL strip, (3) Note only
+- Rationale: Cleaner vendor/admin display; avoids corrupting purpose notes; migration backfills empty columns from legacy JSON
+- Impact: `bookingApprovalMeta.ts`, all create paths via `buildBookingApprovalFields`, `approveBookingStep`; apply `20260527000001_strip_booking_approval_purpose_note.sql`
+- Owner: Project team
+- Date: 2026-05-27
+- Decision: Corporate announcements use `db.notifications.broadcastSystem` with L3-only publish UI
+- Context: Replaced mock Sarah Jenkins roster; publish tab gated to `l3_admin` / `mogzu_admin`
+- Rationale: Real in-app notifications for all recipients; email `queued` per prefs or `forceEmail` on high priority; drain via edge function + cron
+- Impact: `corporateAnnouncementBroadcast.ts`, `CorporateNotificationsPage.tsx`, `db.ts` `broadcastSystem`, `supabase/functions/server/index.tsx` `drain-notification-emails`
+- Owner: Project team
+- Date: 2026-05-24
+- Decision: Lead operations consolidated at `/admin/leads` with hub tabs (inbox | pipeline | Quick Share)
+- Context: Replaced scattered `/sales/pipeline` and `/admin/quick-share` as primary nav targets (redirects into hub)
+- Rationale: Single ops surface for assignment, triage, pipeline, catalogue handoff
+- Impact: `LeadOperationsHub.tsx`, `leadAssignees.ts`, `leadOpsNavigation.ts`, migrations `20260525000001_*`
+- Owner: Project team
 - Date: 2026-05-17
 - Decision: Centralize post-login routing and profile bootstrap in auth layer; default signed-in corporate users to `/dashboard`
 - Context: Login, welcome, and dashboard formed redirect loops when `user_profiles` was missing or `role` was null; duplicate `VendorSupportPage` import broke Vite build; Supabase placeholder `.env` caused "Failed to fetch"
@@ -54,6 +92,17 @@ Template:
 Use this for significant implementation updates.
 
 Latest entries:
+- Date: 2026-05-27
+- Summary: Post-plan Batches 52–59 — Lead bulk assign; pipeline kanban DnD; saved views (localStorage); approval columns-only + purpose_note migration; corporate notifications (publish, filters, realtime, email drain edge route).
+- Files changed: `LeadBulkAssignBar.tsx`, `LeadPipelineKanban.tsx`, `leadSavedViews.ts`, `LeadSavedViewsBar.tsx`, `bookingApprovalMeta.ts`, `corporateAnnouncementBroadcast.ts`, `corporateNotificationInboxFilters.ts`, `CorporateNotificationsPage.tsx`, `supabase/functions/server/index.tsx`, migrations `20260527000001_*`, `AdminLeadsPage.tsx`, `SalesPipelinePage.tsx`, `FIXES.md`, `FRONTEND_COMPLETION_PLAN.md`
+- Verification performed: `npm run build` exit 0 after each batch
+- Risks / notes: Email drain requires deployed edge function + `CRON_SECRET`; N8N schedule still manual. Uncommitted diff.
+- Owner: Project team
+- Date: 2026-05-24
+- Summary: Post-plan Batches 45–51 — Corporate approval workflow on booking review; multi-step chain in DB columns + `approveBookingStep`; `BookingPayment` / classic flows wired; `BookingDetailPage` chain banner.
+- Files changed: `approvalWorkflow.ts`, `bookingApprovalMeta.ts`, `CorporateApprovalsPage.tsx`, `CorporateApprovalDetailPage.tsx`, `BookingPayment.tsx`, `submitBookingDraftToSupabase.ts`, `createClassicCheckoutBooking.ts`, `20260526000001_booking_approval_levels.sql`
+- Verification performed: `npm run build` exit 0
+- Owner: Project team
 - Date: 2026-05-24
 - Summary: Post-plan Batch 38 — Lead operations hub at `/admin/leads` (Inbox | Pipeline | Quick Share tabs). Fixed unassigned assignment (always-visible picker, demo patch, `listLeadAssigneesForPicker` + migration `20260525000001`). Sidebar consolidated to one **Lead operations** link; `/sales/pipeline` and `/admin/quick-share` redirect into hub.
 - Files changed: `LeadOperationsHub.tsx`, `LeadDetailDrawer.tsx`, `AdminLeadsPage.tsx`, `SalesPipelinePage.tsx`, `AdminQuickSharePage.tsx`, `leadAssignees.ts`, `leadOpsNavigation.ts`, `routes.tsx`, `AdminLayout.tsx`, migrations `20260525000001_*`
@@ -381,6 +430,30 @@ Template:
 Use this for actionable next steps.
 
 Open items:
+- [ ] Task: Schedule N8N (or cron) to POST `.../drain-notification-emails` with `Authorization: Bearer $CRON_SECRET`
+  - Priority: High
+  - Context: Batch 58 added edge route; queued notification emails otherwise never send
+  - Owner: Project team
+- [ ] Task: Apply Supabase migrations `20260526000001`, `20260527000001`, lead assignee migrations if not applied
+  - Priority: High
+  - Context: Approval columns + purpose_note cleanup + lead assignee picker
+  - Owner: Project team
+- [ ] Task: Commit or PR batches 23–59 workspace diff after smoke test
+  - Priority: High
+  - Context: Large uncommitted frontend sweep; plan marks batches complete but git history lags
+  - Owner: Project team
+- [ ] Task: Browser-verify `(verify)` rows in `FRONTEND_COMPLETION_PLAN.md` Section 2
+  - Priority: Medium
+  - Context: Plan honesty flag — not all ✅ rows visually confirmed
+  - Owner: Project team
+- [ ] Task: Wire live Razorpay checkout + webhook (replace manual UTR on `/bookings/:id/pay`)
+  - Priority: High
+  - Context: Sprint 5/7 infra-blocked item; still affects production payments
+  - Owner: Project team
+- [ ] Task: Import/run remaining N8N workflows (vendor SLA, budget alert, celebration cron, spend report email)
+  - Priority: Medium
+  - Context: JSON exists under `n8n-workflows/`; not connected to prod
+  - Owner: Project team
 - [ ] Task: Add Supabase Auth redirect URLs for all local dev ports in use (5173–5177) and align Site URL with active `npm run dev` port
   - Priority: High
   - Context: Email verification and OAuth break when link port ≠ running Vite server
