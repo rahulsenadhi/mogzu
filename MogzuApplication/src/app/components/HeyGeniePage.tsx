@@ -61,13 +61,10 @@ export default function HeyGeniePage() {
                 : 'Hey Genie is not enabled for your organisation yet.'}
             </p>
             {isEnabled ? (
-              <button
-                type="button"
-                onClick={() => navigate('/dashboard')}
-                className="mt-3 rounded-lg bg-[#9B51E0] px-4 py-2 text-sm font-semibold text-white hover:bg-[#7a3db4]"
-              >
-                Open dashboard assistant
-              </button>
+              <p className="mt-2 text-xs opacity-90">
+                Open the <strong>Hey Genie</strong> chat from the sparkle button on your dashboard header
+                (bottom-right on mobile).
+              </p>
             ) : (
               <p className="mt-2 text-xs opacity-90">
                 Ask your Mogzu admin to enable Hey Genie under Admin → Settings → Hey Genie.
@@ -86,6 +83,17 @@ export default function HeyGeniePage() {
         <div className="prose prose-lg max-w-4xl text-gray-600 mb-16">
           <p className="text-xl leading-relaxed">
             Hey Genie is an always-on, intelligent concierge service designed for complex corporate requests. Whether it&apos;s securing a last-minute VIP dinner reservation or organizing a bespoke experience for your top performers, Genie makes it happen.
+          </p>
+          <p className="text-base leading-relaxed mt-4">
+            Need a structured handoff instead? Use{' '}
+            <button
+              type="button"
+              onClick={() => navigate('/assistance')}
+              className="font-semibold text-[#9B51E0] underline hover:text-[#7a3db4]"
+            >
+              Mogzu Assistant
+            </button>{' '}
+            for the step-by-step request form (RFP, gifting, space, events).
           </p>
         </div>
 

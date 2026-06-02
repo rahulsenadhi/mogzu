@@ -130,6 +130,7 @@ export function SharedSidebar({
     
     const path = location.pathname;
     if (path === '/dashboard') return 'dashboard';
+    if (path.startsWith('/assistance')) return 'dashboard';
     if (
       path.startsWith('/activitysuite') ||
       path.startsWith('/activities') ||

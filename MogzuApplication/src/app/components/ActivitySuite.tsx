@@ -291,7 +291,7 @@ export default function ActivitySuite() {
     { label: 'Create event requirement', path: '/events' },
     { label: 'Start gifting campaign', path: '/gifting' },
     { label: 'Check venue availability', path: '/spacex' },
-    { label: 'Ask Mogzu Assistant', path: '/heygenie' },
+    { label: 'Ask Mogzu Assistant', path: '/assistance' },
     { label: 'View pending approvals', path: '/corporate/approvals' },
     { label: 'View recent bookings', path: '/bookings' },
   ]
@@ -741,7 +741,7 @@ export default function ActivitySuite() {
               <button
                 type="button"
                 className="h-12 min-h-[44px] w-full rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-left hover:bg-blue-100/60 transition-colors"
-                onClick={() => navigate('/heygenie')}
+                onClick={() => navigate('/assistance')}
               >
                 <div className="flex items-center gap-3">
                   <Sparkles className="size-5 text-[#2563eb]" />
@@ -750,7 +750,7 @@ export default function ActivitySuite() {
                       Ask Mogzu Assistant anything
                     </p>
                     <p className="text-xs text-slate-600">
-                      Search, get help, and take guided actions instantly.
+                      Submit a guided request — RFP, gifting, space, events, and more.
                     </p>
                   </div>
                 </div>

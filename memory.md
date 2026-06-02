@@ -8,7 +8,7 @@ Purpose: durable project memory for decisions, changes, incidents, and next acti
 - Keep entries short and factual
 - Link to files, PRs, issues, or commits when available
 
-## Project Status Snapshot (2026-05-27)
+## Project Status Snapshot (2026-06-02)
 
 **PRD / frontend completion:** **Not 100% done.** `FRONTEND_COMPLETION_PLAN.md` Section 2 routes are largely ✅ through **post-plan Batch 59** (batches 23–59 on top of original 15 plan batches). Phase 1–3 core journeys are substantially shipped; Phase 4/5 remain mixed (stubs + verify).
 
@@ -31,6 +31,13 @@ Purpose: durable project memory for decisions, changes, incidents, and next acti
 Use this for important technical decisions.
 
 Latest entries:
+- Date: 2026-06-02
+- Decision: Keep Mogzu Assistant as dedicated `/assistance` flow; keep Hey Genie separate at `/heygenie`
+- Context: `/assistance` had been redirected to `/heygenie`, which bounced users into dashboard assistant context and blurred product boundaries
+- Options considered: (1) Keep redirect `/assistance` → `/heygenie`, (2) Restore dedicated form route and separate Hey Genie chat/info entry, (3) Merge both into Activity Suite only
+- Rationale: Preserves existing corporate handoff wizard expectations while retaining optional Hey Genie chat entry points
+- Impact: `routes.tsx` now maps `/assistance` to `MogzuAssistancePage`; `ActivitySuite.tsx` CTAs route to `/assistance`; `HeyGeniePage.tsx` copy clarifies split and links to `/assistance`; `SharedSidebar.tsx` active-nav logic updated for `/assistance`; `FRONTEND_COMPLETION_PLAN.md` row updated
+- Owner: Project team
 - Date: 2026-05-27
 - Decision: Booking approval chain lives in `bookings.required_approval_levels` / `approved_approval_levels`; `purpose_note` is user-facing text only
 - Context: Batch 55+ stopped embedding `---mogzu-approval---` JSON in `purpose_note`; `getBookingApprovalMeta` reads columns first, falls back to legacy note for old rows
@@ -92,6 +99,12 @@ Template:
 Use this for significant implementation updates.
 
 Latest entries:
+- Date: 2026-06-02
+- Summary: Assistant routing and UX consistency pass — restored dedicated Mogzu Assistant flow and removed cross-routing into Hey Genie/Activity Suite.
+- Files changed: `MogzuApplication/src/app/routes.tsx`, `MogzuApplication/src/app/components/ActivitySuite.tsx`, `MogzuApplication/src/app/components/HeyGeniePage.tsx`, `MogzuApplication/src/app/components/layouts/SharedSidebar.tsx`, `FRONTEND_COMPLETION_PLAN.md`
+- Verification performed: `npm run build` success (Vite production build)
+- Risks / notes: Full app-wide design/content glitch sweep remains pending (identified hotspots: `Dashboard.tsx`, `CommunicationPage.tsx`, `MogzuAssistancePage.tsx`, `HeyGeniePage.tsx` shell consistency)
+- Owner: Project team
 - Date: 2026-05-27
 - Summary: Post-plan Batches 52–59 — Lead bulk assign; pipeline kanban DnD; saved views (localStorage); approval columns-only + purpose_note migration; corporate notifications (publish, filters, realtime, email drain edge route).
 - Files changed: `LeadBulkAssignBar.tsx`, `LeadPipelineKanban.tsx`, `leadSavedViews.ts`, `LeadSavedViewsBar.tsx`, `bookingApprovalMeta.ts`, `corporateAnnouncementBroadcast.ts`, `corporateNotificationInboxFilters.ts`, `CorporateNotificationsPage.tsx`, `supabase/functions/server/index.tsx`, migrations `20260527000001_*`, `AdminLeadsPage.tsx`, `SalesPipelinePage.tsx`, `FIXES.md`, `FRONTEND_COMPLETION_PLAN.md`
@@ -430,6 +443,10 @@ Template:
 Use this for actionable next steps.
 
 Open items:
+- [ ] Task: Run focused UX/content glitch sweep for corporate shell consistency (Assistant/Hey Genie/Activity Suite + Communication + Dashboard copy)
+  - Priority: High
+  - Context: Routing split fixed, but broader visual/content inconsistencies remain across `Dashboard.tsx`, `CommunicationPage.tsx`, `MogzuAssistancePage.tsx`, `HeyGeniePage.tsx`
+  - Owner: Project team
 - [ ] Task: Schedule N8N (or cron) to POST `.../drain-notification-emails` with `Authorization: Bearer $CRON_SECRET`
   - Priority: High
   - Context: Batch 58 added edge route; queued notification emails otherwise never send

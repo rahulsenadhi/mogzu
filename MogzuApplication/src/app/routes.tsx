@@ -1207,7 +1207,7 @@ export const router = createBrowserRouter([
   },
   {
     path: "/assistance",
-    element: redirectTo("/heygenie"),
+    element: corp(<MogzuAssistancePage />),
     errorElement: <ErrorPage />,
   },
   {

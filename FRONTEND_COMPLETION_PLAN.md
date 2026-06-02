@@ -51,7 +51,7 @@ Per recent commits (`bca5c76`, `f57422e`, `f4877e7`, `9e77906`), runtime stubs f
 | Wishlist | `/wishlist` | ✅ | Sprint 16 P2 | P2 | Medium |
 | Compare | `/compare` | ✅ | Sprint 16 P2; needs heart-icon sprinkle across listing cards | P2 | Medium |
 | Reports | `/report` | ✅ | Redirects to `/corporate/spend-report`. Verified 2026-05-24 | P1 | Medium |
-| Mogzu Assistance | `/assistance` → `/heygenie` | ✅ redirect | — | — | Low |
+| Mogzu Assistance | `/assistance` | ✅ | — | — | Low |
 | Corporate transactions | `/corporate/transactions` | ✅ | Wallet + bookings + invoices from Supabase; demo fallback. Verified 2026-05-24 | P0 | High |
 | Corporate notifications | `/corporate/notifications` | ✅ | Sprint 9 P1 wired | P1 | Critical |
 | Approvals queue (L2) | `/corporate/approvals` | ✅ | Batch 48: pending-for-you filter, chain column, multi-step bulk approve | P0 | Critical |
