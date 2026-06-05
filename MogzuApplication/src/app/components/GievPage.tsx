@@ -118,7 +118,7 @@ export default function GievPage() {
           
           <h1 className="text-5xl md:text-6xl lg:text-[72px] font-bold text-[#0F172A] tracking-tight leading-[1.1] mb-6">
             Curated Gifts. <br/>
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-rose-500">Unforgettable Events.</span>
+            <span className="text-[#EE2A7B]">Unforgettable Events.</span>
           </h1>
           
           <p className="text-xl text-gray-500 font-medium max-w-2xl mx-auto mb-10 leading-relaxed">

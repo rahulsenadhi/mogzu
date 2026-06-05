@@ -1638,7 +1638,7 @@ export default function GiftingSpecialTabsPage() {
                   </button>
                 ))}
               </div>
-              <h4 className="mt-5 text-[14px] font-semibold text-[#0e1e3f] border-l-4 border-[#2563eb] pl-2">What's included</h4>
+              <h4 className="mt-5 inline-block text-[14px] font-semibold text-[#0e1e3f] border-b-2 border-[#2563eb] pb-1">What's included</h4>
               <div className="space-y-2 mt-2">
                 {comboById[comboDrawer].included_items.map((it, index) => (
                   <div key={it} className="h-10 flex items-center gap-2 text-[14px]">

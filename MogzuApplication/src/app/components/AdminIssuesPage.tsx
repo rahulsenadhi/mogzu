@@ -587,8 +587,8 @@ export default function AdminIssuesPage() {
                   onClick={() => handleSelect(issue.id)}
                   className={`w-full text-left rounded-xl border p-3 transition-colors ${
                     selectedId === issue.id
-                      ? 'border-slate-200 bg-blue-50/50 border-l-4 border-l-[#2563EB] pl-[9px]'
-                      : 'border-slate-100 bg-slate-50/40 hover:bg-slate-50 border-l-4 border-l-transparent'
+                      ? 'border-[#2563EB] bg-blue-50/50'
+                      : 'border-slate-100 bg-slate-50/40 hover:bg-slate-50'
                   }`}
                 >
                   <div className="flex items-start gap-3">

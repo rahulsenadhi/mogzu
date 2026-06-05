@@ -560,7 +560,7 @@ export default function ActivitySuite() {
                           handleModuleOpen(module, canNavigateModule)
                         }
                       }}
-                      className={`activitysuite-card-enter group relative flex min-h-[140px] h-full flex-col overflow-hidden rounded-[20px] border bg-gradient-to-br from-white to-[#f8fbff] transition-all [transition-timing-function:cubic-bezier(0.34,1.2,0.64,1)] duration-250 focus-within:ring-2 focus-within:ring-[#2563eb]/30 ${
+                      className={`activitysuite-card-enter group relative flex min-h-[140px] h-full flex-col overflow-hidden rounded-[20px] border bg-gradient-to-br from-white to-[#f8fbff] transition-all [transition-timing-function:cubic-bezier(0.25,1,0.5,1)] duration-250 focus-within:ring-2 focus-within:ring-[#2563eb]/30 ${
                         isActive
                           ? 'border-[1.5px] border-[color-mix(in_oklch,var(--color-primary)_60%,transparent)] shadow-[0_12px_30px_rgba(37,99,235,0.22)]'
                           : 'border-[#dbeafe]'

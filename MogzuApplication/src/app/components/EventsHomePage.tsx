@@ -41,7 +41,7 @@ type PlanningCard = { id: string; title: string; detail: string; route: string }
 function SectionHeading({ title, rightAction }: { title: string; rightAction?: ReactNode }) {
   return (
     <div className={`mb-3 flex items-center gap-3 ${rightAction ? 'justify-between' : ''}`}>
-      <h2 className="border-l-4 border-[#2563eb] pl-3 text-[16px] font-semibold text-slate-800">
+      <h2 className="inline-block border-b-2 border-[#2563eb] pb-1 text-[16px] font-semibold text-slate-800">
         {title}
       </h2>
       {rightAction}

@@ -45,7 +45,7 @@ function SectionHeading({
 }) {
   return (
     <div className={`flex items-center gap-3 mb-3 ${rightAction ? 'justify-between' : ''}`}>
-      <h2 className="text-[16px] font-semibold text-slate-800 border-l-4 border-[#2563eb] pl-3">
+      <h2 className="inline-block text-[16px] font-semibold text-slate-800 border-b-2 border-[#2563eb] pb-1">
         {title}
       </h2>
       {rightAction}

@@ -36,7 +36,7 @@ export function HeyGenieLauncher() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 z-50 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/30 transition hover:shadow-xl"
+        className="fixed bottom-6 right-6 z-50 inline-flex items-center gap-2 rounded-full bg-[#9B51E0] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-[#9B51E0]/30 transition hover:shadow-xl"
         aria-label="Open Hey Genie assistant"
       >
         <Sparkles className="size-4" />

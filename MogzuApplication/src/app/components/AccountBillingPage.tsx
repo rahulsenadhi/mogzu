@@ -281,7 +281,7 @@ export default function AccountBillingPage() {
           </div>
 
           <section>
-            <h2 className="mb-3 text-[16px] font-semibold text-[#0e1e3f] border-l-4 border-[#2563eb] pl-3">
+            <h2 className="mb-3 inline-block text-[16px] font-semibold text-[#0e1e3f] border-b-2 border-[#2563eb] pb-1">
               Upgrade plan
             </h2>
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
