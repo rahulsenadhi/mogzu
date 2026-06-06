@@ -118,7 +118,7 @@ export default function CancelBookingPage() {
 
     const { data: vendor } = await db.vendors.getById(booking.vendor_id)
     if (vendor?.user_id) {
-      db.notifications.notify({
+      await db.notifications.notify({
         userId: vendor.user_id,
         type: 'booking_cancelled',
         title: 'Booking cancelled by booker',

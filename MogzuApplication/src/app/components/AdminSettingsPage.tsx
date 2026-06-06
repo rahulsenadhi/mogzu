@@ -189,6 +189,8 @@ export default function AdminSettingsPage() {
           CMS
         </Link>{' '}
         with slugs <code className="text-xs bg-slate-100 px-1 rounded">home</code>,{' '}
+        <code className="text-xs bg-slate-100 px-1 rounded">home-clients</code> (scroller headline),{' '}
+        <code className="text-xs bg-slate-100 px-1 rounded">client-*</code> (logo items),{' '}
         <code className="text-xs bg-slate-100 px-1 rounded">why-mogzu</code>, and{' '}
         <code className="text-xs bg-slate-100 px-1 rounded">vendor-benefits</code> to override
         public pages.

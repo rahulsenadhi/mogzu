@@ -8,6 +8,14 @@ Purpose: durable project memory for decisions, changes, incidents, and next acti
 - Keep entries short and factual
 - Link to files, PRs, issues, or commits when available
 
+## Project Status Snapshot (2026-06-05)
+
+**Landing:** Client logo scroller on `/` (below hero). CMS `client_logo` blocks + `home-clients` headline. **12 bundled SVG logos** in `MogzuApplication/public/client-logos/` (brand-styled wordmarks; replace with official PNG/SVG via CMS or drop files in same folder).
+
+**Clients:** ICICI Securities, Tesseract Apps, Design Democracy, Xdlinx Labs, NIFT, Chilis, Alpha Circle, Spoors, Factset, Tapadia Diagnostics, J&K Tourism, Adanet Next.
+
+**Apply in Supabase (if not yet):** `20260602000001_cms_client_logos.sql`, `20260605000001_cms_client_logo_urls.sql` (plus prior lead/approval migrations)
+
 ## Project Status Snapshot (2026-06-02)
 
 **PRD / frontend completion:** **Not 100% done.** `FRONTEND_COMPLETION_PLAN.md` Section 2 routes are largely ✅ through **post-plan Batch 59** (batches 23–59 on top of original 15 plan batches). Phase 1–3 core journeys are substantially shipped; Phase 4/5 remain mixed (stubs + verify).
@@ -31,6 +39,25 @@ Purpose: durable project memory for decisions, changes, incidents, and next acti
 Use this for important technical decisions.
 
 Latest entries:
+- Date: 2026-06-06
+- Summary: Public marketing layer (`/about`, `/services`) + centralised copy + WhatsApp enquiry; PRD/glitch audit pass fixed 5 real bugs.
+- Files changed: `AboutPage.tsx`, `ServicesPage.tsx`, `app/components/marketing/*`, `app/lib/marketingContent.ts`, `app/lib/whatsapp.ts`, `app/lib/landingNavigation.ts`, `routes.tsx`, `LandingPage.tsx`, `WhyMogzuPage.tsx`, `.env.example`; audit fixes in `ServiceEnquiryForm.tsx`, `CancelBookingPage.tsx`, `CommunicationPage.tsx`, `CelebrationBookingFlow.tsx`, `PromotionsPage.tsx`; migrations `20260605000002`–`000006`.
+- Verification performed: `npm run build` exit 0.
+- Risks / notes: Audit Explore agents over-reported ~70% (most "glitches" were false-positives or intentional demo fallbacks); only 5 confirmed bugs patched. Set `VITE_MOGZU_WHATSAPP` env for WhatsApp button. Apply migrations 002-006.
+- Owner: Project team
+- Date: 2026-06-05
+- Decision: Client logo images resolve CMS `image_url` first, then bundled `/client-logos/{slug}.svg` fallback
+- Context: External logo APIs (Clearbit) unreachable in dev; user needed visible logos immediately, not plain-text wordmarks in scroller tiles
+- Options considered: (1) CMS URL only, (2) External logo CDN, (3) Bundled public assets + CMS override
+- Rationale: Bundled SVGs work offline and in dev without Supabase; CMS still wins when admin pastes official asset URL
+- Impact: `clientLogoAssets.ts`, `public/client-logos/*.svg`, `resolveClientLogoUrl()`, migration `20260605000001_*`
+- Owner: Project team
+- Date: 2026-06-05
+- Decision: Landing client logos are CMS `client_logo` blocks (one row per company); section headline slug `home-clients`
+- Context: Marketing needed social-proof scroller with 12 named clients
+- Rationale: Reuses existing `cms_blocks` pattern; no new tables; `display_order` controls scroll sequence
+- Impact: `ClientLogoScroller.tsx`, `marketingClients.ts`, migration `20260602000001_*`, `AdminCmsPage` client logos filter
+- Owner: Project team
 - Date: 2026-06-02
 - Decision: Keep Mogzu Assistant as dedicated `/assistance` flow; keep Hey Genie separate at `/heygenie`
 - Context: `/assistance` had been redirected to `/heygenie`, which bounced users into dashboard assistant context and blurred product boundaries
@@ -99,6 +126,18 @@ Template:
 Use this for significant implementation updates.
 
 Latest entries:
+- Date: 2026-06-05
+- Summary: Bundled client logo SVG assets — 12 files in `public/client-logos/`, slug fallback via `clientLogoAssets.ts`, CMS backfill migration.
+- Files changed: `public/client-logos/*.svg`, `clientLogoAssets.ts`, `marketingClients.ts`, `20260605000001_cms_client_logo_urls.sql`, `20260602000001_cms_client_logos.sql` (seed image_url), `FIXES.md`
+- Verification performed: `npm run build` exit 0; scroller shows `<img>` logos on `/`
+- Risks / notes: Bundled SVGs are brand-styled wordmarks, not necessarily official trademark assets — swap via `/admin/cms` Image URL or replace files in `public/client-logos/`
+- Owner: Project team
+- Date: 2026-06-05
+- Summary: Landing page client logo scroller — 12 seeded clients, CMS-managed, infinite marquee below hero, reduced-motion static grid.
+- Files changed: `ClientLogoScroller.tsx`, `marketingClients.ts`, `LandingPage.tsx`, `cms.ts`, `AdminCmsPage.tsx`, `AdminSettingsPage.tsx`, `20260602000001_cms_client_logos.sql`, `FIXES.md`
+- Verification performed: `npm run build` exit 0
+- Risks / notes: Apply both client-logo migrations on live Supabase for CMS-driven URLs.
+- Owner: Project team
 - Date: 2026-06-02
 - Summary: Assistant routing and UX consistency pass — restored dedicated Mogzu Assistant flow and removed cross-routing into Hey Genie/Activity Suite.
 - Files changed: `MogzuApplication/src/app/routes.tsx`, `MogzuApplication/src/app/components/ActivitySuite.tsx`, `MogzuApplication/src/app/components/HeyGeniePage.tsx`, `MogzuApplication/src/app/components/layouts/SharedSidebar.tsx`, `FRONTEND_COMPLETION_PLAN.md`
@@ -443,6 +482,14 @@ Template:
 Use this for actionable next steps.
 
 Open items:
+- [ ] Task: Replace bundled client SVG wordmarks with official logo PNG/SVG files (12 clients) when assets provided
+  - Priority: Medium
+  - Context: `public/client-logos/` or `/admin/cms` → Client logos → Image URL per row
+  - Owner: Project team
+- [ ] Task: Apply Supabase migrations `20260602000001`, `20260605000001` for client logo scroller
+  - Priority: High
+  - Context: CMS kind + seeded clients + image_url backfill
+  - Owner: Project team
 - [ ] Task: Run focused UX/content glitch sweep for corporate shell consistency (Assistant/Hey Genie/Activity Suite + Communication + Dashboard copy)
   - Priority: High
   - Context: Routing split fixed, but broader visual/content inconsistencies remain across `Dashboard.tsx`, `CommunicationPage.tsx`, `MogzuAssistancePage.tsx`, `HeyGeniePage.tsx`

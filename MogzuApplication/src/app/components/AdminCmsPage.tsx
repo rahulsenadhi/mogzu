@@ -243,6 +243,13 @@ export default function AdminCmsPage() {
           >
             All
           </button>
+          <button
+            type="button"
+            onClick={() => setFilterKind('client_logo')}
+            className={`rounded-full px-3 py-1 text-xs font-medium ${filterKind === 'client_logo' ? 'bg-indigo-600 text-white' : 'bg-white border border-indigo-200 text-indigo-700'}`}
+          >
+            Client logos
+          </button>
           {CMS_BLOCK_KINDS.map((k) => (
             <button
               key={k.value}
@@ -267,12 +274,26 @@ export default function AdminCmsPage() {
               {visible.map((b) => (
                 <li key={b.id} className="p-4">
                   <div className="flex flex-wrap items-start gap-4">
-                    {b.image_url && (
-                      <img
-                        src={b.image_url}
-                        alt=""
-                        className="h-16 w-24 flex-shrink-0 rounded-md border border-slate-200 bg-slate-50 object-cover"
-                      />
+                    {b.kind === 'client_logo' ? (
+                      b.image_url ? (
+                        <img
+                          src={b.image_url}
+                          alt=""
+                          className="h-16 w-24 flex-shrink-0 rounded-md border border-slate-200 bg-white object-contain p-1"
+                        />
+                      ) : (
+                        <div className="flex h-16 w-24 flex-shrink-0 items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 px-1 text-center text-[10px] font-semibold leading-tight text-slate-600">
+                          {b.title || 'Logo'}
+                        </div>
+                      )
+                    ) : (
+                      b.image_url && (
+                        <img
+                          src={b.image_url}
+                          alt=""
+                          className="h-16 w-24 flex-shrink-0 rounded-md border border-slate-200 bg-slate-50 object-cover"
+                        />
+                      )
                     )}
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
@@ -393,6 +414,30 @@ export default function AdminCmsPage() {
             </div>
 
             <div className="space-y-3">
+              {editor.kind === 'client_logo' && (
+                <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-900">
+                  <p className="font-semibold">Client logo scroller item</p>
+                  <ul className="mt-1 list-inside list-disc space-y-0.5">
+                    <li>
+                      <strong>Title</strong> — company name shown on the landing page
+                    </li>
+                    <li>
+                      <strong>Image URL</strong> — logo asset (PNG/SVG); leave empty for wordmark
+                    </li>
+                    <li>
+                      <strong>Display order</strong> — scroll sequence (lower = earlier)
+                    </li>
+                    <li>
+                      <strong>CTA link</strong> — optional company website
+                    </li>
+                  </ul>
+                  <p className="mt-2 text-indigo-800">
+                    Section headline: edit slug <code className="rounded bg-white px-1">home-clients</code>{' '}
+                    (kind: promo banner).
+                  </p>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <label className="block text-sm">
                   <span className="mb-1 block font-medium text-slate-700">Slug</span>

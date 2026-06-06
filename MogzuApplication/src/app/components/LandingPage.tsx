@@ -24,6 +24,17 @@ import {
 import { MogzuLogo } from '@/app/components/branding/MogzuLogo';
 import { submitLead } from '@/lib/publicLeads';
 import { useMarketingCms } from '@/app/lib/useMarketingCms';
+import { ClientLogoScroller } from '@/app/components/marketing/ClientLogoScroller';
+import { LandingMarketingNav } from '@/app/components/marketing/LandingMarketingNav';
+import { OfflineServicesSection } from '@/app/components/marketing/OfflineServicesSection';
+import { FloatingContactActions } from '@/app/components/marketing/FloatingContactActions';
+import {
+  DEFAULT_CLIENT_LOGOS,
+  listLiveClientLogos,
+  type ClientLogoItem,
+} from '@/app/lib/marketingClients';
+import { LANDING_COPY } from '@/app/lib/marketingContent';
+import { LANDING_LINKS, landingEnquiryPath } from '@/app/lib/landingNavigation';
 
 const IMAGES = {
   teamBuilding: "https://images.unsplash.com/photo-1770240090990-0653176ee415?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0ZWFtJTIwYnVpbGRpbmclMjBhY3Rpdml0eSUyMG91dGRvb3J8ZW58MXx8fHwxNzczODEwNzU0fDA&ixlib=rb-4.1.0&q=80&w=1080",
@@ -69,22 +80,42 @@ export default function LandingPage() {
   const [demoPhone, setDemoPhone] = useState('');
   const [demoError, setDemoError] = useState('');
   const { block: homeCms, fromCms: heroFromCms } = useMarketingCms('home');
+  const { block: clientsCms, fromCms: clientsFromCms } = useMarketingCms('home-clients');
+  const [clientLogos, setClientLogos] = useState<ClientLogoItem[]>(DEFAULT_CLIENT_LOGOS);
 
   useEffect(() => {
-    if (location.hash !== '#partner-with-mogzu') return;
-    const el = document.getElementById('partner-with-mogzu');
+    let cancelled = false;
+    void listLiveClientLogos().then(({ data }) => {
+      if (!cancelled && data.length > 0) setClientLogos(data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const hash = location.hash.replace('#', '')
+    if (!hash) return
+    const scrollTargets = ['partner-with-mogzu', 'services', 'service-enquiry', 'how-it-works', 'benefits']
+    if (!scrollTargets.includes(hash)) return
+    const el = document.getElementById(hash)
     if (el) {
       window.requestAnimationFrame(() => {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
     }
-  }, [location.hash, location.pathname]);
+  }, [location.hash, location.pathname, location.search])
 
-  const explorePathForTab = () => {
-    if (activeTab === 'gifting') return '/gifting-shop';
-    if (activeTab === 'experiences') return '/dashboard/activities';
-    return '/spacex';
-  };
+  const handleExplore = () => {
+    navigate(landingEnquiryPath(activeTab))
+  }
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    if (params.get('demo') === '1') {
+      setIsDemoModalOpen(true)
+    }
+  }, [location.search])
 
   const handleDemoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,9 +166,9 @@ export default function LandingPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <h3 className="text-2xl font-black text-black mb-3">You're on the list!</h3>
+                <h3 className="text-2xl font-black text-black mb-3">{LANDING_COPY.demoModal.successTitle}</h3>
                 <p className="text-base font-bold text-gray-600 mb-6">
-                  Our team will contact you shortly to schedule your personalized demo and set up your portal access.
+                  {LANDING_COPY.demoModal.successBody}
                 </p>
                 <button 
                   onClick={() => {
@@ -152,9 +183,9 @@ export default function LandingPage() {
             ) : (
               <>
                 <div className="mb-6">
-                  <h3 className="text-2xl sm:text-3xl font-black text-black mb-2 leading-tight">Book a Demo</h3>
+                  <h3 className="text-2xl sm:text-3xl font-black text-black mb-2 leading-tight">{LANDING_COPY.demoModal.title}</h3>
                   <p className="text-base font-bold text-gray-600">
-                    See how Mogzu can streamline your corporate operations.
+                    {LANDING_COPY.demoModal.subtitle}
                   </p>
                 </div>
                 
@@ -293,64 +324,7 @@ export default function LandingPage() {
         }
       `}</style>
 
-      {/* Navigation Bar */}
-      <nav className="fixed w-full bg-[#FFFDF9]/95 backdrop-blur-xl z-50 border-b-3 border-black transition-all duration-300">
-        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-24">
-            {/* Logo */}
-            <div className="flex-shrink-0 flex items-center">
-              <Link to="/">
-                <MogzuLogo className="h-14 w-auto max-w-[min(100%,280px)]" />
-              </Link>
-            </div>
-            
-            {/* Center Links */}
-            <div className="hidden lg:flex items-center space-x-6 xl:space-x-8">
-              {[
-                { label: 'How it Works', path: '#how-it-works', color: 'hover:text-[#15D39D]' },
-                { label: 'About Mogzu', path: '/about', color: 'hover:text-[#9B51E0]' },
-                { label: 'Partner benefits', path: '/vendor-benefits', color: 'hover:text-[#15D39D]' },
-              ].map((link) => (
-                <Link key={link.label} to={link.path} className={`text-[#0e1e3f] ${link.color} text-base xl:text-lg font-black tracking-tight transition-colors whitespace-nowrap`}>
-                  {link.label}
-                </Link>
-              ))}
-            </div>
-
-            {/* Right: Benefits + Why Mogzu + login + demo (theme-aligned hovers) */}
-            <div className="flex items-center gap-2 sm:gap-3 md:gap-4 lg:gap-6 shrink-0">
-              <Link
-                to="#benefits"
-                className="text-[#0e1e3f] hover:text-[#EE2A7B] text-sm sm:text-lg font-black tracking-tight transition-colors whitespace-nowrap"
-              >
-                Benefits
-              </Link>
-              <Link
-                to="/why-mogzu"
-                className="text-[#0e1e3f] hover:text-[#FF5E00] text-sm sm:text-lg font-black tracking-tight transition-colors whitespace-nowrap"
-              >
-                Why Mogzu
-              </Link>
-              <Link 
-                to="/login" 
-                className="text-[#0e1e3f] hover:text-[#9B51E0] text-sm sm:text-lg font-black tracking-tight transition-colors hidden sm:block"
-              >
-                Log In
-              </Link>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  setIsDemoModalOpen(true);
-                }}
-                className="btn-chunky inline-flex items-center justify-center px-4 py-2.5 sm:px-8 sm:py-3.5 text-sm sm:text-lg font-black rounded-xl text-black bg-[#FFD100] whitespace-nowrap"
-              >
-                Book a Demo
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <LandingMarketingNav onBookDemo={() => setIsDemoModalOpen(true)} />
 
       {/* Hero Section (Search & Book Centric) */}
       <section className="relative pt-40 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
@@ -370,26 +344,32 @@ export default function LandingPage() {
           
           <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white border-3 border-black shadow-[4px_4px_0_0_#EE2A7B] text-[#0e1e3f] text-sm font-black tracking-wide uppercase mb-10">
             <Sparkles className="w-5 h-5 text-[#EE2A7B]" />
-            The Corporate OS
+            {LANDING_COPY.hero.badge}
           </div>
           
           {heroFromCms && homeCms?.title ? (
-            <h1 className="text-5xl md:text-7xl lg:text-8xl font-black text-[#0e1e3f] tracking-tighter leading-[1.05] mb-8 drop-shadow-sm">
+            <h1 className="text-5xl md:text-7xl lg:text-8xl font-black text-[#0e1e3f] tracking-tighter leading-[1.05] mb-8 drop-shadow-sm text-balance">
               {homeCms.title}
             </h1>
           ) : (
-            <h1 className="text-6xl md:text-[80px] lg:text-[96px] font-black text-[#0e1e3f] tracking-tighter leading-[1] mb-8 drop-shadow-sm">
-              Book your next <br/>
-              <span className="inline-block px-4 bg-[#FFD100] border-3 border-black shadow-[6px_6px_0_0_#111827] transform -rotate-2 mt-2">Offsite</span>
-              <span className="mx-4 text-transparent bg-clip-text bg-gradient-to-r from-[#EE2A7B] to-[#FF5E00]">&</span>
-              <span className="inline-block px-4 bg-[#15D39D] border-3 border-black shadow-[6px_6px_0_0_#111827] transform rotate-2 mt-2">Gifting</span>
+            <h1 className="text-5xl md:text-7xl lg:text-[5.5rem] font-black text-[#0e1e3f] tracking-tighter leading-[1.05] mb-8 drop-shadow-sm text-balance">
+              {LANDING_COPY.hero.titleParts.line1}{' '}
+              <span className="inline-block px-4 bg-[#FFD100] border-3 border-black shadow-[6px_6px_0_0_#111827] transform -rotate-2 mt-2">
+                {LANDING_COPY.hero.titleParts.highlight1}
+              </span>{' '}
+              {LANDING_COPY.hero.titleParts.connector}{' '}
+              <span className="inline-block px-4 bg-[#15D39D] border-3 border-black shadow-[6px_6px_0_0_#111827] transform rotate-2 mt-2">
+                {LANDING_COPY.hero.titleParts.highlight2}
+              </span>
+              <br />
+              {LANDING_COPY.hero.titleParts.line2}
             </h1>
           )}
           
-          <p className="text-2xl md:text-3xl text-gray-700 font-bold max-w-3xl mx-auto mb-16 leading-relaxed">
+          <p className="text-xl md:text-2xl text-gray-800 font-bold max-w-3xl mx-auto mb-12 leading-relaxed">
             {heroFromCms && homeCms?.body
               ? homeCms.body
-              : 'Discover verified corporate venues, premium gifts, and team-building experiences—all with one unified invoice.'}
+              : LANDING_COPY.hero.subtitle}
           </p>
 
           {/* Unified Search/Booking Bar */}
@@ -404,6 +384,7 @@ export default function LandingPage() {
                 <button
                   key={tab.id}
                   type="button"
+                  aria-pressed={activeTab === tab.id}
                   onClick={() => setActiveTab(tab.id as 'venues' | 'gifting' | 'experiences')}
                   className={`flex items-center gap-2 px-6 py-3 rounded-xl font-black text-lg transition-all border-3 ${activeTab === tab.id ? 'border-black bg-black text-white' : 'border-transparent text-gray-500 hover:bg-gray-100'}`}
                 >
@@ -417,8 +398,9 @@ export default function LandingPage() {
             <div className="flex flex-col md:flex-row gap-4 p-2">
               <div className="flex-1 relative">
                 <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-6 h-6 text-gray-400" />
-                <input 
-                  type="text" 
+                <input
+                  type="text"
+                  aria-label={activeTab === 'venues' ? 'Search venues by city or destination' : activeTab === 'gifting' ? 'Search corporate gifting' : 'Search team experiences'}
                   placeholder={activeTab === 'venues' ? 'Search city or destination...' : activeTab === 'gifting' ? 'Search swag, hampers...' : 'Search activities...'}
                   className="w-full h-16 pl-14 pr-6 rounded-xl input-chunky text-xl font-bold placeholder:text-gray-400"
                 />
@@ -427,7 +409,7 @@ export default function LandingPage() {
               {activeTab === 'venues' && (
                 <div className="w-full md:w-64 relative">
                   <Users className="absolute left-5 top-1/2 -translate-y-1/2 w-6 h-6 text-gray-400" />
-                  <select className="w-full h-16 pl-14 pr-6 rounded-xl input-chunky text-xl font-bold appearance-none bg-white">
+                  <select aria-label="Team size" className="w-full h-16 pl-14 pr-6 rounded-xl input-chunky text-xl font-bold appearance-none bg-white">
                     <option>Team Size</option>
                     <option>10 - 50</option>
                     <option>50 - 200</option>
@@ -439,7 +421,7 @@ export default function LandingPage() {
 
               <button
                 type="button"
-                onClick={() => navigate(explorePathForTab())}
+                onClick={handleExplore}
                 className="h-16 px-10 rounded-xl bg-[#FF5E00] text-white font-black text-xl border-3 border-black btn-chunky flex-shrink-0 flex items-center justify-center gap-2"
               >
                 <Search className="w-6 h-6" />
@@ -447,28 +429,53 @@ export default function LandingPage() {
               </button>
             </div>
           </div>
+
+          <p className="mt-8 text-base font-bold text-gray-700">
+            {LANDING_COPY.hero.bridgeLabel}{' '}
+            <Link
+              to="/#service-enquiry"
+              className="font-black text-[#0e1e3f] underline decoration-[#15D39D] decoration-2 underline-offset-4 hover:text-[#15D39D]"
+            >
+              {LANDING_COPY.hero.bridgeCta}
+            </Link>
+          </p>
         </div>
       </section>
 
+      <ClientLogoScroller
+        clients={clientLogos}
+        title={
+          clientsFromCms && clientsCms?.title
+            ? clientsCms.title
+            : 'Trusted by leading corporates'
+        }
+        subtitle={
+          clientsFromCms && clientsCms?.body
+            ? clientsCms.body
+            : 'Corporates across finance, IT, pharma, design, hospitality, education, and tourism plan and execute on Mogzu.'
+        }
+      />
+
       {/* Core Platform Modules (Routing Category Cards) */}
-      <section className="py-24 bg-[#111827] relative">
+      <section id="benefits" className="py-24 bg-[#111827] relative scroll-mt-28">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-end mb-16">
             <div>
-              <h2 className="text-5xl md:text-6xl font-black text-white tracking-tighter mb-4">The Operating System.</h2>
-              <p className="text-2xl text-gray-400 font-bold">Pick your module to start executing.</p>
+              <h2 className="text-5xl md:text-6xl font-black text-white tracking-tighter mb-4">{LANDING_COPY.modules.title}</h2>
+              <p className="text-2xl text-gray-400 font-bold">{LANDING_COPY.modules.subtitle}</p>
             </div>
           </div>
 
           <div className="grid lg:grid-cols-3 gap-8">
             {/* GiEv Routing Card */}
-            <Link to="/giev" className="card-chunky bg-[#EE2A7B] rounded-[2.5rem] p-10 flex flex-col h-[480px] group relative overflow-hidden block text-black">
+            <Link to={LANDING_LINKS.giftingEnquiry} className="card-chunky bg-[#EE2A7B] rounded-[2.5rem] p-10 flex flex-col min-h-[480px] group relative overflow-hidden block text-black">
               <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-20 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700" />
               <div className="w-20 h-20 bg-white border-3 border-black rounded-2xl flex items-center justify-center mb-8 shadow-[4px_4px_0_0_#111827] group-hover:-translate-y-2 transition-transform duration-300">
                 <Gift className="w-10 h-10 text-[#EE2A7B]" />
               </div>
               <h3 className="text-4xl font-black mb-4 tracking-tight">GiEv</h3>
-              <p className="text-xl font-bold mb-auto leading-relaxed opacity-90">Corporate Gifting & Event Management. Everything from bespoke hampers to massive end-of-year offsites.</p>
+              <p className="text-lg font-black text-[#EE2A7B] mb-2">{LANDING_COPY.modules.cards.giev.tagline}</p>
+              <p className="text-xl font-bold mb-auto leading-relaxed opacity-90">{LANDING_COPY.modules.cards.giev.body}</p>
               <div className="mt-8 flex items-center gap-4">
                 <span className="text-2xl font-black bg-white px-6 py-3 rounded-full border-3 border-black shadow-[4px_4px_0_0_#111827] group-hover:bg-black group-hover:text-white transition-colors">
                   Explore GiEv <ArrowRight className="inline ml-2" />
@@ -477,13 +484,14 @@ export default function LandingPage() {
             </Link>
 
             {/* D Space Routing Card */}
-            <Link to="/dspace" className="card-chunky bg-[#15D39D] rounded-[2.5rem] p-10 flex flex-col h-[480px] group relative overflow-hidden block text-black">
+            <Link to={LANDING_LINKS.dspaceEnquiry} className="card-chunky bg-[#15D39D] rounded-[2.5rem] p-10 flex flex-col min-h-[480px] group relative overflow-hidden block text-black">
               <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-20 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700" />
               <div className="w-20 h-20 bg-white border-3 border-black rounded-2xl flex items-center justify-center mb-8 shadow-[4px_4px_0_0_#111827] group-hover:-translate-y-2 transition-transform duration-300">
                 <Building2 className="w-10 h-10 text-[#15D39D]" />
               </div>
               <h3 className="text-4xl font-black mb-4 tracking-tight">D Space</h3>
-              <p className="text-xl font-bold mb-auto leading-relaxed opacity-90">Dynamic Workspace & Venue Booking. Secure co-working spaces and premium meeting rooms instantly.</p>
+              <p className="text-lg font-black text-[#0e1e3f] mb-2">{LANDING_COPY.modules.cards.dspace.tagline}</p>
+              <p className="text-xl font-bold mb-auto leading-relaxed opacity-90">{LANDING_COPY.modules.cards.dspace.body}</p>
               <div className="mt-8 flex items-center gap-4">
                 <span className="text-2xl font-black bg-white px-6 py-3 rounded-full border-3 border-black shadow-[4px_4px_0_0_#111827] group-hover:bg-black group-hover:text-white transition-colors">
                   Explore D Space <ArrowRight className="inline ml-2" />
@@ -492,13 +500,14 @@ export default function LandingPage() {
             </Link>
 
             {/* Hey Genie Routing Card */}
-            <Link to="/heygenie" className="card-chunky bg-[#9B51E0] rounded-[2.5rem] p-10 flex flex-col h-[480px] group relative overflow-hidden block text-white">
+            <Link to={LANDING_LINKS.heyGenieEnquiry} className="card-chunky bg-[#9B51E0] rounded-[2.5rem] p-10 flex flex-col min-h-[480px] group relative overflow-hidden block text-white">
               <div className="absolute top-0 right-0 w-64 h-64 bg-black opacity-20 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700" />
               <div className="w-20 h-20 bg-white border-3 border-black rounded-2xl flex items-center justify-center mb-8 shadow-[4px_4px_0_0_#111827] group-hover:-translate-y-2 transition-transform duration-300">
                 <Sparkles className="w-10 h-10 text-[#9B51E0]" />
               </div>
               <h3 className="text-4xl font-black mb-4 tracking-tight text-white">Hey Genie</h3>
-              <p className="text-xl font-bold mb-auto leading-relaxed text-gray-100">Corporate Concierge & Custom Requests. Get VIP experiences and complex logistics handled magically.</p>
+              <p className="text-lg font-black text-[#FFD100] mb-2">{LANDING_COPY.modules.cards.heygenie.tagline}</p>
+              <p className="text-xl font-bold mb-auto leading-relaxed text-gray-100">{LANDING_COPY.modules.cards.heygenie.body}</p>
               <div className="mt-8 flex items-center gap-4">
                 <span className="text-2xl font-black bg-[#FFD100] text-black px-6 py-3 rounded-full border-3 border-black shadow-[4px_4px_0_0_#111827] group-hover:bg-white transition-colors">
                   Ask Genie <ArrowRight className="inline ml-2" />
@@ -514,21 +523,20 @@ export default function LandingPage() {
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between items-center mb-16 gap-6">
             <div>
-              <h2 className="text-5xl md:text-6xl font-black text-[#0e1e3f] tracking-tighter mb-4">Trending Top Picks.</h2>
-              <p className="text-2xl text-gray-500 font-bold">Highly-rated venues, offsites, and gift bundles.</p>
+              <h2 className="text-5xl md:text-6xl font-black text-[#0e1e3f] tracking-tighter mb-4">{LANDING_COPY.trending.title}</h2>
+              <p className="text-2xl text-gray-500 font-bold">{LANDING_COPY.trending.subtitle}</p>
             </div>
-            <button
-              type="button"
-              onClick={() => navigate('/spacex')}
+            <Link
+              to={LANDING_LINKS.services}
               className="btn-chunky bg-white px-8 py-4 rounded-xl text-xl font-black border-3 border-black flex items-center gap-2"
             >
               View All Offers <ArrowRight className="w-6 h-6" />
-            </button>
+            </Link>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             {/* Listing Card 1 */}
-            <div className="card-chunky bg-white rounded-3xl overflow-hidden group cursor-pointer flex flex-col">
+            <Link to={LANDING_LINKS.eventsEnquiry} className="card-chunky bg-white rounded-3xl overflow-hidden group cursor-pointer flex flex-col">
               <div className="h-64 overflow-hidden relative border-b-3 border-black">
                 <img src={IMAGES.resort} alt="Resort" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
                 <div className="absolute top-4 left-4 bg-white border-2 border-black px-3 py-1.5 rounded-lg text-sm font-black flex items-center gap-1">
@@ -557,10 +565,10 @@ export default function LandingPage() {
                   </div>
                 </div>
               </div>
-            </div>
+            </Link>
 
             {/* Listing Card 2 */}
-            <div className="card-chunky bg-white rounded-3xl overflow-hidden group cursor-pointer flex flex-col">
+            <Link to={LANDING_LINKS.heyGenieEnquiry} className="card-chunky bg-white rounded-3xl overflow-hidden group cursor-pointer flex flex-col">
               <div className="h-64 overflow-hidden relative border-b-3 border-black">
                 <img src={IMAGES.teamBuilding} alt="Team Building" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
                 <div className="absolute top-4 right-4 bg-[#9B51E0] text-white border-2 border-black px-3 py-1.5 rounded-lg text-sm font-black">
@@ -586,10 +594,10 @@ export default function LandingPage() {
                   </div>
                 </div>
               </div>
-            </div>
+            </Link>
 
             {/* Listing Card 3 */}
-            <div className="card-chunky bg-white rounded-3xl overflow-hidden group cursor-pointer flex flex-col">
+            <Link to={LANDING_LINKS.giftingEnquiry} className="card-chunky bg-white rounded-3xl overflow-hidden group cursor-pointer flex flex-col">
               <div className="h-64 overflow-hidden relative border-b-3 border-black bg-pink-50">
                 <img src={IMAGES.giftBox} alt="Gift Box" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 mix-blend-multiply" />
                 <div className="absolute top-4 right-4 bg-[#EE2A7B] text-white border-2 border-black px-3 py-1.5 rounded-lg text-sm font-black">
@@ -615,10 +623,10 @@ export default function LandingPage() {
                   </div>
                 </div>
               </div>
-            </div>
+            </Link>
 
             {/* Listing Card 4 */}
-            <div className="card-chunky bg-white rounded-3xl overflow-hidden group cursor-pointer flex flex-col">
+            <Link to={LANDING_LINKS.dspaceEnquiry} className="card-chunky bg-white rounded-3xl overflow-hidden group cursor-pointer flex flex-col">
               <div className="h-64 overflow-hidden relative border-b-3 border-black">
                 <img src={IMAGES.workspace} alt="Workspace" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
                 <div className="absolute top-4 right-4 bg-[#15D39D] border-2 border-black px-3 py-1.5 rounded-lg text-sm font-black">
@@ -644,18 +652,18 @@ export default function LandingPage() {
                   </div>
                 </div>
               </div>
-            </div>
+            </Link>
 
           </div>
         </div>
       </section>
 
       {/* How It Works */}
-      <section className="py-24 bg-[#FFD100] border-y-3 border-black">
+      <section id="how-it-works" className="py-24 bg-[#FFD100] border-y-3 border-black scroll-mt-28">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-20">
-            <h2 className="text-5xl md:text-7xl font-black text-[#111827] tracking-tighter">How Mogzu Works.</h2>
-            <p className="text-2xl text-gray-800 font-bold mt-4">Three steps to a flawless corporate event.</p>
+            <h2 className="text-5xl md:text-7xl font-black text-[#111827] tracking-tighter">{LANDING_COPY.howItWorks.title}</h2>
+            <p className="text-2xl text-gray-800 font-bold mt-4">{LANDING_COPY.howItWorks.subtitle}</p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-12 relative">
@@ -667,8 +675,8 @@ export default function LandingPage() {
               </div>
               <div className="bg-white border-3 border-black shadow-[8px_8px_0_0_#111827] rounded-3xl p-8 w-full h-full">
                 <span className="inline-block px-4 py-1 bg-black text-white rounded-full font-black text-lg mb-4">Step 1</span>
-                <h3 className="text-3xl font-black text-[#0e1e3f] mb-4">Discover & Plan</h3>
-                <p className="text-lg text-gray-600 font-bold">Use our intelligent routing platform to find the perfect venues, gifts, or experiences for your team's size and budget.</p>
+                <h3 className="text-3xl font-black text-[#0e1e3f] mb-4">{LANDING_COPY.howItWorks.steps[0].title}</h3>
+                <p className="text-lg text-gray-700 font-bold">{LANDING_COPY.howItWorks.steps[0].body}</p>
               </div>
             </div>
 
@@ -678,8 +686,8 @@ export default function LandingPage() {
               </div>
               <div className="bg-white border-3 border-black shadow-[8px_8px_0_0_#111827] rounded-3xl p-8 w-full h-full">
                 <span className="inline-block px-4 py-1 bg-black text-white rounded-full font-black text-lg mb-4">Step 2</span>
-                <h3 className="text-3xl font-black text-[#0e1e3f] mb-4">Unified Cart</h3>
-                <p className="text-lg text-gray-600 font-bold">Add catering, stay, gifts, and activities to a single cart. Check out instantly using L1/L2 approval workflows.</p>
+                <h3 className="text-3xl font-black text-[#0e1e3f] mb-4">{LANDING_COPY.howItWorks.steps[1].title}</h3>
+                <p className="text-lg text-gray-700 font-bold">{LANDING_COPY.howItWorks.steps[1].body}</p>
               </div>
             </div>
 
@@ -689,13 +697,16 @@ export default function LandingPage() {
               </div>
               <div className="bg-white border-3 border-black shadow-[8px_8px_0_0_#111827] rounded-3xl p-8 w-full h-full">
                 <span className="inline-block px-4 py-1 bg-black text-white rounded-full font-black text-lg mb-4">Step 3</span>
-                <h3 className="text-3xl font-black text-[#0e1e3f] mb-4">Flawless Execution</h3>
-                <p className="text-lg text-gray-600 font-bold">Mogzu handles all vendor coordination in the background. You receive exactly ONE consolidated GST invoice.</p>
+                <h3 className="text-3xl font-black text-[#0e1e3f] mb-4">{LANDING_COPY.howItWorks.steps[2].title}</h3>
+                <p className="text-lg text-gray-700 font-bold">{LANDING_COPY.howItWorks.steps[2].body}</p>
               </div>
             </div>
           </div>
         </div>
       </section>
+
+      <OfflineServicesSection id="services" showEnquiryForm />
+      <FloatingContactActions />
 
       {/* FAQ Section */}
       <section className="py-32 bg-[#FFFDF9]">
@@ -706,26 +717,14 @@ export default function LandingPage() {
           </div>
           
           <div className="space-y-6">
-            <FAQItem 
-              color="#EE2A7B"
-              question="How does the consolidated GST invoice work?" 
-              answer="Mogzu acts as your primary Vendor of Record. Instead of receiving dozens of invoices from caterers, venues, and artists, Mogzu collects them and issues you a single, perfectly formatted GST invoice for the entire event, ensuring 100% compliance and zero headache."
-            />
-            <FAQItem 
-              color="#FF5E00"
-              question="What modules are included in the Mogzu Platform?" 
-              answer="The core Mogzu OS includes GiEv (Gifting & Events), D Space (Dynamic Workspace & Venue Booking), and Hey Genie (Concierge & Custom Experiences). All modules share a unified budget and role hierarchy system."
-            />
-            <FAQItem 
-              color="#15D39D"
-              question="Is the pricing transparent for venues and vendors?" 
-              answer="Absolutely. We enforce a strict Vendor Passport System. What you see on the platform is the final negotiated corporate rate. There are no hidden fees, last-minute markups, or coordination surprises."
-            />
-            <FAQItem 
-              color="#9B51E0"
-              question="Is Mogzu suitable for fast-growing startups or only large enterprises?" 
-              answer="Mogzu scales with you. While we support complex L1/L2/L3 approval workflows for large enterprises, agile startups love our platform because it completely eliminates the need for a dedicated events coordination team."
-            />
+            {LANDING_COPY.faq.map((item) => (
+              <FAQItem
+                key={item.question}
+                color={item.color}
+                question={item.question}
+                answer={item.answer}
+              />
+            ))}
           </div>
         </div>
       </section>
@@ -738,18 +737,28 @@ export default function LandingPage() {
           </div>
         </div>
         <div className="max-w-[800px] mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <h2 className="text-6xl md:text-8xl font-black text-black tracking-tighter mb-8 leading-[0.9]">
-            Start Booking <br/> With Confidence.
+          <h2 className="text-5xl md:text-7xl font-black text-black tracking-tighter mb-6 leading-[0.95] text-balance">
+            {LANDING_COPY.cta.titleLine1}
+            <br />
+            {LANDING_COPY.cta.titleLine2}
           </h2>
-          <p className="text-2xl text-black font-bold mb-12">
-            Join thousands of teams executing flawless events every single day.
+          <p className="text-xl md:text-2xl text-black font-bold mb-10 max-w-2xl mx-auto">
+            {LANDING_COPY.cta.subtitle}
           </p>
-          <Link
-            to="/signup/corporate"
-            className="btn-chunky inline-flex items-center justify-center px-10 py-5 sm:px-12 sm:py-6 text-xl sm:text-2xl font-black rounded-2xl text-black bg-[#FFD100]"
-          >
-            Corporate signup
-          </Link>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <Link
+              to={LANDING_LINKS.signupCorporate}
+              className="btn-chunky inline-flex items-center justify-center px-10 py-5 sm:px-12 sm:py-6 text-xl sm:text-2xl font-black rounded-2xl text-black bg-[#FFD100]"
+            >
+              {LANDING_COPY.cta.primaryLabel}
+            </Link>
+            <Link
+              to={LANDING_LINKS.servicesEnquiry}
+              className="btn-chunky inline-flex items-center justify-center px-8 py-5 sm:px-10 sm:py-6 text-lg sm:text-xl font-black rounded-2xl text-white bg-[#0e1e3f]"
+            >
+              {LANDING_COPY.cta.secondaryLabel}
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -797,9 +806,9 @@ export default function LandingPage() {
                 {/* Modules */}
                 <div className="flex flex-col gap-5">
                   <h4 className="font-black text-black text-2xl mb-2">Modules</h4>
-                  <Link to="/giev" className="text-gray-600 hover:text-[#EE2A7B] font-bold transition-colors text-lg">GiEv</Link>
-                  <Link to="/dspace" className="text-gray-600 hover:text-[#15D39D] font-bold transition-colors text-lg">D Space</Link>
-                  <Link to="/heygenie" className="text-gray-600 hover:text-[#9B51E0] font-bold transition-colors text-lg">Hey Genie</Link>
+                  <Link to={LANDING_LINKS.gievMarketing} className="text-gray-600 hover:text-[#EE2A7B] font-bold transition-colors text-lg">GiEv</Link>
+                  <Link to={LANDING_LINKS.dspaceEnquiry} className="text-gray-600 hover:text-[#15D39D] font-bold transition-colors text-lg">D Space</Link>
+                  <Link to={LANDING_LINKS.heyGenieEnquiry} className="text-gray-600 hover:text-[#9B51E0] font-bold transition-colors text-lg">Hey Genie</Link>
                 </div>
 
                 {/* Company */}

@@ -379,7 +379,11 @@ export default function PromotionsPage() {
                     </p>
                     
                     {/* CTA Button */}
-                    <button className="inline-flex h-11 items-center gap-1.5 rounded-full bg-[linear-gradient(135deg,#2563eb,#3b82f6)] px-6 text-[14px] font-semibold text-white shadow-[0_10px_22px_rgba(37,99,235,0.28)] transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.98]">
+                    <button
+                      type="button"
+                      onClick={() => document.getElementById('promotions-offers')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                      className="inline-flex h-11 items-center gap-1.5 rounded-full bg-[linear-gradient(135deg,#2563eb,#3b82f6)] px-6 text-[14px] font-semibold text-white shadow-[0_10px_22px_rgba(37,99,235,0.28)] transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.98]"
+                    >
                       <span>View offer</span>
                     </button>
                   </div>
@@ -389,7 +393,7 @@ export default function PromotionsPage() {
           </div>
 
           {/* Category Pills */}
-          <div className="max-w-[1280px] mx-auto mb-5 px-6 py-1">
+          <div id="promotions-offers" className="max-w-[1280px] mx-auto mb-5 px-6 py-1 scroll-mt-24">
             <div className="flex items-center gap-2 overflow-x-auto overflow-y-visible whitespace-nowrap py-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               {(['All', 'Mall', 'Theatres', 'Retail', 'Ads', 'Social Media', 'OTT', 'Gated Community'] as const).map((category) => (
                 <button

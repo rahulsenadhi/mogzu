@@ -9,10 +9,15 @@ export default function WhyMogzuPage() {
   return (
     <div className="min-h-screen bg-white font-['Inter',_sans-serif] selection:bg-[#FFD100]/30 selection:text-[#0e1e3f]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <Link to="/" className="inline-flex items-center text-gray-500 hover:text-[#FFD100] font-bold mb-8 transition-colors">
-          <ArrowLeft className="w-5 h-5 mr-2" />
-          Back to Home
-        </Link>
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-10">
+          <Link to="/" className="inline-flex items-center text-gray-500 hover:text-[#FFD100] font-bold transition-colors">
+            <ArrowLeft className="w-5 h-5 mr-2" />
+            Back to Home
+          </Link>
+          <Link to="/services" className="inline-flex items-center text-[#0e1e3f] hover:text-[#15D39D] font-bold transition-colors">
+            Talk to our team →
+          </Link>
+        </div>
 
         <div className="mb-10">
           <Link to="/" className="inline-flex" aria-label="Mogzu home">

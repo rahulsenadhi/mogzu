@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 88" role="img" aria-label="Tapadia Diagnostic Centre">
+  <rect width="420" height="88" fill="#ffffff"/>
+
+  <!-- Emblem -->
+  <g transform="translate(8 8)">
+    <!-- quadrant fills -->
+    <path d="M36 4 A32 32 0 0 1 68 36 L52 36 A16 16 0 0 0 36 20 Z" fill="#E2231A"/>
+    <path d="M68 36 A32 32 0 0 1 36 68 L36 52 A16 16 0 0 0 52 36 Z" fill="#E2231A"/>
+    <path d="M36 68 A32 32 0 0 1 4 36 L20 36 A16 16 0 0 0 36 52 Z" fill="#003087"/>
+    <path d="M4 36 A32 32 0 0 1 36 4 L36 20 A16 16 0 0 0 20 36 Z" fill="#003087"/>
+
+    <!-- outer ring -->
+    <circle cx="36" cy="36" r="32" fill="none" stroke="#003087" stroke-width="1.5"/>
+
+    <!-- white cross -->
+    <rect x="31" y="16" width="10" height="40" fill="#ffffff"/>
+    <rect x="16" y="31" width="40" height="10" fill="#ffffff"/>
+
+    <!-- curved labels -->
+    <path id="arc-tr" d="M48 14 A26 26 0 0 1 62 30" fill="none"/>
+    <text font-family="Arial, Helvetica, sans-serif" font-size="5.5" font-weight="700" fill="#ffffff" letter-spacing="0.8">
+      <textPath href="#arc-tr" startOffset="8%">AFFORDABLE</textPath>
+    </text>
+    <path id="arc-br" d="M62 42 A26 26 0 0 1 48 58" fill="none"/>
+    <text font-family="Arial, Helvetica, sans-serif" font-size="5.5" font-weight="700" fill="#ffffff" letter-spacing="0.8">
+      <textPath href="#arc-br" startOffset="8%">RESPONSIBLE</textPath>
+    </text>
+    <path id="arc-bl" d="M24 58 A26 26 0 0 1 10 42" fill="none"/>
+    <text font-family="Arial, Helvetica, sans-serif" font-size="5.5" font-weight="700" fill="#ffffff" letter-spacing="0.8">
+      <textPath href="#arc-bl" startOffset="8%">ETHICAL</textPath>
+    </text>
+    <path id="arc-tl" d="M10 30 A26 26 0 0 1 24 14" fill="none"/>
+    <text font-family="Arial, Helvetica, sans-serif" font-size="5.5" font-weight="700" fill="#ffffff" letter-spacing="0.8">
+      <textPath href="#arc-tl" startOffset="8%">RELIABLE</textPath>
+    </text>
+
+    <!-- center mark -->
+    <text x="36" y="39" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="6.5" font-weight="700" fill="#003087">TAPADIA</text>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="96" y="46" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700" fill="#003087">TAPADIA</text>
+  <text x="96" y="66" font-family="Arial, Helvetica, sans-serif" font-size="11.5" font-weight="700" fill="#E2231A" letter-spacing="0.4">DIAGNOSTIC CENTRE PVT. LTD.</text>
+</svg>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/db';
@@ -199,6 +199,8 @@ export default function CommunicationPage() {
   const [activeThreadId, setActiveThreadId] = useState(DEMO_DATA_THREADS[0].id);
   const [messagesByThread, setMessagesByThread] = useState<Record<string, Msg[]>>(DEMO_DATA_MESSAGES);
   const [composer, setComposer] = useState('');
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const attachInputRef = useRef<HTMLInputElement>(null);
   const [internalNotesByThread, setInternalNotesByThread] = useState<Record<string, string>>({});
   const [actionInfo, setActionInfo] = useState('');
   const [composeModalOpen, setComposeModalOpen] = useState(false);
@@ -387,8 +389,8 @@ export default function CommunicationPage() {
               <input value={headerSearch} onChange={(e) => setHeaderSearch(e.target.value)} placeholder="Search" className="w-full h-10 rounded-full border border-slate-200 bg-slate-50 pl-9 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB]" />
             </div>
           </div>
-          <button type="button" className="rounded-full p-2 text-slate-500 hover:bg-slate-100"><HelpCircle className="h-5 w-5" /></button>
-          <button type="button" className="relative rounded-full p-2 text-slate-500 hover:bg-slate-100">
+          <button type="button" onClick={() => navigate('/support')} title="Help & support" aria-label="Help and support" className="rounded-full p-2 text-slate-500 hover:bg-slate-100"><HelpCircle className="h-5 w-5" /></button>
+          <button type="button" onClick={() => navigate('/corporate/notifications')} title="Notifications" aria-label="Notifications" className="relative rounded-full p-2 text-slate-500 hover:bg-slate-100">
             <Bell className="h-5 w-5" />
             <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-0.5 text-[9px] font-semibold text-white">
               {unreadNotificationsCount}
@@ -515,9 +517,33 @@ export default function CommunicationPage() {
                           <button key={chip} type="button" onClick={() => setComposer((prev) => (prev ? `${prev} ${chip}` : chip))} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600 hover:border-[#2563EB]/40 hover:bg-blue-50/50">{chip}</button>
                         ))}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button type="button" className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><Smile className="h-4 w-4" /></button>
-                        <button type="button" className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><Paperclip className="h-4 w-4" /></button>
+                      <div className="relative flex items-center gap-2">
+                        <button type="button" onClick={() => setEmojiOpen((v) => !v)} aria-label="Insert emoji" className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><Smile className="h-4 w-4" /></button>
+                        {emojiOpen ? (
+                          <div className="absolute bottom-12 left-0 z-10 flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+                            {['🙂', '👍', '🎉', '🙏', '✅', '📦', '🚀', '❤️'].map((emoji) => (
+                              <button
+                                key={emoji}
+                                type="button"
+                                onClick={() => { setComposer((prev) => prev + emoji); setEmojiOpen(false); }}
+                                className="rounded-lg p-1.5 text-lg hover:bg-slate-100"
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                        <input
+                          ref={attachInputRef}
+                          type="file"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) setComposer((prev) => (prev ? `${prev} 📎 ${file.name}` : `📎 ${file.name}`));
+                            e.target.value = '';
+                          }}
+                        />
+                        <button type="button" onClick={() => attachInputRef.current?.click()} aria-label="Attach file" className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><Paperclip className="h-4 w-4" /></button>
                         <div className="relative min-w-0 flex-1">
                           <input value={composer} onChange={(e) => setComposer(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), sendMessage())} placeholder="Type your message here" className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-3 pr-3 text-sm focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/15" />
                         </div>

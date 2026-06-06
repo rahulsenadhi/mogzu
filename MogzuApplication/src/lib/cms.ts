@@ -9,6 +9,7 @@ export type CmsBlockKind =
   | 'blog_post'
   | 'announcement'
   | 'footer_link_group'
+  | 'client_logo'
 
 export type CmsBlockStatus = 'draft' | 'scheduled' | 'published' | 'archived'
 
@@ -19,6 +20,11 @@ export const CMS_BLOCK_KINDS: { value: CmsBlockKind; label: string; description:
   { value: 'blog_post', label: 'Blog post', description: 'Long-form post (title + body + cover image)' },
   { value: 'announcement', label: 'Announcement', description: 'Short notice / changelog entry' },
   { value: 'footer_link_group', label: 'Footer link group', description: 'Footer column (heading + link list in payload)' },
+  {
+    value: 'client_logo',
+    label: 'Client logo',
+    description: 'Landing page scroller item — title = company name, image URL = logo',
+  },
 ]
 
 export type CmsBlock = {

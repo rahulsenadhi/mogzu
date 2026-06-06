@@ -461,7 +461,7 @@ export default function CelebrationBookingFlow() {
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">City *</label>
                       <input
@@ -657,7 +657,7 @@ export default function CelebrationBookingFlow() {
                 <label className="block text-sm font-medium text-gray-700 mb-3">
                   Select Payment Method
                 </label>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <button
                     onClick={() => setPaymentMethod('card')}
                     className={`p-4 border-2 rounded-lg transition-all ${

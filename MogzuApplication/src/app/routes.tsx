@@ -243,6 +243,8 @@ import HeyGeniePage from "@/app/components/HeyGeniePage";
 import { CorporateModuleRouteGuard } from "@/app/components/CorporateModuleRouteGuard";
 import WhyMogzuPage from "@/app/components/WhyMogzuPage";
 import VendorBenefitsPage from "@/app/components/VendorBenefitsPage";
+import ServicesPage from "@/app/components/ServicesPage";
+import AboutPage from "@/app/components/AboutPage";
 import { CorporateRoute, VendorRoute, AdminRoute } from '@/app/components/auth/ProtectedRoute'
 import { corp, vend, adminPage, redirectTo } from '@/app/lib/routeWrappers'
 import { PartnerRoute } from '@/app/components/auth/PartnerRoute'
@@ -344,6 +346,16 @@ export const router = createBrowserRouter([
   {
     path: "/vendor-benefits",
     element: <VendorBenefitsPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/services",
+    element: <ServicesPage />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "/about",
+    element: <AboutPage />,
     errorElement: <ErrorPage />,
   },
   {

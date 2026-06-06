@@ -1,3 +1,59 @@
+## 2026-06-06 — PRD/glitch audit fixes (5 real bugs)
+
+Post-audit sweep against `mogzu_prd_v5.md` + `FRONTEND_COMPLETION_PLAN.md`. Fixed confirmed glitches only; false-positives + infra-blocked items documented in chat, not patched.
+
+- `marketing/ServiceEnquiryForm.tsx` — success state now has "Send another enquiry" reset button (was a dead-end until reload); wrapped fields in `<fieldset disabled>` so inputs lock during submit (prevents edit-mid-submit race).
+- `CancelBookingPage.tsx` — `await` the vendor `booking_cancelled` notify (was fire-and-forget; vendor could miss booker-side cancellations).
+- `CommunicationPage.tsx` — wired 4 dead buttons: header Help → `/support`, header Bell → `/corporate/notifications`, composer emoji → inline emoji popover (appends to draft), composer paperclip → hidden file input (appends `📎 filename` to draft).
+- `CelebrationBookingFlow.tsx` — 2× `grid-cols-3` → `grid-cols-1 sm:grid-cols-3` (delivery city/state/pin + payment method cards overflowed at 375px).
+- `PromotionsPage.tsx` — hero "View offer" CTA wired to scroll to `#promotions-offers` (was no onClick).
+
+Verified: `npm run build` exit 0.
+
+**Audit false-positives (verified OK, no change):** ComparePage table (`overflow-auto` contains scroll), BookingPayment card/UPI grids (already `1fr`-flex / `grid-cols-2 sm:grid-cols-4`), RequestToBook (`lg:` prefix → single-col <1024px), CommunicationPage sidebar (`grid-cols-1 lg:[320px_1fr]`), Landing client-logo/scroll/marquee (graceful demo fallback + overflow-hidden track), GiftingShopPage "View offer" (already `navigate('/product-booking')`), VendorOnboarding (Supabase-first + error surface).
+
+**Infra-blocked (not frontend-fixable):** Razorpay live checkout + QR generation, N8N email-drain cron, auth redirect URLs per dev port.
+
+## 2026-06-06 — Public marketing surfaces (About, Services, managed-services enquiry)
+
+New public-facing marketing layer + centralised copy.
+
+- `app/components/AboutPage.tsx` (new) — `/about`; CMS slug `about-mogzu` override, `ABOUT_COPY` fallback.
+- `app/components/ServicesPage.tsx` (new) — `/services`; managed/offline services + `OfflineServicesSection` + `ServiceEnquiryForm`; hash-scroll to `#service-enquiry`/`#services`.
+- `app/components/marketing/` (new dir) — `LandingMarketingNav`, `MarketingChunkyStyles`, `marketingStyles`, `OfflineServicesSection`, `offlineServicesData`, `ServiceEnquiryForm`, `FloatingContactActions`, `ClientLogoScroller`.
+- `app/lib/marketingContent.ts` (new) — `LANDING_COPY` / `ABOUT_COPY` / `WHY_MOGZU_COPY` / `MANAGED_SERVICES_COPY` single-source copy.
+- `app/lib/whatsapp.ts` (new) — `getMogzuWhatsAppUrl()` (reads `VITE_MOGZU_WHATSAPP`), `scrollToServiceEnquiry()`.
+- `app/lib/landingNavigation.ts` (new) — landing tab → explore route map.
+- `app/lib/marketingClients.ts`, `app/lib/clientLogoAssets.ts` — client-logo defaults + bundled-asset fallback (see 2026-06-05 entries).
+- `routes.tsx` — register `/about`, `/services`. `LandingPage.tsx`, `WhyMogzuPage.tsx` — copy via `marketingContent`; CMS overrides.
+- `.env.example` — `VITE_MOGZU_WHATSAPP` placeholder.
+- Migrations `20260605000002`–`000006` — client-logo PNG swaps, section copy/headline, TesseractApps name, Tapadia SVG.
+
+Verified: `npm run build` exit 0.
+
+**Apply in Supabase:** `20260605000002`–`000006`. Set `VITE_MOGZU_WHATSAPP` in env for the WhatsApp enquiry button.
+
+## 2026-06-05 — Landing client logo assets (bundled SVGs)
+
+- `public/client-logos/*.svg` — 12 branded logo marks (ICICI, Tesseract, Design Democracy, Xdlinx, NIFT, Chilis, Alpha Circle, Spoors, FactSet, Tapadia, J&K Tourism, Adanet Next).
+- `clientLogoAssets.ts` — slug → bundled path map; fallback when CMS `image_url` empty.
+- `marketingClients.ts` — defaults + `resolveClientLogoUrl()` merge bundled assets.
+- Migration `20260605000001_cms_client_logo_urls.sql` — backfill CMS `image_url` columns.
+
+Replace any logo in `/admin/cms` with official PNG/SVG URL when available.
+
+## 2026-06-02 — Landing client logo scroller + CMS
+
+- Migration `20260602000001_cms_client_logos.sql` — `client_logo` CMS kind; seeds 12 published clients + `home-clients` promo banner.
+- `marketingClients.ts` — `DEFAULT_CLIENT_LOGOS`, `listLiveClientLogos()`.
+- `ClientLogoScroller.tsx` — infinite marquee with wordmark fallback, reduced-motion static grid.
+- `LandingPage.tsx` — scroller below hero; CMS headline via `home-clients`.
+- `cms.ts`, `AdminCmsPage.tsx`, `AdminSettingsPage.tsx` — client logo kind, filter, editor hints.
+
+Verified: `npm run build` exit 0.
+
+**Apply in Supabase:** `20260602000001_cms_client_logos.sql`. Paste logo URLs per client at `/admin/cms` → Client logos.
+
 ## 2026-05-24 — Post-plan Batch 46: Multi-step approval chain (persist + enforce)
 
 - `bookingApprovalMeta.ts` — encode/decode `requiredLevels` / `approvedLevels` in `purpose_note`; `notifyFirstApprovers`, `notifyApproversForLevel`, role→level mapping.

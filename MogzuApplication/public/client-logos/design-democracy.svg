@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 48" role="img" aria-label="Design Democracy">
+  <circle cx="22" cy="24" r="14" fill="none" stroke="#EE2A7B" stroke-width="3"/>
+  <circle cx="22" cy="24" r="5" fill="#EE2A7B"/>
+  <text x="44" y="22" font-family="Georgia, serif" font-size="15" font-weight="700" fill="#0E1E3F">Design</text>
+  <text x="44" y="38" font-family="Georgia, serif" font-size="15" font-weight="700" fill="#9B51E0">Democracy</text>
+</svg>
