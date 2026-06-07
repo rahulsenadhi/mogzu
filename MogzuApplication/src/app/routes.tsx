@@ -359,6 +359,12 @@ export const router = createBrowserRouter([
     errorElement: <ErrorPage />,
   },
   {
+    // Shareable clean URL for the landing "Book a Demo" modal.
+    path: "/request-demo",
+    element: <Navigate to="/?demo=1" replace />,
+    errorElement: <ErrorPage />,
+  },
+  {
     path: "/login",
     element: <LoginPage />,
     errorElement: <ErrorPage />,

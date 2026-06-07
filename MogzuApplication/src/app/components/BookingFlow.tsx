@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, type CSSProperties } from 'react';
 import { useNavigate, useLocation } from 'react-router';
 import { SharedHeader } from './layouts/SharedHeader';
 import { SharedSidebar } from './layouts/SharedSidebar';
@@ -10,7 +10,7 @@ import { appendUnifiedBooking } from '@/app/lib/bookingRecordsStorage';
 import { deriveBookingTypeFromStatus } from '@/app/lib/bookingStatus';
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { submitBrandingSelection, toPlacementType } from '@/lib/giftingBranding';
+import { submitBrandingSelection, toPlacementType, toBrandingMethod } from '@/lib/giftingBranding';
 import {
   buildBookingApprovalFields,
   notifyFirstApprovers,
@@ -74,6 +74,32 @@ interface GiftingBookingCustomizationPayload {
 interface GiftingBookingLocationState {
   product?: GiftingBookingProductPayload;
   customization?: GiftingBookingCustomizationPayload;
+}
+
+// Compact placement-preview overlay position for the checkout review step.
+// Maps the PDP position ids onto a coarse spot on the product image so the
+// buyer sees roughly WHERE the logo lands (parity with the PDP preview).
+const REVIEW_LOGO_POSITION_STYLE: Record<string, CSSProperties> = {
+  'center-chest': { top: '42%', left: '50%' },
+  front: { top: '44%', left: '50%' },
+  cover: { top: '44%', left: '50%' },
+  box: { top: '46%', left: '50%' },
+  label: { top: '60%', left: '50%' },
+  back: { top: '42%', left: '50%' },
+  inside: { top: '44%', left: '50%' },
+  interior: { top: '46%', left: '50%' },
+  insert: { top: '50%', left: '50%' },
+  'left-chest': { top: '38%', left: '34%' },
+  lid: { top: '30%', left: '50%' },
+  sleeve: { top: '50%', left: '82%' },
+  strap: { top: '34%', left: '80%' },
+  spine: { top: '50%', left: '14%' },
+  side: { top: '50%', left: '80%' },
+};
+
+function resolveReviewLogoStyle(position: string | undefined): CSSProperties {
+  const base = REVIEW_LOGO_POSITION_STYLE[position ?? ''] ?? { top: '44%', left: '50%' };
+  return { ...base, transform: 'translate(-50%, -50%)' };
 }
 
 const defaultBookingProduct = {
@@ -500,7 +526,7 @@ export default function BookingFlow() {
                   dbBookingId,
                   customizationFromPdp.logoUploadId,
                   toPlacementType(brandingPosition),
-                  null,
+                  toBrandingMethod(brandingMethod),
                   `Method: ${brandingMethod}. Demo position label: ${brandingPosition}.`,
                 );
                 if (brandErr) {
@@ -846,6 +872,27 @@ export default function BookingFlow() {
                         </div>
                         
                         <div className="space-y-3">
+                          {product.image && (
+                            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                              <div className="relative mx-auto aspect-square w-40">
+                                <img
+                                  src={product.image}
+                                  alt={product.name}
+                                  className="h-full w-full object-cover"
+                                />
+                                <img
+                                  src={uploadedLogo}
+                                  alt="Logo placement preview"
+                                  className="absolute w-10 h-10 object-contain rounded-sm border border-dashed border-[#2563eb] bg-white/70 p-0.5"
+                                  style={resolveReviewLogoStyle(brandingPosition)}
+                                />
+                              </div>
+                              <p className="px-3 py-1.5 text-center text-[11px] text-[#878e9e] border-t border-gray-100">
+                                Placement preview — approx. position, confirmed at branding approval
+                              </p>
+                            </div>
+                          )}
+
                           <div className="bg-white p-3 rounded-lg border border-gray-200 flex items-center gap-3">
                             <img src={uploadedLogo} alt="Logo" className="w-12 h-12 object-contain rounded border border-gray-200" />
                             <div className="flex-1">

@@ -30,6 +30,8 @@ type ViewerData = {
   items: ViewerItem[]
 }
 
+const BUDGET_EXCEEDED_HINT = 'selection total exceeds the budget for this catalogue'
+
 function fmtMoney(n: number | null): string {
   if (n == null) return 'on request'
   return `₹ ${Number(n).toLocaleString('en-IN')}`
@@ -50,6 +52,16 @@ export default function QuickShareViewerPage() {
   const [clientNote, setClientNote] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+
+  // Running total helps the client self-check; admin budget_cap stays server-side only.
+  const selectedTotal = data
+    ? Object.entries(selected).reduce((sum, [lid, qty]) => {
+        const it = data.items.find((i) => i.listing_id === lid)
+        if (it?.base_price == null) return sum
+        return sum + it.base_price * qty
+      }, 0)
+    : 0
+  const hasPricedSelection = selectedTotal > 0
 
   const load = useCallback(async () => {
     if (!token) return
@@ -111,7 +123,12 @@ export default function QuickShareViewerPage() {
     })
     setSubmitting(false)
     if (submitError) {
-      setError(submitError.message)
+      const msg = submitError.message ?? ''
+      if (msg.toLowerCase().includes(BUDGET_EXCEEDED_HINT)) {
+        setError('Your selection total is too high for this catalogue. Remove an item or reduce quantity.')
+      } else {
+        setError(msg)
+      }
       return
     }
     setSubmitted(true)
@@ -289,6 +306,15 @@ export default function QuickShareViewerPage() {
             />
           </label>
         </section>
+
+        {hasPricedSelection && (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            Selected total: <span className="font-semibold text-slate-900">{fmtMoney(selectedTotal)}</span>
+            <span className="mt-0.5 block text-[11px] text-slate-500">
+              Priced items only — &quot;on request&quot; options are confirmed separately.
+            </span>
+          </div>
+        )}
 
         {error && (
           <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">

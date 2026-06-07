@@ -42,8 +42,8 @@ Latest entries:
 - Date: 2026-06-06
 - Summary: Public marketing layer (`/about`, `/services`) + centralised copy + WhatsApp enquiry; PRD/glitch audit pass fixed 5 real bugs.
 - Files changed: `AboutPage.tsx`, `ServicesPage.tsx`, `app/components/marketing/*`, `app/lib/marketingContent.ts`, `app/lib/whatsapp.ts`, `app/lib/landingNavigation.ts`, `routes.tsx`, `LandingPage.tsx`, `WhyMogzuPage.tsx`, `.env.example`; audit fixes in `ServiceEnquiryForm.tsx`, `CancelBookingPage.tsx`, `CommunicationPage.tsx`, `CelebrationBookingFlow.tsx`, `PromotionsPage.tsx`; migrations `20260605000002`–`000006`.
-- Verification performed: `npm run build` exit 0.
-- Risks / notes: Audit Explore agents over-reported ~70% (most "glitches" were false-positives or intentional demo fallbacks); only 5 confirmed bugs patched. Set `VITE_MOGZU_WHATSAPP` env for WhatsApp button. Apply migrations 002-006.
+- Verification performed: `npm run build` exit 0. Committed `9f1a7c3`; pushed to `origin/fix/impeccable-ui-ux` (upstream set). NOT merged to main, no PR opened yet.
+- Risks / notes: Audit Explore agents over-reported ~70% (most "glitches" were false-positives or intentional demo fallbacks); only 5 confirmed bugs patched. Set `VITE_MOGZU_WHATSAPP` env for WhatsApp button. Apply migrations 002-006. `.claude/agents` + `.claude/skills/impeccable` left untracked (session tooling).
 - Owner: Project team
 - Date: 2026-06-05
 - Decision: Client logo images resolve CMS `image_url` first, then bundled `/client-logos/{slug}.svg` fallback
@@ -486,9 +486,21 @@ Open items:
   - Priority: Medium
   - Context: `public/client-logos/` or `/admin/cms` → Client logos → Image URL per row
   - Owner: Project team
-- [ ] Task: Apply Supabase migrations `20260602000001`, `20260605000001` for client logo scroller
+- [ ] Task: Apply Supabase migrations `20260602000001`, `20260605000001`–`000006`, `20260606000001` (Quick Share budget validation)
   - Priority: High
-  - Context: CMS kind + seeded clients + image_url backfill
+  - Context: CMS kind + seeded clients + image_url backfill + PNG swaps + headline/subtitle copy + TesseractApps name + Tapadia SVG + budget cap on submit
+  - Owner: Project team
+- [ ] Task: GoDaddy production deploy — copy `.env.production.example` → `.env.production`, build, upload `dist/` to `public_html` (see `DEPLOY_GODADDY.md`)
+  - Priority: High
+  - Context: Static SPA + Supabase backend; `.htaccess` ships in `public/` → `dist/`
+  - Owner: Project team
+- [ ] Task: Open PR for `fix/impeccable-ui-ux` → main (pushed `9f1a7c3`, upstream set)
+  - Priority: High
+  - Context: Marketing layer (/about, /services) + PRD/glitch audit fixes; https://github.com/rahulsenadhi/mogzu/pull/new/fix/impeccable-ui-ux
+  - Owner: Project team
+- [ ] Task: Set `VITE_MOGZU_WHATSAPP` env (country code + number, no `+`) so WhatsApp enquiry button renders
+  - Priority: Medium
+  - Context: `whatsapp.ts` `getMogzuWhatsAppUrl()` returns null without it; button hidden on /services + FloatingContactActions
   - Owner: Project team
 - [ ] Task: Run focused UX/content glitch sweep for corporate shell consistency (Assistant/Hey Genie/Activity Suite + Communication + Dashboard copy)
   - Priority: High

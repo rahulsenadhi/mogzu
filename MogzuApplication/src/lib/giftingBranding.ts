@@ -91,6 +91,35 @@ export function toPlacementType(value: string | undefined | null): PlacementType
   }
 }
 
+// Map the PDP branding-method ids (screen-print, embroidery, dtg, …) onto the
+// canonical BrandingMethod the DB CHECK accepts. Returns null for ids with no
+// enum equivalent (metal-badge, packaging, foil-stamping, …) — the caller
+// still records the raw label in position_notes, so nothing is lost.
+export function toBrandingMethod(value: string | undefined | null): BrandingMethod | null {
+  switch (value) {
+    case 'screen_print':
+    case 'digital_print':
+    case 'embroidery':
+    case 'dtf':
+    case 'emboss':
+    case 'laser_etch':
+      return value
+    case 'screen-print':
+      return 'screen_print'
+    case 'dtg':
+    case 'uv-print':
+    case 'vinyl':
+      return 'digital_print'
+    case 'embossing':
+    case 'debossing':
+      return 'emboss'
+    case 'laser-engraving':
+      return 'laser_etch'
+    default:
+      return null
+  }
+}
+
 export async function uploadBrandingLogo(
   corporateId: string,
   uploadedBy: string,

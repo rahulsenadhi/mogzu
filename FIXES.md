@@ -33,6 +33,19 @@ Verified: `npm run build` exit 0.
 
 **Apply in Supabase:** `20260605000002`–`000006`. Set `VITE_MOGZU_WHATSAPP` in env for the WhatsApp enquiry button.
 
+## 2026-06-06 — Add-on gaps + GoDaddy deploy prep
+
+- `20260606000001_quick_share_budget_validation.sql` — server-side budget_cap enforcement on `submit_quick_share` (cap never exposed to client RPC).
+- `QuickShareViewerPage.tsx` — selected running total; generic budget error on submit; no client-visible cap amount.
+- `BookingFlow.tsx` — branding placement preview on review step; `toBrandingMethod()` wired on submit.
+- `giftingBranding.ts` — `toBrandingMethod()` maps PDP method ids to DB enum.
+- `routes.tsx` — `/request-demo` → `/?demo=1` for shareable demo modal URL.
+- `.env.production.example`, `DEPLOY_GODADDY.md`, `public/.htaccess` — GoDaddy static deploy path.
+
+Verified: `npm run build` exit 0.
+
+**Apply in Supabase:** `20260606000001_quick_share_budget_validation.sql`.
+
 ## 2026-06-05 — Landing client logo assets (bundled SVGs)
 
 - `public/client-logos/*.svg` — 12 branded logo marks (ICICI, Tesseract, Design Democracy, Xdlinx, NIFT, Chilis, Alpha Circle, Spoors, FactSet, Tapadia, J&K Tourism, Adanet Next).
